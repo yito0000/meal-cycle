@@ -305,17 +305,17 @@ openspec/
 
 ```
 add-recipe-listing        ← model + repo + service + 一覧 + 最小登録
-add-recipe-details        ← 詳細画面 + 手順・タグ・メモ等
+add-recipe-details        ← 詳細ドロワー + 手順・メモ等の追加項目
 add-recipe-editing
 add-recipe-deletion
-add-recipe-search
-add-ingredient-master
-add-mealplan-week-view
-add-mealplan-assign-recipe
-add-mealplan-multi-week
-add-fridge-listing
-add-fridge-add-item
-add-fridge-expiry-sort
+add-fridge-listing        ← 在庫一覧
+add-fridge-add-item       ← 食材追加
+add-fridge-expiry-sort    ← 賞味期限順
+add-mealplan-week-view    ← 1週間カレンダー表示
+add-mealplan-assign-recipe ← 日付にレシピを割り当て
+add-mealplan-multi-week   ← 2週/4週表示切替
+add-shopping-list         ← 献立から不足食材を集計
+add-shopping-purchase     ← 購入済チェックで在庫追加
 ```
 
 ### 運用中の見直し
@@ -326,18 +326,19 @@ add-fridge-expiry-sort
 
 ## 9. MVP スコープ
 
-「最初にリリースする範囲」として以下の 3 機能を含める：
+「最初にリリースする範囲」として以下の 4 機能を含める：
 
 - **レシピ管理 (CRUD)**: 登録・編集・削除・一覧・材料リストの記述
 - **献立カレンダー (1-4 週)**: カレンダーに日付ごとにレシピを割り当てる
 - **冷蔵庫在庫管理**: 食材の在庫・賞味期限を登録して一覧できる
+- **買い物リスト**: 献立に必要な食材のうち在庫に無いものを自動集計
 
-MVP では「献立を作ると在庫が減る」などの**連動機能は含めない**。それぞれの CRUD が独立して動く状態で一度リリースする。連動系は MVP 後に proposal で追加。
+「献立を作った時に在庫を自動で減らす」など料理実施との連動は MVP 後。買い物リストは「集計と表示のみ、購入済チェックで在庫に加える」までを含む想定。
 
 ### MVP 後の候補
 
-- 献立から必要食材を集計 → 買い物リスト自動生成
 - 賞味期限が近い食材を優先するレシピ提案
+- 料理実施と在庫消費の連動
 - レシピの検索・タグフィルタ
 - 献立テンプレート（お気に入りの 1 週間パターンを保存）
 - 栄養計算
