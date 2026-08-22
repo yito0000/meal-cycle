@@ -249,46 +249,78 @@ Wails のサービス層を DDD で言う「アプリケーションサービス
 
 ---
 
-## 8. OpenSpec の運用方針（要相談）
+## 8. OpenSpec の運用方針
 
-[OpenSpec](https://github.com/Fission-AI/OpenSpec) は「仕様変更を change proposal 単位で管理する」ツール。以下の 2 スタイルが考えられる。
+[OpenSpec](https://github.com/Fission-AI/OpenSpec) は「仕様変更を change proposal 単位で管理する」ツール。本プロジェクトでは以下の方針で運用する。
 
-### スタイル 1: 機能ごとに proposal を都度作る（推奨）
+### 粒度: 垂直スライス（1〜2 日単位、ユーザー動詞で切る）
+
+- **capability**（例: `recipe`, `mealplan`, `fridge`）は機能領域の単位。1 領域 = 1 capability
+- **proposal** は capability に対する変更単位で、**ユーザー動詞ベースの垂直スライス**で切る
+  - 例: `add-recipe-listing`, `add-recipe-creation`, `add-recipe-editing`, ...
+- 1 proposal の目安: **1〜2 日で完了**、**エンドツーエンドで動作検証できる最小単位**、**ユーザーが「これができるようになった」と言える単位**
+- 「画面単位」ではなく「ユーザー行動」で切る。1 proposal で複数レイヤ（domain / repository / service / UI）に触るのは前提
+
+### 検討して見送った粒度
+
+- **capability まるごと 1 proposal**（例: `add-recipe-management`）: 1 proposal が数日〜1週間かかりレビューが重い
+- **画面単位 1 proposal**（例: `add-recipe-list-screen`, `add-recipe-create-screen`）: バックエンド全レイヤに触るので境界が曖昧、overhead も割高
+
+### スキャフォールド系は proposal にしない
+
+以下のような「ユーザー価値を伴わない基盤整備」は proposal ではなく通常の `chore:` コミットで扱う：
+
+- SQLite の初期化・接続層
+- マイグレーションランナーの導入
+- 依存ライブラリの追加
+- Go モジュール名の変更
+- ディレクトリ構成の変更
+
+OpenSpec は「capability に対する変更」を管理するツールなので、基盤整備を無理に proposal 化すると噛み合わない。
+
+### ディレクトリ構成
 
 ```
 openspec/
 ├── specs/              # 現在の仕様スナップショット（archive の合成結果）
+│   ├── recipe/
+│   ├── mealplan/
+│   └── fridge/
 ├── changes/            # 進行中の proposal
-│   └── add-recipe-crud/
+│   └── add-recipe-listing/
+│       ├── proposal.md
+│       ├── tasks.md
+│       └── specs/recipe/spec.md  # capability への delta
 └── archive/            # 完了した proposal
 ```
 
-- 1 機能 = 1 proposal → 実装 → archive のサイクル
-- **Pros**: 変更履歴が読みやすい、AI 支援と相性が良い、1 人開発でも「今何やってるか」が明確
-- **Cons**: 最初の 1 個目を作るときに「土台となる spec」が空なので違和感
+### ワークフロー
 
-### スタイル 2: 最初にベース spec を一気に書いてから proposal で差分管理
+1. proposal 作成（`.claude/commands/opsx/propose.md` の skill 経由）
+2. proposal レビュー・調整
+3. 実装（proposal 単位でブランチを切る想定）
+4. archive（`opsx/archive.md` skill）→ specs スナップショットに反映
 
-- 「レシピ」「献立」「在庫」の 3 つの capability を最初に spec として書く
-- 以降、追加機能は change proposal で差分定義
+### 最初にやる proposal（順序案）
 
-**Pros**: 全体像が最初から見える
-**Cons**: 最初の spec を書ききるまで実装に入れない、書いた仕様に実装が追いつかず腐りやすい
+```
+add-recipe-listing        ← model + repo + service + 一覧 + 最小登録
+add-recipe-details        ← 詳細画面 + 手順・タグ・メモ等
+add-recipe-editing
+add-recipe-deletion
+add-recipe-search
+add-ingredient-master
+add-mealplan-week-view
+add-mealplan-assign-recipe
+add-mealplan-multi-week
+add-fridge-listing
+add-fridge-add-item
+add-fridge-expiry-sort
+```
 
-### 推奨
+### 運用中の見直し
 
-**スタイル 1**（機能ごとに proposal）で進める。理由：
-
-- OpenSpec のワークフローに素直に乗れる
-- 1 機能ずつ開発したいという方針と一致する
-- 「レシピ管理」を最初の proposal として扱えば、そこで capability の骨格も定義される
-
-### 最初にやること（OpenSpec 導入後）
-
-1. `openspec init` でディレクトリを作る
-2. 最初の proposal `add-recipe-crud` を作成
-3. 実装 → archive
-4. 次の proposal `add-meal-plan-calendar` へ
+粒度が実運用と合わないと感じたら途中で方針変更してよい（proposal が毎回大きすぎ / 小さすぎ / overhead が重い等）。その際は本セクションを更新する。
 
 ---
 
@@ -324,7 +356,6 @@ MVP では「献立を作ると在庫が減る」などの**連動機能は含�
 
 このドキュメント内で「要相談」「未決」となっているもの一覧：
 
-- [ ] **OpenSpec 運用スタイル**: スタイル 1（推奨）で確定するか
 - [ ] `go.mod` の module 名を `changeme` から変更する（実装開始前に）
 
 これらが決まったら本ドキュメントを更新する。
