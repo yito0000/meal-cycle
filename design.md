@@ -42,18 +42,36 @@
 
 ## 3. 技術スタック
 
+### バックエンド
+
 - **Wails v3 (beta)**: Go バックエンド + Web フロントエンドを 1 バイナリにする
 - **Go 1.25**
-- **TypeScript + Vite**（フロントエンド）
-- **Task**（ビルド / 開発コマンドのラッパー）
+- **[modernc.org/sqlite](https://pkg.go.dev/modernc.org/sqlite)**: Cgo なしの SQLite ドライバ
+- **Task**: ビルド / 開発コマンドのラッパー
 
-### 未決: フロントエンド UI フレームワーク
+### フロントエンド
 
-現時点で `frontend/` は素の TypeScript + Vite のみ。カレンダー UI や CRUD 画面を書くと素のままはつらいので、いずれ選定が必要。
+| 要素 | 選定 |
+|---|---|
+| UI フレームワーク | **React 18 + TypeScript** |
+| ビルドツール | Vite（Wails スキャフォールドのまま） |
+| スタイリング | **Tailwind CSS** |
+| コンポーネント | **[shadcn/ui](https://ui.shadcn.com/)**（コピペ導入、依存にせず自プロジェクト内に配置） |
+| サーバー状態管理 | **[TanStack Query](https://tanstack.com/query)**（Wails サービス呼び出しのキャッシュ・再取得） |
+| ルーティング | **[TanStack Router](https://tanstack.com/router)** または React Router（実装時に確定） |
+| カレンダー | **自作**（CSS Grid ベース。既製カレンダーは機能過剰） |
+| i18n | **[i18next](https://www.i18next.com/) + react-i18next** |
 
-- 候補: React / Svelte / Vue / Solid
-- 推奨: **Svelte または Solid**（バンドルサイズが軽くデスクトップアプリと相性が良い）
-- MVP 前に決めて、最初の画面を作る前に導入する
+### 選定理由
+
+- **React**: 開発者がフロントに深くないため、AI 支援と情報量が最大のスタックを選ぶ。バンドルサイズは Wails デスクトップ用途では問題にならない
+- **Tailwind + shadcn/ui**: 2026 時点で React 系の実質標準。shadcn 方式は自分でカスタマイズしやすく、依存を最小化できる
+- **TanStack Query**: Wails のサービス呼び出しは async。手動で state 管理するより Query に任せた方が同期・キャッシュ・エラー処理が楽
+
+### 検討した他の選択肢
+
+- **Svelte 5**: コード量が少なく軽量だが、教材・AI 支援量で React に劣る。開発者の習熟度を考えて見送り
+- **Solid**: React 風の JSX + Signals で軽量。ただし情報量が少なく、詰まった時に自力解決が難しい
 
 ---
 
@@ -306,7 +324,6 @@ MVP では「献立を作ると在庫が減る」などの**連動機能は含�
 
 このドキュメント内で「要相談」「未決」となっているもの一覧：
 
-- [ ] **フロントエンド UI フレームワーク**: Svelte / Solid / React などから選定
 - [ ] **OpenSpec 運用スタイル**: スタイル 1（推奨）で確定するか
 - [ ] `go.mod` の module 名を `changeme` から変更する（実装開始前に）
 
