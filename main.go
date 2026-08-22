@@ -36,7 +36,7 @@ func main() {
 	// 'Mac' options tailor the application when running an macOS.
 	app := application.New(application.Options{
 		Name:        "meal-cycle",
-		Description: "A demo of using raw HTML & CSS",
+		Description: "献立・冷蔵庫・レシピを一元管理するデスクトップアプリ",
 		Services: []application.Service{
 			application.NewService(&GreetService{}),
 		},
@@ -63,7 +63,7 @@ func main() {
 			Backdrop:                application.MacBackdropTranslucent,
 			TitleBar:                application.MacTitleBarHiddenInset,
 		},
-		BackgroundColour: application.NewRGB(6, 7, 15),
+		BackgroundColour: application.NewRGB(255, 255, 255),
 		URL:              "/",
 	})
 

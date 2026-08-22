@@ -10,8 +10,8 @@ export function App() {
   const [time, setTime] = useState("");
 
   useEffect(() => {
-    const cancel = Events.On("time", (event: { data: string }) => {
-      setTime(event.data);
+    const cancel = Events.On("time", (event) => {
+      setTime(String(event.data));
     });
     return () => {
       if (typeof cancel === "function") cancel();
