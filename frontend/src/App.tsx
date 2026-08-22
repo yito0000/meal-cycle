@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Events } from "@wailsio/runtime";
-import { GreetService } from "../bindings/changeme";
+import { GreetService } from "../bindings/github.com/yito0000/meal-cycle";
 
 export function App() {
   const { t } = useTranslation();

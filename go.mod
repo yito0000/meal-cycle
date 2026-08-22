@@ -1,4 +1,4 @@
-module changeme
+module github.com/yito0000/meal-cycle
 
 go 1.25.0
 
