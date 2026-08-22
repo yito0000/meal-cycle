@@ -1,60 +1,81 @@
-# Welcome to Your New Wails3 Project!
-
-Congratulations on generating your Wails3 application! This README will guide you through the next steps to get your project up and running.
-
-## Getting Started
-
-1. Navigate to your project directory in the terminal.
-
-2. To run your application in development mode, use the following command:
-
-   ```
-   wails3 dev
-   ```
-
-   This will start your application and enable hot-reloading for both frontend and backend changes.
-
-3. To build your application for production, use:
-
-   ```
-   wails3 build
-   ```
-
-   This will create a production-ready executable in the `build` directory.
-
-## Exploring Wails3 Features
-
-Now that you have your project set up, it's time to explore the features that Wails3 offers:
-
-1. **Check out the examples**: The best way to learn is by example. Visit the `examples` directory in the `v3/examples` directory to see various sample applications.
-
-2. **Run an example**: To run any of the examples, navigate to the example's directory and use:
-
-   ```
-   go run .
-   ```
-
-   Note: Some examples may be under development during the alpha phase.
-
-3. **Explore the documentation**: Visit the [Wails3 documentation](https://v3.wails.io/) for in-depth guides and API references.
-
-4. **Join the community**: Have questions or want to share your progress? Join the [Wails Discord](https://discord.gg/JDdSxwjhGf) or visit the [Wails discussions on GitHub](https://github.com/wailsapp/wails/discussions).
-
-## Project Structure
-
-Take a moment to familiarize yourself with your project structure:
-
-- `frontend/`: Contains your frontend code (HTML, CSS, JavaScript/TypeScript)
-- `main.go`: The entry point of your Go backend
-- `app.go`: Define your application structure and methods here
-- `wails.json`: Configuration file for your Wails project
-
-## Next Steps
-
-1. Modify the frontend in the `frontend/` directory to create your desired UI.
-2. Add backend functionality in `main.go`.
-3. Use `wails3 dev` to see your changes in real-time.
-4. When ready, build your application with `wails3 build`.
-
-Happy coding with Wails3! If you encounter any issues or have questions, don't hesitate to consult the documentation or reach out to the Wails community.
 # meal-cycle
+
+1〜4 週間分の献立を計画し、レシピと冷蔵庫の在庫を一元管理するデスクトップアプリ。
+
+すべてのデータはアプリを動かす PC 上に保存され、外部サーバーやクラウドとは通信しません。当面は開発者本人の個人利用を想定しています。
+
+## 主な機能（想定）
+
+- **レシピ管理**: 自分が作れるレシピの登録・編集・検索
+- **献立カレンダー**: 1〜4 週間先までの献立を日単位で計画
+- **冷蔵庫在庫管理**: 食材の在庫・賞味期限を記録し、献立と連動させる
+
+より詳しい設計方針・スコープ・未決事項は [design.md](design.md) を参照。
+
+## 技術スタック
+
+- **フレームワーク**: [Wails v3](https://v3.wails.io/)（Go + Web フロントエンドでデスクトップアプリを作る）
+- **バックエンド**: Go
+- **フロントエンド**: TypeScript + Vite
+- **タスクランナー**: [Task](https://taskfile.dev/)
+
+## 開発環境セットアップ
+
+前提として以下がインストールされていること：
+
+- Go 1.25 以上
+- Node.js（npm 同梱）
+- [Wails CLI v3](https://v3.wails.io/getting-started/installation/)
+- [Task](https://taskfile.dev/installation/)
+
+初回のみ依存関係を取得：
+
+```bash
+go mod download
+```
+
+```bash
+cd frontend && npm install
+```
+
+## よく使うコマンド
+
+開発モード（ホットリロード）で起動：
+
+```bash
+task dev
+```
+
+本番ビルド：
+
+```bash
+task build
+```
+
+配布用パッケージ作成：
+
+```bash
+task package
+```
+
+その他のタスク一覧：
+
+```bash
+task --list
+```
+
+## ディレクトリ構成
+
+```
+.
+├── main.go             # エントリポイント
+├── greetservice.go     # Wails サービス（現在はテンプレのサンプル）
+├── frontend/           # TypeScript + Vite フロントエンド
+├── build/              # 各 OS 向けビルド設定
+├── README.md
+└── design.md           # 設計・仕様
+```
+
+## ライセンス
+
+未定（個人利用のため当面は非公開）。
