@@ -1,28 +1,29 @@
 {
   "compilerOptions": {
-    "allowJs": true,
-
-    "noEmit": true,
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
     "skipLibCheck": true,
 
-    "module": "ESNext",
     "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
-
-    "lib": [
-      "DOM",
-      "DOM.Iterable",
-      "ESNext",
-    ],
+    "noEmit": true,
+    "jsx": "react-jsx",
 
     "strict": true,
     "noUnusedLocals": true,
-    "noUnusedParameters": false,
-    "noImplicitAny": false,
-    "noImplicitReturns": true,
+    "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
   },
   "include": ["src", "bindings"]
 }

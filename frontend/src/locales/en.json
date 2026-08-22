@@ -1,0 +1,13 @@
+{
+  "app": {
+    "tagline": "Manage meals, fridge, and recipes in one place"
+  },
+  "greet": {
+    "name_label": "Name",
+    "name_placeholder": "Enter your name",
+    "button": "Greet"
+  },
+  "footer": {
+    "waiting_time": "Waiting for time event..."
+  }
+}

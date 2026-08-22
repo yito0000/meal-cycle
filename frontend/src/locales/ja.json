@@ -1,0 +1,13 @@
+{
+  "app": {
+    "tagline": "献立・冷蔵庫・レシピを一元管理"
+  },
+  "greet": {
+    "name_label": "名前",
+    "name_placeholder": "お名前を入力",
+    "button": "挨拶する"
+  },
+  "footer": {
+    "waiting_time": "時刻イベント待機中..."
+  }
+}
