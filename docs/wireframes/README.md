@@ -22,12 +22,15 @@ meal-cycle の各画面のワイヤーフレーム。ここに置いた drawio �
 
 - `S00_shell.drawio.svg` — 共通シェル（サイドバー + メインエリア）
 - `S01_meal_calendar.drawio.svg`
+- `S01a_recipe_picker_dialog.drawio.svg` — レシピ選択ダイアログ（**候補セクション付き / MVP 後拡張**、[../product.md](../product.md) #5）
 - `S02_recipe_list.drawio.svg`
 - `S03_recipe_detail.drawio.svg`
 - `S04_recipe_edit.drawio.svg`
 - `S05_fridge.drawio.svg`
 - `S06_fridge_item_inline.drawio.svg`
 - `S07_shopping_list.drawio.svg`
+
+サブ画面（ダイアログやポップオーバー等、S01 に紐づく副次的なビュー）は `S01a`, `S01b`, ... のように英小文字サフィックスで区別する。
 
 番号は [../product.md](../product.md) #2「画面一覧」の ID と一致させる。
 
@@ -64,6 +67,13 @@ meal-cycle の各画面のワイヤーフレーム。ここに置いた drawio �
 これらの `.drawio.svg` は最初 `scratchpad/gen_wireframes.py` から一括生成した。以降は drawio エディタで直接編集する運用（スクリプトは残していない）。
 
 新しい画面を追加する場合は drawio で新規作成し、既存の見た目を参考にする（配色トークン: 通常 = 白 + `#333`、プライマリボタン = `#dbeafe` + `#3b82f6`、期限アラート = 赤 `#ef4444` / 橙 `#f59e0b` / 緑 `#10b981`）。
+
+### スクリプト生成したもの
+
+以下は初期生成後にスクリプトから追加 / 再生成したもの。drawio 埋め込み XML と可視 SVG の両方を書き出しており、他ファイル同様に drawio エディタでセル単位の編集ができる。
+
+- `S01a_recipe_picker_dialog.drawio.svg` — 新規生成
+- `S01_meal_calendar.drawio.svg` の下部 CTA 「✨ 翌週の候補を出す（MVP 後）」 — 既存ファイルへの追記
 
 ## Markdown からの参照
 
