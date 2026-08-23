@@ -11,8 +11,9 @@
 - **冷蔵庫在庫管理**: 食材の在庫・賞味期限を記録
 - **買い物リスト**: 献立に必要な食材のうち在庫に無いものを自動集計
 
-- **プロダクト設計**（ユーザーシナリオ、画面、Gherkin）: [product.md](product.md)
-- **技術設計**（アーキテクチャ、ストレージ、スタック、OpenSpec 運用）: [design.md](design.md)
+- **プロダクト設計**（ユーザーシナリオ、画面、Gherkin）: [docs/product.md](docs/product.md)
+- **技術設計**（アーキテクチャ、ストレージ、スタック、OpenSpec 運用）: [docs/design.md](docs/design.md)
+- **ワイヤーフレーム**（drawio ファイル群）: [docs/wireframes/](docs/wireframes/)
 
 ## 技術スタック
 
@@ -74,8 +75,12 @@ task --list
 ├── greetservice.go     # Wails サービス（現在はテンプレのサンプル）
 ├── frontend/           # TypeScript + Vite フロントエンド
 ├── build/              # 各 OS 向けビルド設定
-├── README.md
-└── design.md           # 設計・仕様
+├── docs/               # 設計ドキュメント
+│   ├── product.md
+│   ├── design.md
+│   └── wireframes/     # 各画面の .drawio.svg
+├── openspec/           # OpenSpec の change proposal / archive
+└── README.md
 ```
 
 ## ライセンス
