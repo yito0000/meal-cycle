@@ -377,6 +377,6 @@ add-mealplan-suggest-week-preset ← 週プリセット: 5コマ分を貪欲生�
 
 このドキュメント内で「要相談」「未決」となっているもの一覧：
 
-- [ ] `go.mod` の module 名を `changeme` から変更する（実装開始前に）
+- [x] `go.mod` の module 名を `changeme` から変更する（実装開始前に）→ `github.com/yito0000/meal-cycle` に確定済み
 
-これらが決まったら本ドキュメントを更新する。
+現時点で未決の項目なし。新しく発生したら追記する。

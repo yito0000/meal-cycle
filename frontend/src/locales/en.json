@@ -2,10 +2,11 @@
   "app": {
     "tagline": "Manage meals, fridge, and recipes in one place"
   },
-  "greet": {
-    "name_label": "Name",
-    "name_placeholder": "Enter your name",
-    "button": "Greet"
+  "health": {
+    "title": "Health check",
+    "loading": "Checking...",
+    "db_ok": "Database: connected",
+    "db_error": "Database: error ({{error}})"
   },
   "footer": {
     "waiting_time": "Waiting for time event..."

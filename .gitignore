@@ -1,6 +1,8 @@
 .task
 .idea
 bin
+/meal-cycle
+/meal-cycle.exe
 frontend/dist
 frontend/node_modules
 frontend/bindings
