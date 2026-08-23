@@ -2,13 +2,36 @@
   "app": {
     "tagline": "献立・冷蔵庫・レシピを一元管理"
   },
-  "health": {
-    "title": "ヘルスチェック",
-    "loading": "確認中...",
-    "db_ok": "データベース: 接続 OK",
-    "db_error": "データベース: エラー ({{error}})"
+  "nav": {
+    "aria_label": "メインナビゲーション",
+    "meal_plan": "献立",
+    "recipes": "レシピ",
+    "fridge": "冷蔵庫",
+    "shopping": "買い物リスト",
+    "settings": "設定",
+    "settings_disabled_hint": "設定画面は MVP 後に追加予定"
   },
-  "footer": {
-    "waiting_time": "時刻イベント待機中..."
+  "pages": {
+    "meal_plan": {
+      "title": "献立カレンダー",
+      "placeholder": "S01 献立カレンダーの実装は proposal add-mealplan-week-view で着手予定"
+    },
+    "recipes": {
+      "title": "レシピ",
+      "placeholder": "S02 レシピ一覧の実装は proposal add-recipe-listing で着手予定"
+    },
+    "fridge": {
+      "title": "冷蔵庫在庫",
+      "placeholder": "S05 冷蔵庫在庫の実装は proposal add-fridge-listing で着手予定"
+    },
+    "shopping": {
+      "title": "買い物リスト",
+      "placeholder": "S07 買い物リストの実装は proposal add-shopping-list で着手予定"
+    }
+  },
+  "health": {
+    "loading": "確認中...",
+    "db_ok_short": "DB 接続 OK",
+    "db_error_short": "DB エラー"
   }
 }

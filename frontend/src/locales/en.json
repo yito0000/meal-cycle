@@ -2,13 +2,36 @@
   "app": {
     "tagline": "Manage meals, fridge, and recipes in one place"
   },
-  "health": {
-    "title": "Health check",
-    "loading": "Checking...",
-    "db_ok": "Database: connected",
-    "db_error": "Database: error ({{error}})"
+  "nav": {
+    "aria_label": "Main navigation",
+    "meal_plan": "Meal plan",
+    "recipes": "Recipes",
+    "fridge": "Fridge",
+    "shopping": "Shopping list",
+    "settings": "Settings",
+    "settings_disabled_hint": "Settings screen will be added post-MVP"
   },
-  "footer": {
-    "waiting_time": "Waiting for time event..."
+  "pages": {
+    "meal_plan": {
+      "title": "Meal calendar",
+      "placeholder": "S01 meal calendar — see proposal add-mealplan-week-view"
+    },
+    "recipes": {
+      "title": "Recipes",
+      "placeholder": "S02 recipe list — see proposal add-recipe-listing"
+    },
+    "fridge": {
+      "title": "Fridge",
+      "placeholder": "S05 fridge inventory — see proposal add-fridge-listing"
+    },
+    "shopping": {
+      "title": "Shopping list",
+      "placeholder": "S07 shopping list — see proposal add-shopping-list"
+    }
+  },
+  "health": {
+    "loading": "Checking...",
+    "db_ok_short": "DB connected",
+    "db_error_short": "DB error"
   }
 }

@@ -3,7 +3,6 @@ package main
 import (
 	"embed"
 	"log"
-	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
@@ -12,10 +11,6 @@ import (
 
 //go:embed all:frontend/dist
 var assets embed.FS
-
-func init() {
-	application.RegisterEvent[string]("time")
-}
 
 func main() {
 	dbPath, err := sqlite.DefaultPath()
@@ -60,14 +55,6 @@ func main() {
 		BackgroundColour: application.NewRGB(255, 255, 255),
 		URL:              "/",
 	})
-
-	go func() {
-		for {
-			now := time.Now().Format(time.RFC1123)
-			app.Event.Emit("time", now)
-			time.Sleep(time.Second)
-		}
-	}()
 
 	if err := app.Run(); err != nil {
 		log.Fatal(err)
