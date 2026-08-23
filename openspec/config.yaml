@@ -1,32 +1,90 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+# Project context — shown to AI when creating or updating OpenSpec artifacts.
+context: |
+  meal-cycle は完全ローカル（外部通信なし）のデスクトップアプリ。
+  Wails v3 + Go + React で、週次の献立計画・冷蔵庫在庫・買い物リストを扱う。
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+  技術スタック:
+  - Backend: Go 1.25 / Wails v3 (beta) / modernc.org/sqlite (Cgo なし) / pressly/goose
+  - Frontend: React 18 + TypeScript / Vite / TanStack Router (memory history) / TanStack Query
+              / Tailwind v4 (`@theme` CSS-first) / shadcn/ui (手動コピペ運用) / i18next
 
-# Per-operation guidance (optional)
-# Add advisory guidance for how apply and archive work should be conducted.
-# This is separate from artifact rules above.
-# Example:
-#   operations:
-#     apply:
-#       guidance:
-#         - Keep test summaries concise
-#     archive:
-#       guidance:
-#         - Summarize the archive outcome before finishing
+  レイヤ構成:
+  - Wails サービス (package main, ルート pkg)
+  - Domain (internal/domain/<capability>)
+  - Repository (internal/storage/sqlite/)
+  - 1 proposal ≒ 1 capability。通常 サービス + ドメイン + リポジトリ + マイグレーション を同時に足す
+
+  ルール:
+  - 可変値は `internal/config/defaults.go` に集約。call site にリテラル閾値を書かない
+  - UI 文字列は必ず i18n key 経由。日本語ハードコード禁止。Go 側はエラーコード / 型付き値で返す
+  - コミット規約は Conventional Commits (`docs:` / `chore:` / `feat:` / `fix:`)
+  - AI 支援コミットには `Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>` trailer を付ける
+
+  詳細は CLAUDE.md / docs/product.md / docs/design.md を参照。
+
+# Per-artifact rules — applied when creating each artifact type.
+rules:
+  proposal:
+    - "1 行あたり最大 120 文字 (character 数)。超える場合は改行して書く"
+    - "Non-goals セクションを明示し、本 proposal の対象外を列挙する"
+    - "Impact セクションで『後続 proposal への引き継ぎ』を書く（本 proposal で残した差し替え点等）"
+
+  design:
+    - "1 行あたり最大 120 文字 (character 数)。超える場合は改行して書く"
+    - |
+      複数の実現方法が考えられる場合は必ず選択肢を列挙し、各案の理由 (Pros/Cons) と最終選定理由を書く。
+      フォーマット例:
+        **選択肢:**
+        - (a) X 案 — Pros: ... / Cons: ...
+        - (b) Y 案 ← 採用 — Pros: ... / Cons: ...
+        **採用: (b)**。理由: ...
+      選択肢が 1 つしかないケースでも「他案を検討したが〜」と 1 行で触れる。
+    - "Trade-offs / Risks は `[Risk] → Mitigation` 形式で書く"
+
+  tasks:
+    - |
+      1 行 = 1 指示。複数の作業を含めない。
+      例: 「A を実装。B を追加。C が通ることを確認」は 3 タスクに分ける。
+      どうしても 1 行にまとめる場合は改行または箇条書きで分割する。
+    - |
+      テストコード作成タスクでは、各テストケースをネストした箇条書き (`  - <case>`) で書き出す。
+      例:
+        - [ ] X.Y foo() のユニットテストを追加
+          - 空配列を渡すと空配列を返す
+          - null を渡すと ErrInvalidInput を返す
+    - "各タスクは『完了の判定方法』を末尾に含める（コマンド / 目視 / テストパス 等）"
+    - |
+      タスクグループ末尾（または最終グループ）で テストの実行と成功確認 を必ず入れる。
+      - Go: `go test ./internal/...`
+      - Frontend: 対応する npm test コマンド（未整備の場合はその旨を書き飛ばす）
+
+  specs:
+    - "1 行あたり最大 120 文字 (character 数)。超える場合は改行して書く"
+    - "Scenario は必ず `#### Scenario:` (hashtag 4 つ) で始める。`WHEN` / `THEN` を明示"
+    - "内部実装名（クラス名、関数名、ライブラリ名）を書かない。観察可能な挙動のみを記述する"
+
+# Per-operation guidance — advisory for apply / archive workflow.
+operations:
+  apply:
+    guidance:
+      - |
+        Planning artifacts (proposal / specs / design / tasks) は propose 完了時点で人間レビューを挟む。
+        ユーザーからの明示的な指示（「apply して」「実装始めて」「/opsx:apply」等）を受けてから apply に入る。
+      - |
+        実装完了時 (最終タスク or 全タスク完了時) には必ずテストコードを実行し、全テストが通ることを確認する。
+        - Go: `go test ./internal/...` を実行 (build/ios に main が無く落ちるため `./...` は使わない)
+        - Frontend: フロントに test runner が入っていれば実行。
+          無い場合は `npm run type-check` と `npm run build:dev` を代替として実行する。
+        - lint も通す: `task lint`
+        - テストが失敗したら fix してから完了報告する。「テスト落ちてるけど完了」と報告しない。
+      - "タスクを完了する都度 tasks.md のチェックボックスを更新する"
+      - |
+        実装中に spec や design と乖離が発生したら、まず openspec-update-change で planning artifacts を
+        直してから実装を続ける。
+
+  archive:
+    guidance:
+      - "archive 前に `openspec validate <change>` が通ることを確認する"
+      - "実装差分と spec delta の対応関係をコミットメッセージまたは archive 時のサマリで残す"

@@ -1,0 +1,46 @@
+version: "2"
+
+run:
+  timeout: 3m
+  # build/ios と build/android は Wails 標準のモバイル雛形で MVP 対象外。
+  # main が無く落ちるのでスキップする。CLAUDE.md も同旨。
+  build-tags: []
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - build/ios
+      - build/android
+      - frontend/bindings
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/yito0000/meal-cycle
+  exclusions:
+    paths:
+      - build/ios
+      - build/android
+      - frontend/bindings

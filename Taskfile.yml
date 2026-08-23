@@ -39,6 +39,40 @@ tasks:
     cmds:
       - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
 
+  lint:
+    summary: Runs linters for both Go (golangci-lint) and frontend (Biome)
+    cmds:
+      - task: lint:go
+      - task: lint:frontend
+
+  lint:go:
+    summary: Runs golangci-lint on Go code (skips build/ios, build/android)
+    cmds:
+      - go tool golangci-lint run ./internal/... ./
+
+  lint:frontend:
+    summary: Runs Biome check (lint + format check) on frontend
+    dir: frontend
+    cmds:
+      - npm run lint
+
+  format:
+    summary: Formats Go (gofmt/goimports via golangci-lint) and frontend (Biome)
+    cmds:
+      - task: format:go
+      - task: format:frontend
+
+  format:go:
+    summary: Formats Go code via golangci-lint fmt
+    cmds:
+      - go tool golangci-lint fmt ./internal/... ./
+
+  format:frontend:
+    summary: Formats frontend code and applies safe lint fixes via Biome
+    dir: frontend
+    cmds:
+      - npm run lint:fix
+
   setup:docker:
     summary: Builds Docker image for cross-compilation (~800MB download)
     cmds:

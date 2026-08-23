@@ -1,13 +1,13 @@
-import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   BookOpen,
   Calendar,
+  type LucideIcon,
   Refrigerator,
   Settings,
   ShoppingCart,
-  type LucideIcon,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { HealthService } from "../../../bindings/github.com/yito0000/meal-cycle";
 import type { Health } from "../../../bindings/github.com/yito0000/meal-cycle/models";

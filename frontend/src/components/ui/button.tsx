@@ -1,5 +1,5 @@
-import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
+import * as React from "react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
@@ -7,16 +7,11 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default:
-          "bg-blue-600 text-white hover:bg-blue-700",
-        secondary:
-          "bg-neutral-100 text-neutral-900 hover:bg-neutral-200",
-        outline:
-          "border border-neutral-300 bg-white text-neutral-900 hover:bg-neutral-100",
-        ghost:
-          "text-neutral-900 hover:bg-neutral-100",
-        destructive:
-          "bg-red-600 text-white hover:bg-red-700",
+        default: "bg-blue-600 text-white hover:bg-blue-700",
+        secondary: "bg-neutral-100 text-neutral-900 hover:bg-neutral-200",
+        outline: "border border-neutral-300 bg-white text-neutral-900 hover:bg-neutral-100",
+        ghost: "text-neutral-900 hover:bg-neutral-100",
+        destructive: "bg-red-600 text-white hover:bg-red-700",
       },
       size: {
         default: "h-9 px-4 py-2",
@@ -29,7 +24,7 @@ const buttonVariants = cva(
       variant: "default",
       size: "default",
     },
-  }
+  },
 );
 
 export interface ButtonProps
@@ -38,12 +33,8 @@ export interface ButtonProps
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, ...props }, ref) => (
-    <button
-      ref={ref}
-      className={cn(buttonVariants({ variant, size, className }))}
-      {...props}
-    />
-  )
+    <button ref={ref} className={cn(buttonVariants({ variant, size, className }))} {...props} />
+  ),
 );
 Button.displayName = "Button";
 

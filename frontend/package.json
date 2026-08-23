@@ -8,7 +8,11 @@
     "build:dev": "vite build --minify false --mode development",
     "build": "vite build --mode production",
     "preview": "vite preview",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "lint": "biome check",
+    "lint:fix": "biome check --write",
+    "format": "biome format --write",
+    "format:check": "biome format"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.60.0",
@@ -24,6 +28,7 @@
     "tailwind-merge": "^2.5.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.10",
     "@tailwindcss/vite": "^4.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

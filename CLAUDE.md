@@ -25,6 +25,11 @@ wails3 generate bindings    # Go サービスを追加/変更したら frontend/
 
 cd frontend && npm run type-check   # TypeScript 型チェック
 cd frontend && npm run build:dev    # Vite ビルド（import 解決の総合確認）
+
+task lint                   # Go (golangci-lint) + Frontend (Biome) をまとめて実行
+task lint:go                # Go 側だけ
+task lint:frontend          # Frontend 側だけ
+task format                 # Go + Frontend を自動整形（Biome fix + golangci-lint fmt）
 ```
 
 `frontend/bindings/` は `.gitignore` 対象、`task dev` / `task build` で再生成される。Wails v3 beta.12 は **`.ts` ではなく `.js`＋JSDoc** を出力するので、`tsconfig.json` で `allowJs` + `checkJs` を有効化している。
@@ -123,6 +128,33 @@ func TestRecipeService_List(t *testing.T) {
 - `openspec-archive-change` — 実装完了後の確定処理
 
 proposal は `openspec/changes/<name>/`、アーカイブは `openspec/changes/archive/`、現行仕様スナップショットは `openspec/specs/<capability>/`。proposal の順序案は [design.md §8](docs/design.md)、最初にやるのは `add-recipe-listing` の想定。
+
+**運用フロー（重要）**: `/opsx:propose`（または `openspec-propose`）で planning artifacts（proposal.md / specs/…/spec.md / design.md / tasks.md）を生成した**あとは、そのまま tasks.md に沿って実装を開始しない**。必ず**人間のレビューを挟み、明示的な指示（例: 「apply して」「実装始めて」「/opsx:apply」）を受けてから** `openspec-apply-change` に進む。propose は planning のみで停止するのが既定 — 続けて実装したくなっても、レビュー承認を待つこと。
+
+**artifact 記述ルール**（詳細は [openspec/config.yaml](openspec/config.yaml) `rules` セクションが正）:
+- proposal.md / design.md / spec.md / tasks.md はすべて **1 行あたり 120 文字以内**（超えたら改行）
+- design.md で複数実現方法がある場合は **選択肢を列挙し、各案の Pros/Cons と選定理由を書く**
+- tasks.md は **1 行 = 1 指示**。複数作業を含む場合は箇条書きで分割
+- tasks.md のテスト作成タスクは **各テストケースをネストした箇条書き**で列挙する
+
+## テスト実行ルール
+
+機能追加・改善・不具合修正のいずれでも、**実装の最後に必ずテストを走らせて全て pass することを確認**してから完了報告する。テストが落ちたまま「完了」と報告しない。
+
+- Go: `go test ./internal/...`（`./...` は build/ios に main が無く落ちるので避ける）
+- Frontend: test runner がまだ入っていない（Vitest 導入は別 proposal）。代替として `cd frontend && npm run type-check` と `cd frontend && npm run build:dev` を実行する。runner が入ったらそちらを追加する
+- OpenSpec 経由の実装では [openspec/config.yaml](openspec/config.yaml) の `operations.apply.guidance` にも同ルールを載せてある
+
+## lint / format
+
+Go とフロントの両方で lint/format を有効化している。実装後は **`task lint` が通ることを確認**、書き味を統一したいときは **`task format` で自動修正**する。
+
+- **Go**: [`golangci-lint` v2](https://golangci-lint.run/)。設定は [.golangci.yml](.golangci.yml)。有効なリンタは errcheck / govet / ineffassign / staticcheck / unused、formatter は gofmt / goimports（`goimports.local-prefixes` で `github.com/yito0000/meal-cycle` を分離セクションに寄せる）
+  - **バイナリは `go tool` 経由で go.mod にピン留めしている**。追加 install 不要、`go tool golangci-lint ...` で走る。バージョン更新は `go get -tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest`
+- **Frontend**: [Biome](https://biomejs.dev/) v2 系。設定は [frontend/biome.json](frontend/biome.json)。linter + formatter が 1 ツールで完結する（ESLint / Prettier は入れていない）
+  - Biome CLI は `frontend/` の devDependency に入っているので `cd frontend && npm run lint`（= `biome check`）で走る
+  - `frontend/bindings/` は Wails 生成物なので lint 対象外（`biome.json` の `files.includes` で除外）
+- 走らせるコマンド: 個別なら `task lint:go` / `task lint:frontend` / `task format:go` / `task format:frontend`
 
 ## コミット規約
 
