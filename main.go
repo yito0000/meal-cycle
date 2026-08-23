@@ -43,10 +43,18 @@ func main() {
 		},
 	})
 
+	// Window sized 1.5× the original golden-ratio 1000 × 618 to work
+	// comfortably on high-DPI monitors (4K etc.). Zoom scales the WebView
+	// contents (fonts + layout) the same 1.5× — keeping font-size in CSS
+	// untouched so dev/preview builds render identically.
+	// MinWidth / MinHeight let the window shrink on smaller laptops.
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:  "meal-cycle",
-		Width:  1000,
-		Height: 618,
+		Title:     "meal-cycle",
+		Width:     1500,
+		Height:    927,
+		MinWidth:  900,
+		MinHeight: 560,
+		Zoom:      1.5,
 		Mac: application.MacWindow{
 			InvisibleTitleBarHeight: 50,
 			Backdrop:                application.MacBackdropTranslucent,
