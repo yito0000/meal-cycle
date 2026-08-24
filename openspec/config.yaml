@@ -6,33 +6,36 @@ context: |
   Wails v3 + Go + React で、週次の献立計画・冷蔵庫在庫・買い物リストを扱う。
 
   技術スタック:
-  - Backend: Go 1.25 / Wails v3 (beta) / modernc.org/sqlite (Cgo なし) / pressly/goose
-  - Frontend: React 18 + TypeScript / Vite / TanStack Router (memory history) / TanStack Query
+  - Backend: Go / Wails v3 (beta) / modernc.org/sqlite (Cgo なし) / pressly/goose
+  - Frontend: React + TypeScript / Vite / TanStack Router (memory history) / TanStack Query
               / Tailwind v4 (`@theme` CSS-first) / shadcn/ui (手動コピペ運用) / i18next
 
-  レイヤ構成:
-  - Wails サービス (package main, ルート pkg)
-  - Domain (internal/domain/<capability>)
-  - Repository (internal/storage/sqlite/)
-  - 1 proposal ≒ 1 capability。通常 サービス + ドメイン + リポジトリ + マイグレーション を同時に足す
+  レイヤ: Wails サービス (package main) / Domain (internal/domain/<capability>)
+        / Repository (internal/storage/sqlite/)。1 proposal ≒ 1 capability。
 
-  ルール:
+  Artifact 生成時に効くルール:
   - 可変値は `internal/config/defaults.go` に集約。call site にリテラル閾値を書かない
-  - UI 文字列は必ず i18n key 経由。日本語ハードコード禁止。Go 側はエラーコード / 型付き値で返す
-  - コミット規約は Conventional Commits (`docs:` / `chore:` / `feat:` / `fix:`)
-  - AI 支援コミットには `Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>` trailer を付ける
+  - UI 文字列は必ず i18n key 経由。日本語ハードコード禁止。Go 側は型付き値 / エラーコードで返す
 
-  詳細は CLAUDE.md / docs/product.md / docs/design.md を参照。
+  常用コマンド・アーキ図・コミット規約は CLAUDE.md / docs/product.md / docs/design.md を参照。
 
 # Per-artifact rules — applied when creating each artifact type.
 rules:
   proposal:
-    - "1 行あたり最大 120 文字 (character 数)。超える場合は改行して書く"
+    - "1 行あたり最大 200 文字 (character 数)。超える場合は改行して書く"
     - "Non-goals セクションを明示し、本 proposal の対象外を列挙する"
     - "Impact セクションで『後続 proposal への引き継ぎ』を書く（本 proposal で残した差し替え点等）"
+    - |
+      Impact セクションには『触る具体ファイル / パス』を列挙する。以下のカテゴリを埋める:
+      - 新設ファイル: 具体パス (例: `internal/domain/mealplan/entry.go`)
+      - 更新ファイル: 具体パス (例: `main.go` の `application.Options.Services` 追加)
+      - 生成物 (再生成のみ): 例 `frontend/bindings/` (`wails3 generate bindings`)
+      - migration: 追加する番号と用途 (例: `0002_meal_plans.sql`)
+      「後で決める」は禁止 — 未確定なら design.md 側で解決してから proposal を書く。
+      apply skill はこのリストを起点に読むべきファイルを絞るので、粒度が粗いと探索コストが跳ねる。
 
   design:
-    - "1 行あたり最大 120 文字 (character 数)。超える場合は改行して書く"
+    - "1 行あたり最大 200 文字 (character 数)。超える場合は改行して書く"
     - |
       複数の実現方法が考えられる場合は必ず選択肢を列挙し、各案の理由 (Pros/Cons) と最終選定理由を書く。
       フォーマット例:
@@ -56,12 +59,19 @@ rules:
           - null を渡すと ErrInvalidInput を返す
     - "各タスクは『完了の判定方法』を末尾に含める（コマンド / 目視 / テストパス 等）"
     - |
+      実装タスクは『触るファイルパス』を本文に含める (新設 or 更新の別も明記)。
+      例:
+        - [ ] 1.1 `internal/domain/mealplan/entry.go` を新設し、`Entry` struct を定義する ...
+        - [ ] 3.4 `main.go` を更新し、`application.Options.Services` に MealPlanService を追加登録する ...
+      調査系タスク (「どこに書くか調べる」等) は禁止。propose 段階で確定させる。
+      apply skill が grep で探す往復を無くすための最重要ルール。
+    - |
       タスクグループ末尾（または最終グループ）で テストの実行と成功確認 を必ず入れる。
       - Go: `go test ./internal/...`
       - Frontend: 対応する npm test コマンド（未整備の場合はその旨を書き飛ばす）
 
   specs:
-    - "1 行あたり最大 120 文字 (character 数)。超える場合は改行して書く"
+    - "1 行あたり最大 200 文字 (character 数)。超える場合は改行して書く"
     - "Scenario は必ず `#### Scenario:` (hashtag 4 つ) で始める。`WHEN` / `THEN` を明示"
     - "内部実装名（クラス名、関数名、ライブラリ名）を書かない。観察可能な挙動のみを記述する"
 
@@ -69,6 +79,29 @@ rules:
 operations:
   apply:
     guidance:
+      - |
+        apply 開始時、まず以下のファイルを読んで作業コンテキストを揃える (毎回同じ順で読む):
+        1. `CLAUDE.md` — 常用コマンド / アーキテクチャ / 規約
+        2. `openspec/changes/<change>/proposal.md` — Why / What / Impact (触るファイル一覧)
+        3. `openspec/changes/<change>/design.md` — 選定した実現方法と Trade-offs
+        4. `openspec/changes/<change>/specs/<capability>/spec.md` — 受け入れシナリオ
+        5. `openspec/changes/<change>/tasks.md` — 実装順序と完了判定
+        6. 対象 capability の既存 spec `openspec/specs/<capability>/spec.md` (存在すれば)
+        7. UI を触る proposal なら該当ワイヤー `docs/wireframes/S*.drawio.svg`
+        8. `docs/product.md` / `docs/design.md` は Impact / design に参照リンクがある節だけを開く
+        proposal の Impact に無いファイルは読まない (必要になった時点で追加する)。
+      - |
+        新規ファイルを作る前に、同種の既存ファイルを 1 つ読んで規約を揃える:
+        - Wails サービス追加 → 既存の `*service.go` を 1 つ (現状: `healthservice.go`)
+        - Domain package 追加 → 既存の `internal/domain/*` を 1 つ (無ければ `internal/config/` を参考)
+        - SQLite repository 追加 → `internal/storage/sqlite/*_repo.go` を 1 つ (無ければ `sqlite.go`)
+        - Frontend route 追加 → 既存の `frontend/src/routes/*.tsx` を 1 つ
+        規約を無視した新規実装は後で書き直しになる (import 順序 / エラー型 / ログ / 命名 等)。
+      - |
+        触ってはいけないファイル / ディレクトリ:
+        - `frontend/bindings/` — Wails 自動生成物。手で編集しない (`wails3 generate bindings` で再生成)
+        - `build/ios/` `build/android/` — Wails モバイル雛形、MVP 対象外
+        - Go コマンドは `./...` を使わない (build/ios に main が無く落ちる)。`./internal/...` か `./` に絞る
       - |
         Planning artifacts (proposal / specs / design / tasks) は propose 完了時点で人間レビューを挟む。
         ユーザーからの明示的な指示（「apply して」「実装始めて」「/opsx:apply」等）を受けてから apply に入る。
@@ -79,7 +112,6 @@ operations:
           無い場合は `npm run type-check` と `npm run build:dev` を代替として実行する。
         - lint も通す: `task lint`
         - テストが失敗したら fix してから完了報告する。「テスト落ちてるけど完了」と報告しない。
-      - "タスクを完了する都度 tasks.md のチェックボックスを更新する"
       - |
         実装中に spec や design と乖離が発生したら、まず openspec-update-change で planning artifacts を
         直してから実装を続ける。
