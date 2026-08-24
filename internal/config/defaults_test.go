@@ -12,9 +12,9 @@ func TestDefaults(t *testing.T) {
 		got  any
 		want any
 	}{
-		{"SlotDisplay", c.SlotDisplay, SlotDisplayDinnerOnly},
 		{"WeeklyFillPattern", c.WeeklyFillPattern, "mon-fri-dinner"},
 		{"ItemsPerSlotHint", c.ItemsPerSlotHint, [2]int{1, 3}},
+		{"MealPlanCellVisibleItems", c.MealPlanCellVisibleItems, 2},
 		{"RecencyThresholdDays", c.RecencyThresholdDays, 10},
 		{"WeeklyPresetRecipeCount", c.WeeklyPresetRecipeCount, [2]int{2, 3}},
 		{"ExpiryAlertRedDays", c.ExpiryAlertRedDays, 3},
@@ -30,6 +30,10 @@ func TestDefaults(t *testing.T) {
 		t.Errorf("LeftoverCopyPresets: got %v, want %v", got, want)
 	}
 
+	if got, want := c.DefaultVisibleSlots, []string{"dinner"}; !equalStrings(got, want) {
+		t.Errorf("DefaultVisibleSlots: got %v, want %v", got, want)
+	}
+
 	if c.ExpiryAlertRedDays >= c.ExpiryAlertYellowDays {
 		t.Errorf("red (%d) must be stricter than yellow (%d)",
 			c.ExpiryAlertRedDays, c.ExpiryAlertYellowDays)
@@ -37,6 +41,18 @@ func TestDefaults(t *testing.T) {
 }
 
 func equalInts(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func equalStrings(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
 	}

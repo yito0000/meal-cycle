@@ -14,7 +14,20 @@
   "pages": {
     "meal_plan": {
       "title": "献立カレンダー",
-      "placeholder": "S01 献立カレンダーの実装は proposal add-mealplan-week-view で着手予定"
+      "today": "今日",
+      "loading": "読み込み中...",
+      "load_error": "献立の読み込みに失敗しました",
+      "slot": {
+        "breakfast": "朝食",
+        "lunch": "昼食",
+        "dinner": "夕食"
+      },
+      "slot_visibility": {
+        "aria_label": "slot 表示切替"
+      },
+      "cell": {
+        "more_items": "他 {{count}} 件"
+      }
     },
     "recipes": {
       "title": "レシピ",

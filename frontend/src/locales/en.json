@@ -14,7 +14,20 @@
   "pages": {
     "meal_plan": {
       "title": "Meal calendar",
-      "placeholder": "S01 meal calendar — see proposal add-mealplan-week-view"
+      "today": "Today",
+      "loading": "Loading…",
+      "load_error": "Failed to load meal plan",
+      "slot": {
+        "breakfast": "Breakfast",
+        "lunch": "Lunch",
+        "dinner": "Dinner"
+      },
+      "slot_visibility": {
+        "aria_label": "Slot visibility"
+      },
+      "cell": {
+        "more_items": "+{{count}} more"
+      }
     },
     "recipes": {
       "title": "Recipes",

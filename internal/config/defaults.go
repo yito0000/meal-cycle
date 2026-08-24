@@ -11,18 +11,6 @@
 // stay swappable in one place.
 package config
 
-// SlotDisplay controls which meal slots the calendar (S01) shows by default.
-// See docs/product.md §1 for the persona rationale.
-type SlotDisplay string
-
-const (
-	// SlotDisplayDinnerOnly shows only the dinner row. Default for the
-	// primary persona (mostly-dinner cooking style).
-	SlotDisplayDinnerOnly SlotDisplay = "dinner_only"
-	// SlotDisplayAllThree shows breakfast + lunch + dinner rows.
-	SlotDisplayAllThree SlotDisplay = "all_three"
-)
-
 // Config holds the meal-cycle runtime defaults.
 //
 // Keep this struct flat and JSON-serialisable; a future ConfigService may
@@ -30,8 +18,11 @@ const (
 type Config struct {
 	// UI defaults ---------------------------------------------------------
 
-	// SlotDisplay: which meal slots to show in S01 by default.
-	SlotDisplay SlotDisplay `json:"slotDisplay"`
+	// DefaultVisibleSlots: slots that S01 has visible on first render.
+	// Values match internal/domain/mealplan.Slot ("breakfast", "lunch",
+	// "dinner"). Kept as []string here so this package stays free of a
+	// domain import; the frontend can render each string 1:1 to a slot.
+	DefaultVisibleSlots []string `json:"defaultVisibleSlots"`
 	// WeeklyFillPattern: which cells the week-preset suggestion targets.
 	// Free-form token for MVP (e.g. "mon-fri-dinner"); a richer type may
 	// replace it when the setting UI lands.
@@ -40,6 +31,9 @@ type Config struct {
 	// {min, max}. Not enforced — used only as a hint for suggestion
 	// generation and (optionally) UI copy.
 	ItemsPerSlotHint [2]int `json:"itemsPerSlotHint"`
+	// MealPlanCellVisibleItems: how many dishes S01 renders inside one
+	// (date, slot) cell before collapsing the rest into "他 N 件".
+	MealPlanCellVisibleItems int `json:"mealPlanCellVisibleItems"`
 
 	// Suggestion axis thresholds -----------------------------------------
 
@@ -66,13 +60,14 @@ type Config struct {
 // (leftover-cooking, dinner-focused) persona. See docs/product.md §1.
 func Defaults() Config {
 	return Config{
-		SlotDisplay:             SlotDisplayDinnerOnly,
-		WeeklyFillPattern:       "mon-fri-dinner",
-		ItemsPerSlotHint:        [2]int{1, 3},
-		RecencyThresholdDays:    10,
-		LeftoverCopyPresets:     []int{2, 3, 4},
-		WeeklyPresetRecipeCount: [2]int{2, 3},
-		ExpiryAlertRedDays:      3,
-		ExpiryAlertYellowDays:   7,
+		DefaultVisibleSlots:      []string{"dinner"},
+		WeeklyFillPattern:        "mon-fri-dinner",
+		ItemsPerSlotHint:         [2]int{1, 3},
+		MealPlanCellVisibleItems: 2,
+		RecencyThresholdDays:     10,
+		LeftoverCopyPresets:      []int{2, 3, 4},
+		WeeklyPresetRecipeCount:  [2]int{2, 3},
+		ExpiryAlertRedDays:       3,
+		ExpiryAlertYellowDays:    7,
 	}
 }

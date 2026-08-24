@@ -165,6 +165,6 @@ Go とフロントの両方で lint/format を有効化している。実装後�
 
 ## Wails 固有の注意点
 
-- `main.go` の `Zoom: 1.5` + `1500×927` ウィンドウは高 DPI（4K 等）向けデフォルト。CSS の `font-size` は意図的に触っていない — Wails の WebView zoom で拡大することで dev / preview / packaged の見た目を揃える
+- `main.go` の初期ウィンドウサイズは `app.Screen.GetPrimary().WorkArea` の 85% (幅 2400 / 高さ 1500 で cap、失敗時は 1440×900) を使い、OS の DPI 設定にそのまま合わせる。`Zoom: 1.5` は高 DPI (4K 等) 向けの内容拡大で、CSS の `font-size` は意図的に触っていない — Wails の WebView zoom で拡大することで dev / preview / packaged の見た目を揃える
 - `build/ios` と `build/android` は Wails 標準のモバイル雛形、**MVP 対象外**。`go build ./...` はここで `main undeclared` で落ちるので、Go コマンドは `./internal/...` か `./` に絞ること
 - Wails サービスにメソッドを足したら、サービス struct にメソッドを定義 → `wails3 generate bindings` → TS 側は `frontend/bindings/github.com/yito0000/meal-cycle` から import
