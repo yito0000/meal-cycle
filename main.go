@@ -37,6 +37,7 @@ func main() {
 		Services: []application.Service{
 			application.NewService(NewHealthService(db)),
 			application.NewService(NewMealPlanService()),
+			application.NewService(NewRecipeService()),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),

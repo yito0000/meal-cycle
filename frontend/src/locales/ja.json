@@ -31,7 +31,26 @@
     },
     "recipes": {
       "title": "レシピ",
-      "placeholder": "S02 レシピ一覧の実装は proposal add-recipe-listing で着手予定"
+      "new_button": "＋ 新しいレシピ",
+      "loading": "読み込み中...",
+      "load_error": "レシピの読み込みに失敗しました",
+      "search": {
+        "placeholder": "レシピ名で検索"
+      },
+      "sort": {
+        "label": "並び順",
+        "updated_desc": "更新日 降順",
+        "name_asc": "名前 昇順"
+      },
+      "column": {
+        "name": "名前",
+        "tags": "タグ",
+        "updated_at": "更新日"
+      },
+      "empty": {
+        "no_recipes": "まだレシピが登録されていません",
+        "no_match": "一致するレシピがありません"
+      }
     },
     "fridge": {
       "title": "冷蔵庫在庫",

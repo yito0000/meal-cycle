@@ -31,7 +31,26 @@
     },
     "recipes": {
       "title": "Recipes",
-      "placeholder": "S02 recipe list — see proposal add-recipe-listing"
+      "new_button": "+ New recipe",
+      "loading": "Loading…",
+      "load_error": "Failed to load recipes",
+      "search": {
+        "placeholder": "Search by recipe name"
+      },
+      "sort": {
+        "label": "Sort",
+        "updated_desc": "Updated (newest)",
+        "name_asc": "Name (A→Z)"
+      },
+      "column": {
+        "name": "Name",
+        "tags": "Tags",
+        "updated_at": "Updated"
+      },
+      "empty": {
+        "no_recipes": "No recipes yet",
+        "no_match": "No recipes match your search"
+      }
     },
     "fridge": {
       "title": "Fridge",
