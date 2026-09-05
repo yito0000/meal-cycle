@@ -137,6 +137,36 @@ proposal は `openspec/changes/<name>/`、アーカイブは `openspec/changes/a
 - tasks.md は **1 行 = 1 指示**。複数作業を含む場合は箇条書きで分割
 - tasks.md のテスト作成タスクは **各テストケースをネストした箇条書き**で列挙する
 
+## 動作確認の 2 階建て構成
+
+meal-cycle の開発は WSL2 (AlmaLinux 10) で行うが、WSLg + WebKit2GTK は IME 連携が不安定で、`task dev` の webview に日本語 (IME) 入力ができない。ibus / fcitx5 のセットアップを WSL 側に入れる方針は詰まりやすく、費用対効果が悪かったため、動作確認を **開発時 (WSL) と最終確認 (Windows)** の 2 階建てにする。
+
+- **開発時の軽い動作確認**：WSL2 側で `task dev` を叩き、ホットリロードで反復する。日本語入力を伴わない観点 (レイアウト、遷移、ボタン挙動、バリデーションの発火、Tab キー移動、CSS の見た目) はここで済ませる。
+- **日本語入力を含む動作確認**：Windows ネイティブビルドを作って Windows 側から実行する。IME 経由の入力、日本語文字を含む保存、Markdown 記法 (`##`、`- `) など、日本語が絡む観点はここでまとめて確認する。
+
+Windows ビルドはビルド時間と `.exe` サイズのコストがあるので、**毎コミットで作る必要はない**。以下のタイミングで走らせる:
+
+- capability を通す proposal を実装完了したとき (アーカイブ前の最終確認)
+- 日本語文字列や Markdown 入力に関わる変更を入れたとき
+- リリース前
+
+### Windows ビルド手順
+
+WSL2 側で実行:
+
+```bash
+cd frontend && npm run build && cd ..
+wails3 generate bindings
+GOOS=windows GOARCH=amd64 go build -tags production -trimpath -ldflags="-w -s" -o meal-cycle.exe ./
+cp meal-cycle.exe /mnt/c/Users/<Windows のユーザー名>/Desktop/
+```
+
+Windows 側の PowerShell またはエクスプローラーからデスクトップの `meal-cycle.exe` を起動する。`modernc.org/sqlite` は Pure Go で CGO 不要のためクロスコンパイルが素直に通る。
+
+### データベースが 2 系統になる点に注意
+
+WSL 側で `task dev` を叩いた DB は `~/.local/share/meal-cycle/meal-cycle.db`、Windows で `.exe` を起動した DB は `%APPDATA%\meal-cycle\meal-cycle.db` に作られる。物理的に別ファイルなので、WSL で作ったレシピは Windows 側の起動には出てこない (逆も同じ)。Windows 側は空 DB から始める前提で確認する。
+
 ## テスト実行ルール
 
 機能追加・改善・不具合修正のいずれでも、**実装の最後に必ずテストを走らせて全て pass することを確認**してから完了報告する。テストが落ちたまま「完了」と報告しない。

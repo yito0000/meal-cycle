@@ -67,19 +67,42 @@ task package
 task --list
 ```
 
+## 動作確認の 2 階建て構成
+
+開発は WSL2 (AlmaLinux 10) を想定していますが、WSLg + WebKit2GTK の IME 連携が不安定なため、`task dev` の webview では日本語入力ができません。動作確認を次のように分けています。
+
+- **開発時**: WSL 上で `task dev`。ホットリロード。日本語入力を伴わない観点 (レイアウト、遷移、バリデーション発火など) の確認。
+- **日本語入力を含む確認**: Windows 向けにクロスビルドして Windows ホストから `.exe` を起動。IME・Markdown・日本語保存の確認。
+
+Windows 向けクロスビルド (WSL 側で実行):
+
+```bash
+cd frontend && npm run build && cd ..
+wails3 generate bindings
+GOOS=windows GOARCH=amd64 go build -tags production -trimpath -ldflags="-w -s" -o meal-cycle.exe ./
+cp meal-cycle.exe /mnt/c/Users/<Windows のユーザー名>/Desktop/
+```
+
+生成された `meal-cycle.exe` を Windows のデスクトップから起動します。DB は WSL 側 (`~/.local/share/meal-cycle/`) と Windows 側 (`%APPDATA%\meal-cycle\`) で別ファイルになる点に注意してください。詳細は [CLAUDE.md § 動作確認の 2 階建て構成](CLAUDE.md#動作確認の-2-階建て構成) を参照。
+
 ## ディレクトリ構成
 
 ```
 .
-├── main.go             # エントリポイント
-├── greetservice.go     # Wails サービス（現在はテンプレのサンプル）
-├── frontend/           # TypeScript + Vite フロントエンド
-├── build/              # 各 OS 向けビルド設定
-├── docs/               # 設計ドキュメント
+├── main.go                          # エントリポイント
+├── internal/
+│   ├── service/                     # Wails サービス (package service, 1 capability = 1 ファイル)
+│   ├── domain/<capability>/         # ドメイン層 (recipe, mealplan, ...)
+│   ├── storage/sqlite/              # SQLite Repository + migrations
+│   └── config/                      # 可変値の集約 (defaults.go)
+├── frontend/                        # React + Vite フロントエンド (TypeScript)
+├── build/                           # 各 OS 向けビルド設定
+├── docs/                            # 設計ドキュメント
 │   ├── product.md
 │   ├── design.md
-│   └── wireframes/     # 各画面の .drawio.svg
-├── openspec/           # OpenSpec の change proposal / archive
+│   └── wireframes/                  # 各画面の .drawio.svg
+├── openspec/                        # OpenSpec の change proposal / archive
+├── CLAUDE.md                        # プロジェクト規約 (Claude 向け・実装ワークフロー)
 └── README.md
 ```
 
