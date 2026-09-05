@@ -1,7 +1,7 @@
-// Package sqlite wraps the SQLite database used by meal-cycle.
+// Package sqlite は meal-cycle の SQLite ラッパー。
 //
-// Uses modernc.org/sqlite (Cgo-free) so cross-compilation stays simple
-// across Windows / macOS / Linux. See docs/design.md #5.
+// ドライバは modernc.org/sqlite (Cgo なし) を使う。クロスコンパイルが
+// 素直になるため (docs/design.md §5)。
 package sqlite
 
 import (
@@ -14,20 +14,17 @@ import (
 )
 
 const (
-	// AppDirName is the sub-directory under the XDG data dir where meal-cycle
-	// stores its SQLite database.
 	AppDirName = "meal-cycle"
-	// DBFileName is the SQLite database file name.
 	DBFileName = "meal-cycle.db"
 )
 
-// DefaultPath returns the DB file path resolved via xdg:
+// DefaultPath は xdg 経由で解決した DB ファイルパスを返す。
 //
 //	Windows: %APPDATA%\meal-cycle\meal-cycle.db
 //	macOS:   ~/Library/Application Support/meal-cycle/meal-cycle.db
 //	Linux:   ~/.local/share/meal-cycle/meal-cycle.db
 //
-// Parent directories are created as needed.
+// 親ディレクトリは必要に応じて作られる。
 func DefaultPath() (string, error) {
 	p, err := xdg.DataFile(filepath.Join(AppDirName, DBFileName))
 	if err != nil {
@@ -36,11 +33,8 @@ func DefaultPath() (string, error) {
 	return p, nil
 }
 
-// Open opens (creating on first run) the SQLite database at path.
-// Callers must Close the returned handle.
-//
-// Enables WAL, foreign keys, and a 5 s busy timeout — sensible defaults for
-// a single-user desktop app.
+// Open は path の SQLite DB を開く (初回は作成)。呼び出し側は返り値を Close すること。
+// 単一ユーザーのデスクトップアプリ向けに WAL / foreign_keys / busy_timeout(5s) を有効化する。
 func Open(path string) (*sql.DB, error) {
 	dsn := fmt.Sprintf(
 		"file:%s?_pragma=journal_mode(WAL)&_pragma=foreign_keys(ON)&_pragma=busy_timeout(5000)",

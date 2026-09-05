@@ -14,9 +14,8 @@ import {
 import { RecipeSortSelect } from "../components/recipe/recipe-sort-select";
 import { RecipeTable } from "../components/recipe/recipe-table";
 
-// S02 で保存直後の行をハイライトする時間 (ms)。
-// TODO(add-config-service): defaults.RecipeListHighlightMs をフロントへ露出する
-// Wails サービス (S09 相当) が入ったら差し替える。
+// S02 保存直後のハイライト時間 (ms)。S09 で ConfigService が Wails 経由で
+// defaults.RecipeListHighlightMs を返すようになったら差し替える。
 const HIGHLIGHT_MS = 2000;
 
 export function RecipesPage() {

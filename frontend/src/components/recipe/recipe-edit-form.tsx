@@ -14,8 +14,7 @@ import { RecipeTagsInput } from "./recipe-tags-input";
 import { UnsavedChangesDialog } from "./unsaved-changes-dialog";
 import { blankFormValues, recipeToFormValues, useRecipeForm } from "./use-recipe-form";
 
-// バリデーション上限 (Go 側 `recipeservice.go` と揃えている。design.md D12 の
-// 「ルール更新時は両方を更新する」に従うこと)。
+// バリデーション上限 (Go 側 internal/service/recipe.go と揃える。design.md D12)。
 const NAME_MAX = 200;
 const SERVINGS_MIN = 1;
 const SERVINGS_MAX = 99;
@@ -46,10 +45,8 @@ type FieldErrors = {
   ingredients?: (string | undefined)[];
 };
 
-// mapErrorToI18nKey は Go 側のエラーメッセージをフロント側 i18n key に対応付ける。
-// バインディング経由の error は `err.message` に "recipe name too long" のような
-// 文字列が入るので、部分一致で判定する (Wails v3 は型付きエラーコードを直接
-// バインディングに乗せる仕組みがまだ無いため)。
+// Wails v3 は型付きエラーコードをバインディングに乗せない (err.message にメッセージ
+// 文字列が入るだけ) ので、部分一致で i18n key に対応付ける。
 function mapErrorToI18nKey(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err ?? "");
   if (msg.includes("recipe name empty")) return "pages.recipes.edit.save_error.name_empty";
@@ -65,7 +62,7 @@ function mapErrorToI18nKey(err: unknown): string {
   return "pages.recipes.edit.save_error.generic";
 }
 
-// validate はフロント側の即時バリデーション。Go 側と同じルールを二重で書く。
+// Go 側 (最終防衛線) と同じルールを二重で書く。即時フィードバック用。
 function validate(values: SaveInput): FieldErrors {
   const errors: FieldErrors = {};
   const name = values.name.trim();

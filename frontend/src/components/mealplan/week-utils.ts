@@ -1,8 +1,6 @@
-// Pure date helpers for the meal-plan week view.
-//
-// The Go domain owns the canonical WeekStartOf (internal/domain/mealplan);
-// the frontend keeps a tiny mirror so it can compute weekStart without a
-// round trip to Go on mount, and generate the 7-day column headers.
+// 献立カレンダー用の pure な日付ヘルパー。canonical な WeekStartOf は Go 側
+// (internal/domain/mealplan) にあるが、mount ごとに Wails を往復させないため
+// フロントに mirror を置き、7 日分の列ヘッダも生成する。
 
 export function formatDate(d: Date): string {
   const y = d.getFullYear();
@@ -12,8 +10,9 @@ export function formatDate(d: Date): string {
 }
 
 export function weekStartOf(d: Date): Date {
-  const day = d.getDay(); // Sunday=0, Monday=1, ..., Saturday=6
-  const offset = (day + 6) % 7; // distance back to Monday
+  // getDay は Sun=0, Mon=1, .., Sat=6。月曜までの距離は (day + 6) % 7。
+  const day = d.getDay();
+  const offset = (day + 6) % 7;
   const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - offset);
   return monday;
 }

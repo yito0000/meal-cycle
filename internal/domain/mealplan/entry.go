@@ -1,15 +1,10 @@
-// Package mealplan is the domain layer for the meal calendar (S01).
+// Package mealplan は献立カレンダー (S01) のドメイン層。
 //
-// A MealPlan is stored as "one row = one dish": the same (date, slot)
-// can carry 0..N Entry rows so a single meal can hold main + side + soup.
-// See docs/design.md §4 (MealPlan) for the rationale.
-//
-// This package is intentionally framework-free; the Wails service and
-// the SQLite repository (added by later proposals) sit above it.
+// MealPlan は「1 行 = 1 品」で保存する。同じ (date, slot) に 0〜N 個の
+// Entry を並べることで主菜＋副菜＋汁物を表現する (詳細は docs/design.md §4)。
 package mealplan
 
-// Slot names a slot within a day. Values match the SQLite column values
-// used by future migrations, so keep the underlying strings stable.
+// Slot は 1 日のうちの区分。文字列値は SQLite カラムと一致させるため以後変えない。
 type Slot string
 
 const (
@@ -18,15 +13,12 @@ const (
 	SlotDinner    Slot = "dinner"
 )
 
-// Entry is one dish assigned to (Date, Slot) at a given Position.
+// Entry は (Date, Slot) の Position 位置に置かれる 1 品。
 //
-// Date is "YYYY-MM-DD" (local calendar date, no timezone). Position is
-// 0-based and unique within a (Date, Slot) — it controls the vertical
-// stacking order in the S01 cell (main → side → soup).
-//
-// RecipeName is the current source of truth for display; RecipeID will
-// be added when the recipe capability lands and repository-backed
-// entries replace the fixed values used by add-mealplan-week-view.
+// Date は "YYYY-MM-DD" (ローカル日付、タイムゾーンなし)。Position は 0 起点で
+// (Date, Slot) 内で一意、S01 セル内の縦の並び順 (主菜 → 副菜 → 汁物) を決める。
+// RecipeName は表示用の暫定フィールドで、add-mealplan-recipe-reference で
+// RecipeID 参照に置き換える。
 type Entry struct {
 	Date       string `json:"date"`
 	Slot       Slot   `json:"slot"`

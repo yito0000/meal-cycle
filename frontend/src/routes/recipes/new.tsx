@@ -12,9 +12,8 @@ export function RecipeNewPage() {
       mode="new"
       initialRecipe={null}
       onSave={async (input) => {
-        // Wails IPC は JSON でシリアライズするので、生成される class インスタンスでも
-        // interface を満たすリテラルでもよい。TS モード (task build) では
-        // モデルは interface として出力されるため、new せずリテラルで組む。
+        // TS モードバインディング (task build) では Recipe が interface なので、
+        // `new Recipe(...)` は使えない。Wails IPC は JSON なのでリテラルで足りる。
         const draft: Recipe = {
           id: "",
           name: input.name,

@@ -9,12 +9,7 @@ type Props = {
   onChange: (next: string[]) => void;
 };
 
-// chip 入力のタグエディタ (design.md D11 参照)。
-// - 入力用テキストボックスに文字を入力
-// - Enter または「＋」ボタンで確定 → chip として追加
-// - 各 chip の「×」で削除
-// - 空文字 / 重複は黙って捨てる
-// - 30 字を超える入力は input 側で maxLength=30 で防ぐ
+// chip 入力のタグエディタ (design.md D11)。空文字と重複は黙って捨てる。
 const TAG_MAX_LENGTH = 30;
 
 export function RecipeTagsInput({ value, onChange }: Props) {

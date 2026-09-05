@@ -6,37 +6,27 @@ import (
 	"github.com/yito0000/meal-cycle/internal/domain/mealplan"
 )
 
-// MealPlanService exposes the meal calendar (S01) data to the frontend.
-//
-// This proposal (add-mealplan-week-view) keeps the implementation as a
-// fixed in-memory dataset so the UI, the Wails binding and the domain
-// types can be locked in before repository-backed storage lands with
-// add-mealplan-assign-recipe.
+// MealPlanService は S01 献立カレンダーのデータをフロントに公開する。
+// 現状は固定 in-memory dataset を返す。SQLite 実装への差し替えは
+// add-mealplan-assign-recipe で行う。
 type MealPlanService struct{}
 
-// NewMealPlanService constructs a MealPlanService.
 func NewMealPlanService() *MealPlanService {
 	return &MealPlanService{}
 }
 
-// ListWeek returns every meal-plan entry that belongs to the week that
-// starts on weekStart (a "YYYY-MM-DD" Monday). Until the repository
-// lands, the response is a fixed set that covers Mon–Fri dinners plus
-// one Friday overflow slot (4 dishes) so the frontend can exercise the
-// "他 N 件" collapse.
+// ListWeek は weekStart (月曜 "YYYY-MM-DD") が属する週の献立エントリを返す。
 //
-// weekStart is currently ignored — every call returns the same fixed
-// dataset. The parameter is kept in the signature so add-mealplan-
-// assign-recipe can swap the body for a repo lookup without changing
-// the Wails binding surface.
+// 現状 weekStart は無視して固定 dataset を返す。パラメータをシグネチャに残して
+// おき、後続 proposal がバインディング契約を変えずに repo lookup に差し替え
+// られるようにする。dataset は Mon–Fri の夕食に加えて金曜に 4 品を並べており、
+// フロントの「他 N 件」折り畳みを疎通確認できる。
 func (s *MealPlanService) ListWeek(_ context.Context, weekStart string) ([]mealplan.Entry, error) {
-	_ = weekStart // reserved for the repository swap in the next proposal
+	_ = weekStart
 	return fixedWeekEntries(), nil
 }
 
-// fixedWeekEntries returns the placeholder dataset used by ListWeek.
-// Dates are anchored to the ISO week starting 2026-08-24 (Monday) so
-// the fixture matches the wireframe walkthroughs in docs/product.md.
+// 日付は 2026-08-24 (月) 起点。product.md のウォークスルーと一致させるため。
 func fixedWeekEntries() []mealplan.Entry {
 	return []mealplan.Entry{
 		{Date: "2026-08-24", Slot: mealplan.SlotDinner, Position: 0, RecipeName: "肉じゃが"},

@@ -21,8 +21,7 @@ export function SlotVisibilityCheckboxes({ value, onChange }: Props) {
       <legend className="sr-only">{t("pages.meal_plan.slot_visibility.aria_label")}</legend>
       {SLOT_RENDER_ORDER.map((slot) => {
         const checked = value.has(slot);
-        // Keep at least one slot visible: the only currently-ON checkbox is
-        // disabled so the calendar never collapses to zero rows.
+        // 常に 1 個以上の slot を残すため、唯一 ON の checkbox は disable にする。
         const isLastOne = checked && value.size === 1;
         return (
           <label

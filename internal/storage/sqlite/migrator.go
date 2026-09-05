@@ -11,11 +11,9 @@ import (
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
-// Migrate applies all pending schema migrations to db.
-//
-// Migrations live under internal/storage/sqlite/migrations/ and are embedded
-// into the binary via go:embed. goose tracks applied versions in the
-// goose_db_version table it manages itself.
+// Migrate は未適用のマイグレーションを全て当てる。SQL は migrations/ 配下を
+// バイナリに埋め込み (上の go:embed)、適用バージョンは goose が goose_db_version
+// テーブルで管理する。
 func Migrate(db *sql.DB) error {
 	goose.SetBaseFS(migrationsFS)
 	if err := goose.SetDialect("sqlite3"); err != nil {

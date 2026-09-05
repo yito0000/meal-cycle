@@ -48,36 +48,26 @@ func main() {
 		},
 	})
 
-	// Size the initial window from the primary screen's work area (in DIP,
-	// so it is already correct for the OS's display scale) rather than a
-	// fixed pixel count. Take ~85% of the work area so the taskbar and
-	// window chrome do not clip, and cap the width so the app never
-	// launches wider than S01's calendar actually needs (≈2400 DIP).
+	// 初期ウィンドウサイズは primary screen の作業領域 (DIP) の約 85% を採用する。
+	// タスクバーやウィンドウ枠のクリップを避けつつ、S01 カレンダーが必要とする
+	// 範囲 (≒ 2400 DIP) を上限にキャップ。
 	//
-	// Window creation is deferred to Common.ApplicationStarted because
-	// app.Screen.GetPrimary() returns nil until the platform layer has
-	// cached the screen list, which happens inside app.Run() (Linux
-	// populates it on Linux.ApplicationStartup, Windows during
-	// newPlatformApp, macOS on first access). Calling it before Run
-	// always hits the fallback size.
+	// ウィンドウ生成を Common.ApplicationStarted まで遅延するのは、
+	// app.Screen.GetPrimary() が app.Run() の中でプラットフォーム層が screen list を
+	// キャッシュするまで nil を返すため (Linux は Linux.ApplicationStartup、Windows は
+	// newPlatformApp、macOS は初回参照時)。Run 前に呼ぶと必ず fallback サイズになる。
 	//
-	// Falls back to a conservative 1440 × 900 (fits 1920 × 1080 with
-	// margin, still usable on 1366 × 768) when screen detection is
-	// unavailable — e.g. a headless CI run.
+	// screen 検出が使えないケース (ヘッドレス CI 等) は 1440 × 900 に fallback する
+	// (1920 × 1080 に余裕、1366 × 768 でも操作可)。
 	//
-	// Zoom stays at 1.5 so text/UI stay readable on high-DPI monitors;
-	// CSS font-size is deliberately untouched so dev/preview builds
-	// render identically.
+	// Zoom は 1.5 のまま。高 DPI モニタで UI を読みやすくするため、CSS の font-size は
+	// 意図的に触らず、dev / preview / packaged で見た目を揃える。
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
-		// Poll GetPrimary() briefly. Wails v3 beta.12 dispatches
-		// application-event listeners in parallel goroutines
-		// (event_manager.go handleApplicationEvent), so on Linux our
-		// Common.ApplicationStarted handler races with the
-		// processAndCacheScreens listener that also hangs off
-		// Linux.ApplicationStartup. On WSLg it's worse: GDK often
-		// enumerates zero monitors on the first activate tick.
-		// A short bounded wait covers both cases without adding a
-		// visible startup delay.
+		// GetPrimary() を短くポーリングする。Wails v3 beta.12 は application-event を
+		// 並列 goroutine で dispatch するため、Linux では本ハンドラが
+		// processAndCacheScreens リスナー (Linux.ApplicationStartup) とレースする。
+		// WSLg ではさらに GDK が最初の activate tick で 0 monitor を返すことがある。
+		// 数百 ms の待機で両方を吸収でき、起動体感は変わらない。
 		primary := app.Screen.GetPrimary()
 		deadline := time.Now().Add(500 * time.Millisecond)
 		for primary == nil && time.Now().Before(deadline) {

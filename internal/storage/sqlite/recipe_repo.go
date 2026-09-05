@@ -13,36 +13,25 @@ import (
 	"github.com/yito0000/meal-cycle/internal/domain/recipe"
 )
 
-// ErrRecipeNotFound は指定 ID のレシピが見つからないときに GetByID / Update が返す。
 var ErrRecipeNotFound = errors.New("recipe not found")
 
-// ErrRecipeNameEmpty は Create / Update が空文字の名前で呼ばれたときに返す。
-// バリデーションは基本的に Service 層で行うが、Repository でも最終防衛線として弾く。
+// ErrRecipeNameEmpty はバリデーション最終防衛線。Service 層で通常は弾く。
 var ErrRecipeNameEmpty = errors.New("recipe name empty")
 
-// RecipeRepo は recipes / recipe_ingredients テーブルに対する CRUD を扱う。
-//
-// Recipe と RecipeIngredient は 1 トランザクションで一括保存する。
-// 本 proposal では食材マスタを持たないので `recipe_ingredients.name` に材料名を
-// 直接保存する。将来 `add-ingredient-master` proposal で ingredient_id へ
-// 置き換える migration を書く (design.md D2 / Migration Plan を参照)。
-//
-// List (S02 用) は summary 用途で Ingredients / Steps / Notes を空値で返し、
-// GetByID / Create / Update のみが詳細フィールドを詰めた Recipe を返す。
+// RecipeRepo は recipes / recipe_ingredients を 1 トランザクションで一括保存する。
+// 本 proposal では食材マスタを持たないため、材料名は recipe_ingredients.name に
+// 直接持つ。将来 add-ingredient-master で ingredient_id への migration を書く
+// (design.md D2)。
 type RecipeRepo struct {
 	db *sql.DB
 }
 
-// NewRecipeRepo は RecipeRepo を db に紐付けて返す。
 func NewRecipeRepo(db *sql.DB) *RecipeRepo {
 	return &RecipeRepo{db: db}
 }
 
-// List は登録済み全レシピを updated_at 降順で返す。
-//
-// S02 一覧の projection 用途のため、Ingredients / Steps / Notes は空値で
-// 返す。IngredientCount は recipe_ingredients の件数を LEFT JOIN で 1 クエリ
-// に合成する。
+// List は S02 一覧向けの projection。Ingredients / Steps / Notes は空値で返し、
+// IngredientCount は LEFT JOIN で 1 クエリに合成する。
 func (r *RecipeRepo) List(ctx context.Context) ([]recipe.Recipe, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT r.id, r.name, r.servings, r.tags_json, r.notes, r.created_at, r.updated_at,
@@ -83,7 +72,7 @@ func (r *RecipeRepo) List(ctx context.Context) ([]recipe.Recipe, error) {
 	return out, nil
 }
 
-// GetByID は指定 ID のレシピを詳細フィールド込みで返す。該当なしは ErrRecipeNotFound。
+// GetByID は詳細フィールド込みで返す。該当なしは ErrRecipeNotFound。
 func (r *RecipeRepo) GetByID(ctx context.Context, id string) (recipe.Recipe, error) {
 	var (
 		rec      recipe.Recipe
@@ -116,7 +105,7 @@ func (r *RecipeRepo) GetByID(ctx context.Context, id string) (recipe.Recipe, err
 	return rec, nil
 }
 
-// Create は新規レシピを保存し、Repository で決定した ID / CreatedAt / UpdatedAt を含めて返す。
+// Create は ID / CreatedAt / UpdatedAt を Repository 側で発行して返す。
 func (r *RecipeRepo) Create(ctx context.Context, input recipe.Recipe) (recipe.Recipe, error) {
 	if input.Name == "" {
 		return recipe.Recipe{}, ErrRecipeNameEmpty
@@ -151,8 +140,7 @@ func (r *RecipeRepo) Create(ctx context.Context, input recipe.Recipe) (recipe.Re
 	return rec, nil
 }
 
-// Update は既存レシピを新しい内容で上書きする。updated_at は現在時刻に更新される。
-// 該当 ID が無ければ ErrRecipeNotFound。name が空なら ErrRecipeNameEmpty。
+// Update は上書き。該当 ID が無ければ ErrRecipeNotFound、name 空なら ErrRecipeNameEmpty。
 func (r *RecipeRepo) Update(ctx context.Context, id string, input recipe.Recipe) (recipe.Recipe, error) {
 	if input.Name == "" {
 		return recipe.Recipe{}, ErrRecipeNameEmpty
@@ -162,9 +150,8 @@ func (r *RecipeRepo) Update(ctx context.Context, id string, input recipe.Recipe)
 		return recipe.Recipe{}, err
 	}
 
+	// RFC3339 は秒精度なので、同一秒に落ちたら +1s して updated_at を必ず進める。
 	now := time.Now().UTC().Format(time.RFC3339)
-	// updated_at を必ず進めるため、time.Now が既存 updated_at と同一秒に
-	// 落ちたときは +1s する (RFC3339 秒精度)。
 	if now == existing.UpdatedAt {
 		now = time.Now().UTC().Add(time.Second).Format(time.RFC3339)
 	}
@@ -213,7 +200,6 @@ func (r *RecipeRepo) Update(ctx context.Context, id string, input recipe.Recipe)
 	return rec, nil
 }
 
-// insertRecipeRow は 1 件の recipe を tx で書き込む。
 func insertRecipeRow(ctx context.Context, tx *sql.Tx, rec recipe.Recipe) error {
 	tagsJSON, err := json.Marshal(coalesceStrings(rec.Tags))
 	if err != nil {
@@ -232,7 +218,7 @@ func insertRecipeRow(ctx context.Context, tx *sql.Tx, rec recipe.Recipe) error {
 	return nil
 }
 
-// insertRecipeIngredients は recipe_ingredients を入力順に position で保存する。
+// 入力順を position として保存する。
 func insertRecipeIngredients(ctx context.Context, tx *sql.Tx, recipeID string, ings []recipe.RecipeIngredient) error {
 	for pos, ing := range ings {
 		if _, err := tx.ExecContext(ctx, `
@@ -245,7 +231,6 @@ func insertRecipeIngredients(ctx context.Context, tx *sql.Tx, recipeID string, i
 	return nil
 }
 
-// loadIngredients は 1 件の recipe に紐づく材料行を position 順で返す。
 func (r *RecipeRepo) loadIngredients(ctx context.Context, recipeID string) ([]recipe.RecipeIngredient, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT name, amount, unit
@@ -272,7 +257,7 @@ func (r *RecipeRepo) loadIngredients(ctx context.Context, recipeID string) ([]re
 	return out, nil
 }
 
-// coalesceStrings は nil を空スライスに置き換えて JSON エンコード結果を "[]" にする。
+// nil スライスの JSON エンコード結果を "null" ではなく "[]" にするための正規化。
 func coalesceStrings(s []string) []string {
 	if s == nil {
 		return []string{}

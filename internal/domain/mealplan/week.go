@@ -2,16 +2,14 @@ package mealplan
 
 import "time"
 
-// WeekStartOf returns the Monday 00:00 (local) of the ISO week that
-// contains t. The primary persona plans "next week" on Sunday night,
-// so Monday-start matches product.md §1's narrative and lines up with
-// ISO 8601's week numbering.
+// WeekStartOf は t が属する週の月曜 00:00 (ローカル) を返す。
 //
-// The returned time has t's Location preserved; hour/minute/second/
-// nanosecond are zeroed so callers can compare dates safely.
+// 月曜起点にするのは、想定ペルソナが「日曜夜に来週の献立を組む」ため
+// (product.md §1)。返り値は Location を保持し、時分秒ナノ秒はゼロなので
+// 日付比較に使える。
 func WeekStartOf(t time.Time) time.Time {
-	// time.Weekday: Sunday=0, Monday=1, ..., Saturday=6.
-	// Distance back to Monday: (weekday + 6) % 7. Sunday → 6, Monday → 0.
+	// time.Weekday は Sun=0, Mon=1, .., Sat=6。月曜までの距離は (weekday + 6) % 7
+	// (Sun → 6, Mon → 0)。
 	offset := (int(t.Weekday()) + 6) % 7
 	monday := t.AddDate(0, 0, -offset)
 	return time.Date(monday.Year(), monday.Month(), monday.Day(), 0, 0, 0, 0, t.Location())

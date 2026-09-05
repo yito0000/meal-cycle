@@ -11,8 +11,8 @@ type Props = {
   nameError?: string | null;
 };
 
-// 材料 1 行の入力コンポーネント。食材コンボボックスは持たず、名前 / 量 / 単位 の
-// 3 テキスト input と削除ボタンだけの単純な行 (design.md D9 参照)。
+// 名前 / 量 / 単位 の 3 テキスト input + 削除ボタン。食材コンボボックスは持たない
+// (design.md D9)。
 export function RecipeIngredientRow({ value, onChange, onRemove, nameError }: Props) {
   const { t } = useTranslation();
   return (

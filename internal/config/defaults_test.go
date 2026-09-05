@@ -2,8 +2,8 @@ package config
 
 import "testing"
 
-// The values below are the source of truth for docs/product.md §1.
-// If a default changes, update both this test and the doc.
+// 以下の値は docs/product.md §1 の source of truth。既定値を変えるときは
+// このテストと product.md の両方を更新する。
 func TestDefaults(t *testing.T) {
 	c := Defaults()
 

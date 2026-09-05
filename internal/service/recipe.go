@@ -11,9 +11,8 @@ import (
 	"github.com/yito0000/meal-cycle/internal/storage/sqlite"
 )
 
-// バリデーション上限。将来 S09 設定画面で可変にする可能性があるが、
-// ユーザーが変えたい値ではなく実装上限なので defaults.go には置かない
-// (design.md D12 参照)。
+// バリデーション上限。ユーザーが変えたい値ではなく実装上限なので、可変値集約の
+// defaults.go には置かない (design.md D12)。
 const (
 	recipeNameMaxRunes  = 200
 	recipeServingsMin   = 1
@@ -23,7 +22,7 @@ const (
 	recipeTagMaxRunes   = 30
 )
 
-// 入力バリデーションエラー。フロントで i18n key に対応付ける (design.md D12 の表参照)。
+// 入力バリデーションエラー。フロントで i18n key に対応付ける (design.md D12)。
 var (
 	ErrRecipeNameTooLong         = errors.New("recipe name too long")
 	ErrRecipeServingsOutOfRange  = errors.New("recipe servings out of range")
@@ -33,43 +32,29 @@ var (
 	ErrRecipeTagTooLong          = errors.New("recipe tag too long")
 )
 
-// RecipeService はレシピの一覧取得 / 詳細取得 / 新規作成 / 更新をフロント
-// エンドに公開する Wails サービス。
-//
-// 本 proposal (add-recipe-edit) で前 proposal の固定 in-memory fixture を
-// SQLite 実装に差し替え、Create / Update / GetByID を追加した。削除は
-// 別 proposal (add-recipe-deletion) の担当。
-//
-// Create / Update は保存前に入力バリデーション (`validateRecipeInput`) を
-// 走らせ、違反時は型付きエラーで返す (フロントで i18n key に対応付ける)。
+// RecipeService はレシピの List / GetByID / Create / Update をフロントに公開する。
+// Create / Update は保存前に validateRecipeInput を走らせ、違反時は Repository
+// に到達せず型付きエラーを返す。
 type RecipeService struct {
 	repo *sqlite.RecipeRepo
 }
 
-// NewRecipeService は RecipeService を db に紐付けて生成する。
 func NewRecipeService(db *sql.DB) *RecipeService {
 	return &RecipeService{repo: sqlite.NewRecipeRepo(db)}
 }
 
-// List は登録済みの全レシピを updated_at 降順で返す。S02 一覧向けの
-// projection のため Ingredients / Steps / Notes は空値で返し、
-// IngredientCount のみ集計する (詳細は Repository.List を参照)。
+// List は S02 一覧向けの projection。Ingredients / Steps / Notes は空値で、
+// IngredientCount のみ集計して返す (詳細は sqlite.RecipeRepo.List)。
 func (s *RecipeService) List(ctx context.Context) ([]recipe.Recipe, error) {
 	return s.repo.List(ctx)
 }
 
-// GetByID は指定 ID のレシピを詳細フィールド込みで返す。
-// 該当なしは sqlite.ErrRecipeNotFound を返す。
 func (s *RecipeService) GetByID(ctx context.Context, id string) (recipe.Recipe, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
-// Create は input からレシピを新規作成する。
-//
-// input.ID / input.CreatedAt / input.UpdatedAt / input.IngredientCount は
-// Repository 側で決定するため入力としては無視される。呼び出し側 (S04)
-// は name / servings / tags / ingredients / steps / notes を詰めるだけで
-// よい。バリデーション違反時は Repository に到達せず即エラーを返す。
+// Create は input からレシピを新規作成する。input.ID / CreatedAt / UpdatedAt /
+// IngredientCount は Repository 側で決めるため入力側の値は無視される。
 func (s *RecipeService) Create(ctx context.Context, input recipe.Recipe) (recipe.Recipe, error) {
 	normalized, err := validateRecipeInput(input)
 	if err != nil {
@@ -78,9 +63,8 @@ func (s *RecipeService) Create(ctx context.Context, input recipe.Recipe) (recipe
 	return s.repo.Create(ctx, normalized)
 }
 
-// Update は指定 ID のレシピを input で上書きする。updated_at は現在時刻に
-// 更新される。input.ID / input.CreatedAt / input.UpdatedAt /
-// input.IngredientCount は無視される (Create と同様)。
+// Update は指定 ID のレシピを上書きする。updated_at は現在時刻に進む。
+// input.ID / CreatedAt / UpdatedAt / IngredientCount は Create 同様に無視。
 func (s *RecipeService) Update(ctx context.Context, id string, input recipe.Recipe) (recipe.Recipe, error) {
 	normalized, err := validateRecipeInput(input)
 	if err != nil {
@@ -89,8 +73,8 @@ func (s *RecipeService) Update(ctx context.Context, id string, input recipe.Reci
 	return s.repo.Update(ctx, id, normalized)
 }
 
-// validateRecipeInput は S04 から受け取った Recipe を検証し、trim 済み
-// (name / ingredient.name / tags) の Recipe を返す。違反時は該当エラー。
+// validateRecipeInput は入力を trim (name / ingredient.Name / tags / unit) しつつ
+// 制約 (design.md D12 の表) を検証する。空タグは黙って捨てる。
 func validateRecipeInput(input recipe.Recipe) (recipe.Recipe, error) {
 	out := input
 	out.Name = strings.TrimSpace(input.Name)
@@ -110,7 +94,6 @@ func validateRecipeInput(input recipe.Recipe) (recipe.Recipe, error) {
 		return recipe.Recipe{}, ErrRecipeNotesTooLong
 	}
 
-	// Tags: 各要素を trim。空タグは黙って捨てる。長さチェック。
 	trimmedTags := make([]string, 0, len(input.Tags))
 	for _, tag := range input.Tags {
 		t := strings.TrimSpace(tag)
@@ -124,7 +107,6 @@ func validateRecipeInput(input recipe.Recipe) (recipe.Recipe, error) {
 	}
 	out.Tags = trimmedTags
 
-	// Ingredients: 各行の name を trim して必須チェック。unit も trim。
 	trimmedIngs := make([]recipe.RecipeIngredient, 0, len(input.Ingredients))
 	for _, ing := range input.Ingredients {
 		name := strings.TrimSpace(ing.Name)
@@ -142,7 +124,7 @@ func validateRecipeInput(input recipe.Recipe) (recipe.Recipe, error) {
 	return out, nil
 }
 
-// runeLen は UTF-8 rune 数を返す (byte 数ではなく)。
+// rune 数を返す。byte ではなく文字数で制約を判定するため。
 func runeLen(s string) int {
 	return len([]rune(s))
 }

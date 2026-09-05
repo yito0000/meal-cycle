@@ -100,6 +100,27 @@ func TestRecipeService_List(t *testing.T) {
 
 **フロントエンド**: 現状テストランナーは入れていない。ユニット的な検証が欲しくなったら Vitest を追加する（本格的な E2E は [scenarios/](docs/scenarios/) を godog で走らせる方向で別途検討 — 現状は仕様ドキュメント扱い）。
 
+## コメント方針
+
+ソースコードのコメントは **必要最低限、日本語で書く**。
+
+- **書かないのが既定**。関数名 / 変数名で伝わる what はコメントに書かない (「保存する」「エラーを返す」等)。
+- **書くのは WHY だけ**：隠れた制約、非自明な不変条件、特定バグへの回避、直感に反する挙動など、コード自体から読み取れない意図を残す。
+- **日本語で統一**。プロジェクト全体で言語を揃え、grep とレビューコストを下げる。Wails / shadcn などの外部由来の名詞はそのまま英字で書く。
+- **1〜2 行に収める**。長い解説が要る場合は、対応する proposal.md / design.md / spec.md に書き、コメントからその節へリンクする。
+- **書き手側の予告 (「〜する」)** や **進行実況 (「次に〜」)** を書かない。コードの構造で表現する。
+- **400 字または 20 行を超える説明** を書く場合、グローバル CLAUDE.md の指示どおり `japanese-tech-writing` / `cognitive-rhythm-writing` スキルを適用する。
+
+```go
+// 悪い例：what を書いている (関数名から自明)
+// レシピを保存する
+func (s *RecipeService) Create(ctx context.Context, input recipe.Recipe) (recipe.Recipe, error) { ... }
+
+// 良い例：WHY (非自明な制約) を書いている
+// updated_at を必ず進めるため、time.Now が既存 updated_at と同一秒に落ちたときは +1s する (RFC3339 秒精度)。
+if now == existing.UpdatedAt { ... }
+```
+
 ## 可変値は 1 箇所に集約
 
 設定画面（S09、MVP 後）で将来変更可能にする値は **すべて `internal/config/defaults.go`** に置く。**call site にリテラル閾値（`10 日` `3 日` など）を書かない**、必ず `config.Defaults()` から読む。可変対象の一覧は [product.md §1](docs/product.md) が正、数値の source of truth は `defaults_test.go`（デフォルト値を変えるならこのテストと product.md の両方を更新する）。
