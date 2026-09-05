@@ -15,6 +15,7 @@ func TestDefaults(t *testing.T) {
 		{"WeeklyFillPattern", c.WeeklyFillPattern, "mon-fri-dinner"},
 		{"ItemsPerSlotHint", c.ItemsPerSlotHint, [2]int{1, 3}},
 		{"MealPlanCellVisibleItems", c.MealPlanCellVisibleItems, 2},
+		{"RecipeListHighlightMs", c.RecipeListHighlightMs, 2000},
 		{"RecencyThresholdDays", c.RecencyThresholdDays, 10},
 		{"WeeklyPresetRecipeCount", c.WeeklyPresetRecipeCount, [2]int{2, 3}},
 		{"ExpiryAlertRedDays", c.ExpiryAlertRedDays, 3},

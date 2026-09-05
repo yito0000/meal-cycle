@@ -50,6 +50,51 @@
       "empty": {
         "no_recipes": "No recipes yet",
         "no_match": "No recipes match your search"
+      },
+      "edit": {
+        "title_new": "New recipe",
+        "title_edit": "Edit recipe: {{name}}",
+        "save": "Save",
+        "cancel": "Cancel",
+        "loading": "Loading…",
+        "load_error": "Failed to load the recipe",
+        "back_to_list": "Back to list",
+        "tag_placeholder": "Type a tag and press Enter",
+        "add_ingredient": "+ Add ingredient",
+        "add_tag": "+ Add tag",
+        "remove_ingredient": "Remove ingredient row",
+        "remove_tag": "Remove tag",
+        "markdown_hint": "Markdown supported (preview coming in S03)",
+        "chars_remaining": "{{count}} characters left",
+        "label": {
+          "name": "Name",
+          "servings": "Servings",
+          "tags": "Tags",
+          "ingredients": "Ingredients",
+          "steps": "Steps",
+          "notes": "Notes",
+          "amount": "Amount",
+          "unit": "Unit"
+        },
+        "unsaved_confirm": {
+          "title": "Discard unsaved changes?",
+          "body": "Your edits will not be saved.",
+          "discard": "Discard",
+          "keep_editing": "Keep editing"
+        },
+        "save_error": {
+          "generic": "Failed to save",
+          "name_empty": "Please enter a recipe name",
+          "name_too_long": "Recipe name must be 200 characters or fewer",
+          "servings_out_of_range": "Servings must be between 1 and 99",
+          "ingredient_name_required": "Please enter an ingredient name",
+          "steps_too_long": "Steps must be 4000 characters or fewer",
+          "notes_too_long": "Notes must be 2000 characters or fewer",
+          "tag_too_long": "Tags must be 30 characters or fewer"
+        },
+        "validation": {
+          "name_required": "Recipe name is required"
+        }
       }
     },
     "fridge": {

@@ -8,6 +8,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
 
+	"github.com/yito0000/meal-cycle/internal/service"
 	"github.com/yito0000/meal-cycle/internal/storage/sqlite"
 )
 
@@ -35,9 +36,9 @@ func main() {
 		Name:        "meal-cycle",
 		Description: "献立・冷蔵庫・レシピを一元管理するデスクトップアプリ",
 		Services: []application.Service{
-			application.NewService(NewHealthService(db)),
-			application.NewService(NewMealPlanService()),
-			application.NewService(NewRecipeService()),
+			application.NewService(service.NewHealthService(db)),
+			application.NewService(service.NewMealPlanService()),
+			application.NewService(service.NewRecipeService(db)),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),

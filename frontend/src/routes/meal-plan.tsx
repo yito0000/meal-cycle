@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { MealPlanService } from "../../bindings/github.com/yito0000/meal-cycle";
+import { MealPlanService } from "../../bindings/github.com/yito0000/meal-cycle/internal/service";
 import { MEALPLAN_DEFAULTS } from "../components/mealplan/mealplan-config";
 import { SlotVisibilityCheckboxes } from "../components/mealplan/slot-visibility-checkboxes";
 import { WeekCalendar } from "../components/mealplan/week-calendar";

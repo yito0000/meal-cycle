@@ -50,6 +50,51 @@
       "empty": {
         "no_recipes": "まだレシピが登録されていません",
         "no_match": "一致するレシピがありません"
+      },
+      "edit": {
+        "title_new": "新しいレシピ",
+        "title_edit": "レシピを編集: {{name}}",
+        "save": "保存",
+        "cancel": "キャンセル",
+        "loading": "読み込み中...",
+        "load_error": "レシピの読み込みに失敗しました",
+        "back_to_list": "一覧に戻る",
+        "tag_placeholder": "タグを入力して Enter",
+        "add_ingredient": "＋ 材料を追加",
+        "add_tag": "＋ タグを追加",
+        "remove_ingredient": "材料行を削除",
+        "remove_tag": "タグを削除",
+        "markdown_hint": "Markdown 記法で書けます (プレビューは S03 で追加予定)",
+        "chars_remaining": "残り {{count}} 字",
+        "label": {
+          "name": "名前",
+          "servings": "人数",
+          "tags": "タグ",
+          "ingredients": "材料",
+          "steps": "手順",
+          "notes": "メモ",
+          "amount": "量",
+          "unit": "単位"
+        },
+        "unsaved_confirm": {
+          "title": "未保存の変更を破棄しますか",
+          "body": "編集した内容は保存されません",
+          "discard": "破棄",
+          "keep_editing": "編集を続ける"
+        },
+        "save_error": {
+          "generic": "保存に失敗しました",
+          "name_empty": "レシピ名を入力してください",
+          "name_too_long": "レシピ名は 200 字以内で入力してください",
+          "servings_out_of_range": "人数は 1〜99 で入力してください",
+          "ingredient_name_required": "材料名を入力してください",
+          "steps_too_long": "手順は 4000 字以内で入力してください",
+          "notes_too_long": "メモは 2000 字以内で入力してください",
+          "tag_too_long": "タグは 30 字以内で入力してください"
+        },
+        "validation": {
+          "name_required": "レシピ名は必須です"
+        }
       }
     },
     "fridge": {

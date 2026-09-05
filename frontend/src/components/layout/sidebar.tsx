@@ -9,8 +9,8 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { HealthService } from "../../../bindings/github.com/yito0000/meal-cycle";
-import type { Health } from "../../../bindings/github.com/yito0000/meal-cycle/models";
+import { HealthService } from "../../../bindings/github.com/yito0000/meal-cycle/internal/service";
+import type { Health } from "../../../bindings/github.com/yito0000/meal-cycle/internal/service/models";
 
 type NavItem = {
   to: "/" | "/recipes" | "/fridge" | "/shopping";

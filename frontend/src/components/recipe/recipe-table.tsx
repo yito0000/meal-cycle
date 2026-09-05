@@ -7,13 +7,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import type { Recipe } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/recipe/models";
 
 type Props = {
   recipes: Recipe[];
+  onRowClick?: (id: string) => void;
+  highlightId?: string;
 };
 
-export function RecipeTable({ recipes }: Props) {
+export function RecipeTable({ recipes, onRowClick, highlightId }: Props) {
   const { t } = useTranslation();
   return (
     <Table>
@@ -26,7 +29,11 @@ export function RecipeTable({ recipes }: Props) {
       </TableHeader>
       <TableBody>
         {recipes.map((r) => (
-          <TableRow key={r.id}>
+          <TableRow
+            key={r.id}
+            className={cn(onRowClick && "cursor-pointer", highlightId === r.id && "bg-accent")}
+            onClick={() => onRowClick?.(r.id)}
+          >
             <TableCell className="font-medium">{r.name}</TableCell>
             <TableCell className="text-neutral-700">{(r.tags ?? []).join(" / ")}</TableCell>
             <TableCell className="text-neutral-700 tabular-nums">{r.updatedAt}</TableCell>

@@ -34,6 +34,10 @@ type Config struct {
 	// MealPlanCellVisibleItems: how many dishes S01 renders inside one
 	// (date, slot) cell before collapsing the rest into "他 N 件".
 	MealPlanCellVisibleItems int `json:"mealPlanCellVisibleItems"`
+	// RecipeListHighlightMs: milliseconds S02 keeps a just-saved recipe
+	// row visually highlighted before clearing the search-param hint.
+	// Used by S04 → S02 return flow (design.md D6).
+	RecipeListHighlightMs int `json:"recipeListHighlightMs"`
 
 	// Suggestion axis thresholds -----------------------------------------
 
@@ -64,6 +68,7 @@ func Defaults() Config {
 		WeeklyFillPattern:        "mon-fri-dinner",
 		ItemsPerSlotHint:         [2]int{1, 3},
 		MealPlanCellVisibleItems: 2,
+		RecipeListHighlightMs:    2000,
 		RecencyThresholdDays:     10,
 		LeftoverCopyPresets:      []int{2, 3, 4},
 		WeeklyPresetRecipeCount:  [2]int{2, 3},

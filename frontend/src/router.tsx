@@ -4,10 +4,13 @@ import {
   createRoute,
   createRouter,
 } from "@tanstack/react-router";
+import { z } from "zod";
 import { RootLayout } from "@/components/layout/root-layout";
 import { FridgePage } from "@/routes/fridge";
 import { MealPlanPage } from "@/routes/meal-plan";
 import { RecipesPage } from "@/routes/recipes";
+import { RecipeEditPage } from "@/routes/recipes/$recipeId.edit";
+import { RecipeNewPage } from "@/routes/recipes/new";
 import { ShoppingPage } from "@/routes/shopping";
 
 const rootRoute = createRootRoute({ component: RootLayout });
@@ -18,10 +21,28 @@ const mealPlanRoute = createRoute({
   component: MealPlanPage,
 });
 
+// S02 は保存直後のハイライト対象を search param で受け取る (design.md D6)。
+const recipesSearchSchema = z.object({
+  highlight: z.string().optional(),
+});
+
 const recipesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/recipes",
   component: RecipesPage,
+  validateSearch: recipesSearchSchema,
+});
+
+const recipeNewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/recipes/new",
+  component: RecipeNewPage,
+});
+
+const recipeEditRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/recipes/$recipeId/edit",
+  component: RecipeEditPage,
 });
 
 const fridgeRoute = createRoute({
@@ -36,7 +57,14 @@ const shoppingRoute = createRoute({
   component: ShoppingPage,
 });
 
-const routeTree = rootRoute.addChildren([mealPlanRoute, recipesRoute, fridgeRoute, shoppingRoute]);
+const routeTree = rootRoute.addChildren([
+  mealPlanRoute,
+  recipesRoute,
+  recipeNewRoute,
+  recipeEditRoute,
+  fridgeRoute,
+  shoppingRoute,
+]);
 
 // Wails は webview の URL が固定 (`/`) なので memory history にする。
 // ブラウザの戻る/進むは使わないが、router 内 navigate は動く。

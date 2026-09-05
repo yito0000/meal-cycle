@@ -41,14 +41,14 @@ Go 側 4 レイヤ + フロントエンドを、Wails 自動生成のバイン�
 ```
 Frontend (React + Vite)  ──┐
                            │  Wails IPC (bindings/)
-Service (Go, ルート pkg)   ─┤  ← 現状: healthservice.go
+Service (internal/service/) ─┤  ← 単一 package service に 1 capability = 1 ファイル (recipe.go / mealplan.go / health.go)
                            │
 Domain (internal/domain/)  │  ← capability 単位: recipe/, mealplan/, fridge/, stock/
                            │
 Repository (internal/storage/sqlite/)  ← Open / Migrate + capability ごとに 1 repo
 ```
 
-Wails サービスは `package main`（リポジトリ直下、例: `healthservice.go`）に置き、`main.go` の `application.Options.Services` で登録する。**1 proposal ≒ 1 capability** で、通常はサービス 1 個 / ドメインパッケージ 1 個 / リポジトリ 1 個 / マイグレーション 1 個を同時に足す。
+Wails サービスは `internal/service/`（`package service`）に **1 capability = 1 ファイル** で置き、`main.go` の `application.Options.Services` で `service.NewRecipeService(db)` の形で登録する。**1 proposal ≒ 1 capability** で、通常はサービス 1 ファイル / ドメインパッケージ 1 個 / リポジトリ 1 個 / マイグレーション 1 個を同時に足す。単一パッケージにまとめる理由は、サブパッケージ (`internal/service/recipe/`) にすると `internal/domain/recipe/` と名前が衝突して `main.go` で import alias が必要になるため。
 
 **SQLite 周り**:
 - ドライバ: `modernc.org/sqlite`（Cgo なし — クロスコンパイルが素直）
@@ -167,4 +167,4 @@ Go とフロントの両方で lint/format を有効化している。実装後�
 
 - `main.go` の初期ウィンドウサイズは `app.Screen.GetPrimary().WorkArea` の 85% (幅 2400 / 高さ 1500 で cap、失敗時は 1440×900) を使い、OS の DPI 設定にそのまま合わせる。`Zoom: 1.5` は高 DPI (4K 等) 向けの内容拡大で、CSS の `font-size` は意図的に触っていない — Wails の WebView zoom で拡大することで dev / preview / packaged の見た目を揃える
 - `build/ios` と `build/android` は Wails 標準のモバイル雛形、**MVP 対象外**。`go build ./...` はここで `main undeclared` で落ちるので、Go コマンドは `./internal/...` か `./` に絞ること
-- Wails サービスにメソッドを足したら、サービス struct にメソッドを定義 → `wails3 generate bindings` → TS 側は `frontend/bindings/github.com/yito0000/meal-cycle` から import
+- Wails サービスにメソッドを足したら、`internal/service/<capability>.go` の struct にメソッドを定義 → `wails3 generate bindings` → TS 側は `frontend/bindings/github.com/yito0000/meal-cycle/internal/service` から import (`import { RecipeService } from "…/internal/service"`)
