@@ -11,6 +11,10 @@
       "src/**/*.tsx",
       "src/**/*.js",
       "src/**/*.json",
+      "e2e/**/*.ts",
+      "vite.config.ts",
+      "vite-plugin-e2e-bindings.ts",
+      "playwright.config.ts",
       "!!**/bindings",
       "!!**/dist",
       "!!**/node_modules"

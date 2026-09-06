@@ -3,6 +3,9 @@
 bin
 /meal-cycle
 /meal-cycle.exe
+# cmd/* をルートで go build したときの成果物
+/seed
+/e2e-server
 frontend/dist
 frontend/node_modules
 frontend/bindings
@@ -14,3 +17,7 @@ build/ios/xcode/overlay.json
 build/ios/xcode/gen/
 build/android/overlay.json
 build/android/gen/
+
+# Playwright (E2E)
+frontend/playwright-report/
+frontend/test-results/

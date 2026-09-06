@@ -12,7 +12,8 @@
     "lint": "biome check",
     "lint:fix": "biome check --write",
     "format": "biome format --write",
-    "format:check": "biome format"
+    "format:check": "biome format",
+    "test:e2e": "vite build --mode e2e && playwright test"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.23",
@@ -33,7 +34,9 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.10",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/vite": "^4.0.0",
+    "@types/node": "^26.4.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^6.0.0",

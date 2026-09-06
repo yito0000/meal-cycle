@@ -39,6 +39,18 @@ tasks:
     cmds:
       - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
 
+  seed:
+    summary: Inserts sample recipes into the local SQLite DB (idempotent)
+    cmds:
+      - go run ./cmd/seed {{.CLI_ARGS}}
+
+  test:e2e:
+    summary: Runs the Playwright E2E suite (real React + Go services + SQLite)
+    dir: frontend
+    cmds:
+      - npm run type-check
+      - npm run test:e2e
+
   lint:
     summary: Runs linters for both Go (golangci-lint) and frontend (Biome)
     cmds:
@@ -48,7 +60,7 @@ tasks:
   lint:go:
     summary: Runs golangci-lint on Go code (skips build/ios, build/android)
     cmds:
-      - go tool golangci-lint run ./internal/... ./
+      - go tool golangci-lint run ./internal/... ./cmd/... ./
 
   lint:frontend:
     summary: Runs Biome check (lint + format check) on frontend
@@ -65,7 +77,7 @@ tasks:
   format:go:
     summary: Formats Go code via golangci-lint fmt
     cmds:
-      - go tool golangci-lint fmt ./internal/... ./
+      - go tool golangci-lint fmt ./internal/... ./cmd/... ./
 
   format:frontend:
     summary: Formats frontend code and applies safe lint fixes via Biome

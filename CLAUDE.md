@@ -26,6 +26,8 @@ wails3 generate bindings    # Go サービスを追加/変更したら frontend/
 cd frontend && npm run type-check   # TypeScript 型チェック
 cd frontend && npm run build:dev    # Vite ビルド（import 解決の総合確認）
 
+task test:e2e               # Playwright E2E（実 React + 実 Go サービス + 実 SQLite）
+
 task lint                   # Go (golangci-lint) + Frontend (Biome) をまとめて実行
 task lint:go                # Go 側だけ
 task lint:frontend          # Frontend 側だけ
@@ -98,7 +100,16 @@ func TestRecipeService_List(t *testing.T) {
 
 **ファイル配置**: `_test.go` は対象と同じパッケージ内（`package sqlite`）に置き、ホワイトボックスで書く。外部公開 API の観点だけで書きたい場合は `package sqlite_test` を切る。
 
-**フロントエンド**: 現状テストランナーは入れていない。ユニット的な検証が欲しくなったら Vitest を追加する（本格的な E2E は [scenarios/](docs/scenarios/) を godog で走らせる方向で別途検討 — 現状は仕様ドキュメント扱い）。
+**フロントエンド（ユニット）**: 現状テストランナーは入れていない。純関数やコンポーネント単体の検証が欲しくなったら Vitest を追加する。
+
+**E2E（`frontend/e2e/`）**: Playwright + headless Chromium。Wails の IPC 層だけを HTTP に差し替え、React / Go サービス / SQLite は本物のまま通す。`task test:e2e` で実行する。
+
+- 生成 bindings への import は、`--mode e2e` のときだけ `frontend/e2e/bindings-shim/` に差し替わる（`vite-plugin-e2e-bindings.ts`）。`task dev` / `task build` には影響しない
+- サーバは `cmd/e2e-server`。`frontend/dist` を配信し、`POST /api/{Service}/{Method}` を reflect で `internal/service` に転送する。DB はテストごとに一時ディレクトリへ作り直す
+- **テスト名は [docs/scenarios/](docs/scenarios/) の `シナリオ:` 行と一字一句揃える**。`describe` 名は `機能:` 行に揃える。未実装のシナリオは `test.skip` で名前だけ置く
+- ルータは memory history なので `page.goto("/recipes")` では遷移しない。サイドバーをクリックする
+- godog は入れない（判断の理由は [docs/scenarios/README.md](docs/scenarios/README.md)）
+- 詳細は [frontend/e2e/README.md](frontend/e2e/README.md)
 
 ## コメント方針
 
@@ -162,6 +173,7 @@ proposal は `openspec/changes/<name>/`、アーカイブは `openspec/changes/a
 
 meal-cycle の開発は WSL2 (AlmaLinux 10) で行うが、WSLg + WebKit2GTK は IME 連携が不安定で、`task dev` の webview に日本語 (IME) 入力ができない。ibus / fcitx5 のセットアップを WSL 側に入れる方針は詰まりやすく、費用対効果が悪かったため、動作確認を **開発時 (WSL) と最終確認 (Windows)** の 2 階建てにする。
 
+- **自動化された下段**：`task test:e2e` が headless Chromium で画面を跨ぐ経路を検証する。Windows 実機確認を置き換えるものではない（Wails の IPC 層と IME は通らない）。
 - **開発時の軽い動作確認**：WSL2 側で `task dev` を叩き、ホットリロードで反復する。日本語入力を伴わない観点 (レイアウト、遷移、ボタン挙動、バリデーションの発火、Tab キー移動、CSS の見た目) はここで済ませる。
 - **日本語入力を含む動作確認**：Windows ネイティブビルドを作って Windows 側から実行する。IME 経由の入力、日本語文字を含む保存、Markdown 記法 (`##`、`- `) など、日本語が絡む観点はここでまとめて確認する。
 

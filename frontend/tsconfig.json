@@ -28,5 +28,5 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["src", "bindings"]
+  "include": ["src", "bindings", "e2e", "vite-plugin-e2e-bindings.ts"]
 }

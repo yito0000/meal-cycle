@@ -36,6 +36,24 @@ meal-cycle の受け入れ観点を Gherkin 形式で残す場所。capability �
 
 ## 自動テストとしての実行について
 
-現状これらの `.feature` は**「読める設計ドキュメント」**として書いており、CI で自動実行はしていない。実装時の単体・統合テストは Go 標準の `testing` パッケージで書く方針。
+`.feature` は実行可能なテストではなく、**受け入れ観点を capability 横断で見渡すためのドキュメント**として書いている。
+実行するのは Playwright ベースの E2E (`frontend/e2e/`) で、対応は**テスト名の一致**で取る。
 
-将来 **E2E テストが欲しくなったタイミングで [cucumber/godog](https://github.com/cucumber/godog) の導入を検討**する（日本語 Gherkin にも対応）。導入時はステップ定義（`前提「X が Y」→ Go 関数呼び出し` の対応表）を書く作業が発生するため、その時点で実行対象にする `.feature` を選別する。
+- `describe` 名を `機能:` 行に、`test` 名を `シナリオ:` 行に一字一句揃える
+- 未実装のシナリオは `test.skip` で名前だけ置く
+- 対応の確認手順は [../../frontend/e2e/README.md](../../frontend/e2e/README.md) にある
+
+現在 `recipe.feature` の 17 シナリオはすべてテスト名として存在する (うち 7 件は未実装で skip)。
+`mealplan.feature` / `fridge.feature` / `shopping.feature` は画面が未実装なので、対応する capability の
+proposal で E2E を足していく。
+
+### godog を入れない理由
+
+当初は [cucumber/godog](https://github.com/cucumber/godog) で `.feature` を直接実行する案を検討したが見送った。
+
+サービス層は `internal/service/*_test.go` が `t.Run("should … when …")` の BDD 風で書かれており、
+godog を足しても増えるのは Gherkin の見た目だけでカバー範囲は変わらない。
+さらに「検索欄に入力する」型のシナリオを Go のステップに写すと、実際にはフロントにある検索とソートを
+Go 側で再実装した嘘の検証になる。
+
+判断の詳細は [../../openspec/changes/archive/2026-09-07-add-e2e-harness/proposal.md](../../openspec/changes/archive/2026-09-07-add-e2e-harness/proposal.md) の Non-goals にある。
