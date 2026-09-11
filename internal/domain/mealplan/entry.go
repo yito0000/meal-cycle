@@ -17,11 +17,26 @@ const (
 //
 // Date は "YYYY-MM-DD" (ローカル日付、タイムゾーンなし)。Position は 0 起点で
 // (Date, Slot) 内で一意、S01 セル内の縦の並び順 (主菜 → 副菜 → 汁物) を決める。
-// RecipeName は表示用の暫定フィールドで、add-mealplan-recipe-reference で
-// RecipeID 参照に置き換える。
+// RecipeID は永続化の主参照で、RecipeName は表示用に recipes と JOIN した値。
+// BatchID は「同じバッチ = 1 回分の調理を共有」の識別子。BatchMemberCount は
+// 同じ BatchID を持つ行の全体数 (repo が COUNT(*) OVER (PARTITION BY batch_id) で返す)。
 type Entry struct {
-	Date       string `json:"date"`
-	Slot       Slot   `json:"slot"`
-	Position   int    `json:"position"`
-	RecipeName string `json:"recipeName"`
+	Date             string `json:"date"`
+	Slot             Slot   `json:"slot"`
+	Position         int    `json:"position"`
+	RecipeID         string `json:"recipeId"`
+	RecipeName       string `json:"recipeName"`
+	BatchID          string `json:"batchId"`
+	BatchMemberCount int    `json:"batchMemberCount"`
+}
+
+// BatchSummary は合流候補ダイアログに表示する「同 slot 内の他バッチ」の 1 件。
+// 起点行 (代表) の日付・レシピ ID・レシピ名と、バッチ全体のメンバー数を持つ。
+type BatchSummary struct {
+	BatchID     string `json:"batchId"`
+	Date        string `json:"date"`
+	Slot        Slot   `json:"slot"`
+	RecipeID    string `json:"recipeId"`
+	RecipeName  string `json:"recipeName"`
+	MemberCount int    `json:"memberCount"`
 }

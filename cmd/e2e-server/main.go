@@ -76,7 +76,7 @@ func main() {
 func newRegistry(db *sql.DB, recipeSvc *service.RecipeService) serviceRegistry {
 	return serviceRegistry{
 		"HealthService":   service.NewHealthService(db),
-		"MealPlanService": service.NewMealPlanService(),
+		"MealPlanService": service.NewMealPlanService(sqlite.NewMealPlanRepo(db)),
 		"RecipeService":   recipeSvc,
 	}
 }

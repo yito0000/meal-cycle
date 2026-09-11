@@ -30,8 +30,8 @@ func TestOpenAndMigrate(t *testing.T) {
 	if err := db.QueryRow(`SELECT version_id FROM goose_db_version ORDER BY id DESC LIMIT 1`).Scan(&v); err != nil {
 		t.Fatalf("query goose_db_version: %v", err)
 	}
-	if v != 2 {
-		t.Fatalf("expected goose version 2, got %d", v)
+	if v != 4 {
+		t.Fatalf("expected goose version 4, got %d", v)
 	}
 }
 

@@ -27,6 +27,78 @@
       },
       "cell": {
         "more_items": "他 {{count}} 件"
+      },
+      "picker": {
+        "title": "レシピを選ぶ",
+        "search_placeholder": "レシピ名で検索",
+        "empty": "該当するレシピがありません",
+        "cancel": "キャンセル"
+      },
+      "cell_actions": {
+        "add_first": "レシピを割り当てる",
+        "add_more": "この slot に品を追加",
+        "slot_menu": "slot メニュー",
+        "item_menu": "品メニュー"
+      },
+      "item_menu": {
+        "replace": "入れ替え",
+        "remove": "この品を削除",
+        "view_detail": "この品のレシピ詳細を見る",
+        "copy_days": "この品を連続 {{days}} 日",
+        "split_batch": "作り置きから外す",
+        "merge_batch": "他の作り置きにまとめる"
+      },
+      "slot_menu": {
+        "clear": "slot 全体をクリア",
+        "copy_days": "slot 全体を連続 {{days}} 日コピー",
+        "reorder": "並び替え"
+      },
+      "reorder": {
+        "move_up": "上へ",
+        "move_down": "下へ",
+        "done": "完了"
+      },
+      "copy": {
+        "title": "連続コピー",
+        "days_option": "{{days}} 日",
+        "confirm": "コピー",
+        "conflict": {
+          "title": "コピー先に既存の割当があります",
+          "body": "{{count}} 個の slot に既存の割当があります。どうしますか？",
+          "append": "追加",
+          "overwrite": "上書き",
+          "cancel": "キャンセル"
+        },
+        "mode": {
+          "title": "コピー方法を選ぶ",
+          "leftover": "作り置き",
+          "leftover_hint": "1 回で作って N 日分。材料は 1 セットだけ計上。",
+          "distinct": "別調理",
+          "distinct_hint": "N 回に分けて作る。材料は N セット計上。",
+          "confirm": "次へ"
+        }
+      },
+      "batch": {
+        "legend": {
+          "leftover": "同色 = 同じ作り置き / 材料は 1 セット"
+        },
+        "merge_dialog": {
+          "title": "まとめ先の作り置きを選ぶ",
+          "empty": "同じ slot にまとめられる作り置きはありません",
+          "item_label": "{{date}} {{recipeName}} ({{count}} 品)"
+        }
+      },
+      "errors": {
+        "invalid_date": "日付の形式が不正です",
+        "invalid_slot": "slot の指定が不正です",
+        "invalid_position": "position が不正です",
+        "entry_not_found": "対象の品が見つかりません",
+        "reorder_mismatch": "並び替えの指定が現在の slot と一致しません",
+        "invalid_copy_days": "選択できない日数です",
+        "unknown_recipe": "指定したレシピが見つかりません",
+        "batch_target_not_found": "まとめ先の作り置きが見つかりません",
+        "batch_merge_denied": "その作り置きにはまとめられません",
+        "unknown": "処理に失敗しました"
       }
     },
     "recipes": {

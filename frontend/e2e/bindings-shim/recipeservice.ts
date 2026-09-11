@@ -10,7 +10,7 @@ export function GetByID(id: string) {
 }
 
 export function List() {
-  return call<recipe$0.Recipe[] | null>("RecipeService", "List");
+  return call<recipe$0.Recipe[]>("RecipeService", "List");
 }
 
 export function Update(id: string, input: recipe$0.Recipe) {

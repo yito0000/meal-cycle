@@ -27,6 +27,78 @@
       },
       "cell": {
         "more_items": "+{{count}} more"
+      },
+      "picker": {
+        "title": "Pick a recipe",
+        "search_placeholder": "Search by recipe name",
+        "empty": "No matching recipes",
+        "cancel": "Cancel"
+      },
+      "cell_actions": {
+        "add_first": "Assign a recipe",
+        "add_more": "Add another dish",
+        "slot_menu": "Slot menu",
+        "item_menu": "Dish menu"
+      },
+      "item_menu": {
+        "replace": "Replace",
+        "remove": "Remove this dish",
+        "view_detail": "View recipe detail",
+        "copy_days": "Repeat for {{days}} days",
+        "split_batch": "Detach from batch",
+        "merge_batch": "Merge into another batch"
+      },
+      "slot_menu": {
+        "clear": "Clear this slot",
+        "copy_days": "Copy this slot for {{days}} days",
+        "reorder": "Reorder"
+      },
+      "reorder": {
+        "move_up": "Up",
+        "move_down": "Down",
+        "done": "Done"
+      },
+      "copy": {
+        "title": "Copy across days",
+        "days_option": "{{days}} days",
+        "confirm": "Copy",
+        "conflict": {
+          "title": "Target slots already have dishes",
+          "body": "{{count}} slot(s) already have dishes. Choose how to merge.",
+          "append": "Append",
+          "overwrite": "Overwrite",
+          "cancel": "Cancel"
+        },
+        "mode": {
+          "title": "Choose copy mode",
+          "leftover": "Leftover (share one batch)",
+          "leftover_hint": "Cook once, eat N days. Ingredients count once.",
+          "distinct": "Distinct (N batches)",
+          "distinct_hint": "Cook separately for each day. Ingredients count N times.",
+          "confirm": "Continue"
+        }
+      },
+      "batch": {
+        "legend": {
+          "leftover": "Same color = same batch / ingredients counted once"
+        },
+        "merge_dialog": {
+          "title": "Pick a batch to merge into",
+          "empty": "No other batches in this slot to merge into",
+          "item_label": "{{date}} {{recipeName}} ({{count}} items)"
+        }
+      },
+      "errors": {
+        "invalid_date": "Invalid date format",
+        "invalid_slot": "Invalid slot",
+        "invalid_position": "Invalid position",
+        "entry_not_found": "Dish not found",
+        "reorder_mismatch": "Reorder request does not match current slot",
+        "invalid_copy_days": "Unsupported day count",
+        "unknown_recipe": "Unknown recipe",
+        "batch_target_not_found": "Target batch not found",
+        "batch_merge_denied": "Cannot merge into that batch",
+        "unknown": "Something went wrong"
       }
     },
     "recipes": {

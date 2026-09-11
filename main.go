@@ -37,7 +37,7 @@ func main() {
 		Description: "献立・冷蔵庫・レシピを一元管理するデスクトップアプリ",
 		Services: []application.Service{
 			application.NewService(service.NewHealthService(db)),
-			application.NewService(service.NewMealPlanService()),
+			application.NewService(service.NewMealPlanService(sqlite.NewMealPlanRepo(db))),
 			application.NewService(service.NewRecipeService(db)),
 		},
 		Assets: application.AssetOptions{

@@ -11,7 +11,13 @@ export type { Health } from "../../bindings/github.com/yito0000/meal-cycle/inter
 export { HealthService, MealPlanService, RecipeService };
 
 // 生成 bindings に無い関数、シグネチャ違い、export 漏れはここで type-check が落ちる。
-// 実行時アサーションにしないのは、E2E を回さない通常の開発サイクルでも
-// ずれを検出させるため (design.md D5)。
-const _typeCheck: typeof Generated = { HealthService, MealPlanService, RecipeService };
+// wails3 の `-ts -i` (Taskfile 側) は Health を interface 型 (値なし) で吐くため、
+// 値の一致は runtime バインディング (HealthService / MealPlanService / RecipeService) だけを
+// 突き合わせる。型 export の網羅は `export type` で担保する。
+type GeneratedRuntime = Omit<typeof Generated, "Health">;
+const _typeCheck: GeneratedRuntime = {
+  HealthService,
+  MealPlanService,
+  RecipeService,
+};
 void _typeCheck;
