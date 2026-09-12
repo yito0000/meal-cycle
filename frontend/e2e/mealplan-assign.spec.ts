@@ -14,7 +14,7 @@ async function openMealCalendar(page: import("@playwright/test").Page) {
   await expect(page.getByRole("heading", { name: t.title })).toBeVisible();
 }
 
-test.describe("機能: 献立へのレシピ割当（1 slot に 0..N 品）", () => {
+test.describe("機能: 献立へのレシピ割当（1 時間帯に 0..N 品）", () => {
   test("空セルに 1 品目を割り当てる", async ({ page }) => {
     await createRecipe(page, "肉じゃが");
     await openMealCalendar(page);
@@ -36,7 +36,7 @@ test.describe("機能: 献立へのレシピ割当（1 slot に 0..N 品）", ()
     await expect(page.getByText("肉じゃが").first()).toBeVisible();
   });
 
-  test.skip("既に 1 品ある slot にもう 1 品追加する", async () => {
+  test.skip("既に 1 品ある時間帯にもう 1 品追加する", async () => {
     // 実装は Group 7 で通した右上 `＋` 経路。E2E は次イテレーションで有効化する。
   });
 
@@ -52,7 +52,7 @@ test.describe("機能: 献立へのレシピ割当（1 slot に 0..N 品）", ()
     // 同上。
   });
 
-  test.skip("slot 全体をクリアする", async () => {
+  test.skip("時間帯全体をクリアする", async () => {
     // SlotMenu → clear は実装済み。
   });
 
@@ -66,8 +66,8 @@ test.describe("機能: 作り置きコピー（同一レシピの連続割当）
     // CellItemMenu の「連続 N 日」→ CopyLeftover。実装済みだが E2E は次イテレーションで。
   });
 
-  test.skip("slot 全体（複数品）を連続 N 日コピー", async () => {
-    // SlotMenu の「slot 全体を連続 N 日」→ CopyLeftover。
+  test.skip("時間帯全体（複数品）を連続 N 日コピー", async () => {
+    // SlotMenu の「時間帯全体を連続 N 日」→ CopyLeftover。
   });
 
   test.skip("コピー先に既存の割当があると追加 or 上書きを確認する", async () => {

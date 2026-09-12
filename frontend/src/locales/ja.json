@@ -23,7 +23,7 @@
         "dinner": "夕食"
       },
       "slot_visibility": {
-        "aria_label": "slot 表示切替"
+        "aria_label": "時間帯の表示切替"
       },
       "cell": {
         "more_items": "他 {{count}} 件"
@@ -36,8 +36,8 @@
       },
       "cell_actions": {
         "add_first": "レシピを割り当てる",
-        "add_more": "この slot に品を追加",
-        "slot_menu": "slot メニュー",
+        "add_more": "この時間帯に品を追加",
+        "slot_menu": "時間帯メニュー",
         "item_menu": "品メニュー"
       },
       "item_menu": {
@@ -49,8 +49,8 @@
         "merge_batch": "他の作り置きにまとめる"
       },
       "slot_menu": {
-        "clear": "slot 全体をクリア",
-        "copy_days": "slot 全体を連続 {{days}} 日コピー",
+        "clear": "時間帯全体をクリア",
+        "copy_days": "時間帯全体を連続 {{days}} 日コピー",
         "reorder": "並び替え"
       },
       "reorder": {
@@ -64,7 +64,7 @@
         "confirm": "コピー",
         "conflict": {
           "title": "コピー先に既存の割当があります",
-          "body": "{{count}} 個の slot に既存の割当があります。どうしますか？",
+          "body": "{{count}} 個の時間帯に既存の割当があります。どうしますか？",
           "append": "追加",
           "overwrite": "上書き",
           "cancel": "キャンセル"
@@ -84,16 +84,16 @@
         },
         "merge_dialog": {
           "title": "まとめ先の作り置きを選ぶ",
-          "empty": "同じ slot にまとめられる作り置きはありません",
+          "empty": "同じ時間帯にまとめられる作り置きはありません",
           "item_label": "{{date}} {{recipeName}} ({{count}} 品)"
         }
       },
       "errors": {
         "invalid_date": "日付の形式が不正です",
-        "invalid_slot": "slot の指定が不正です",
+        "invalid_slot": "時間帯の指定が不正です",
         "invalid_position": "position が不正です",
         "entry_not_found": "対象の品が見つかりません",
-        "reorder_mismatch": "並び替えの指定が現在の slot と一致しません",
+        "reorder_mismatch": "並び替えの指定が現在の時間帯と一致しません",
         "invalid_copy_days": "選択できない日数です",
         "unknown_recipe": "指定したレシピが見つかりません",
         "batch_target_not_found": "まとめ先の作り置きが見つかりません",
