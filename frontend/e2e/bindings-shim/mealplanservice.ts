@@ -5,29 +5,29 @@ export function ListWeek(weekStart: string) {
   return call<mealplan$0.Entry[]>("MealPlanService", "ListWeek", weekStart);
 }
 
-export function AssignRecipe(date: string, slot: string, recipeID: string) {
-  return call<mealplan$0.Entry>("MealPlanService", "AssignRecipe", date, slot, recipeID);
+export function AssignRecipe(date: string, meal: string, recipeID: string) {
+  return call<mealplan$0.Entry>("MealPlanService", "AssignRecipe", date, meal, recipeID);
 }
 
-export function ReplaceEntry(date: string, slot: string, position: number, recipeID: string) {
-  return call<void>("MealPlanService", "ReplaceEntry", date, slot, position, recipeID);
+export function ReplaceEntry(date: string, meal: string, position: number, recipeID: string) {
+  return call<void>("MealPlanService", "ReplaceEntry", date, meal, position, recipeID);
 }
 
-export function RemoveEntry(date: string, slot: string, position: number) {
-  return call<void>("MealPlanService", "RemoveEntry", date, slot, position);
+export function RemoveEntry(date: string, meal: string, position: number) {
+  return call<void>("MealPlanService", "RemoveEntry", date, meal, position);
 }
 
-export function ClearSlot(date: string, slot: string) {
-  return call<void>("MealPlanService", "ClearSlot", date, slot);
+export function ClearMeal(date: string, meal: string) {
+  return call<void>("MealPlanService", "ClearMeal", date, meal);
 }
 
-export function ReorderSlot(date: string, slot: string, orderedRecipeIDs: string[] | null) {
-  return call<void>("MealPlanService", "ReorderSlot", date, slot, orderedRecipeIDs);
+export function ReorderMeal(date: string, meal: string, orderedRecipeIDs: string[] | null) {
+  return call<void>("MealPlanService", "ReorderMeal", date, meal, orderedRecipeIDs);
 }
 
 export function CopyLeftover(
   date: string,
-  slot: string,
+  meal: string,
   days: number,
   position: number,
   mode: string,
@@ -37,7 +37,7 @@ export function CopyLeftover(
     "MealPlanService",
     "CopyLeftover",
     date,
-    slot,
+    meal,
     days,
     position,
     mode,
@@ -45,20 +45,20 @@ export function CopyLeftover(
   );
 }
 
-export function SplitBatch(date: string, slot: string, position: number) {
-  return call<string>("MealPlanService", "SplitBatch", date, slot, position);
+export function SplitBatch(date: string, meal: string, position: number) {
+  return call<string>("MealPlanService", "SplitBatch", date, meal, position);
 }
 
-export function MergeBatch(date: string, slot: string, position: number, targetBatchID: string) {
-  return call<void>("MealPlanService", "MergeBatch", date, slot, position, targetBatchID);
+export function MergeBatch(date: string, meal: string, position: number, targetBatchID: string) {
+  return call<void>("MealPlanService", "MergeBatch", date, meal, position, targetBatchID);
 }
 
-export function ListSlotBatches(date: string, slot: string, recipeID: string) {
+export function ListMealBatches(date: string, meal: string, recipeID: string) {
   return call<mealplan$0.BatchSummary[]>(
     "MealPlanService",
-    "ListSlotBatches",
+    "ListMealBatches",
     date,
-    slot,
+    meal,
     recipeID,
   );
 }

@@ -42,8 +42,8 @@ func TestCopyDates(t *testing.T) {
 
 func TestPlanCopy(t *testing.T) {
 	source := []Entry{
-		{Date: "2026-08-24", Slot: SlotDinner, Position: 0, RecipeID: "r1", RecipeName: "肉じゃが"},
-		{Date: "2026-08-24", Slot: SlotDinner, Position: 1, RecipeID: "r2", RecipeName: "みそ汁"},
+		{Date: "2026-08-24", Meal: MealDinner, Position: 0, RecipeID: "r1", RecipeName: "肉じゃが"},
+		{Date: "2026-08-24", Meal: MealDinner, Position: 1, RecipeID: "r2", RecipeName: "みそ汁"},
 	}
 
 	t.Run("existing empty, append starts at 0", func(t *testing.T) {
@@ -63,7 +63,7 @@ func TestPlanCopy(t *testing.T) {
 	})
 
 	t.Run("existing has 1 item, append starts at 1", func(t *testing.T) {
-		existing := []Entry{{Date: "2026-08-25", Slot: SlotDinner, Position: 0, RecipeID: "r9"}}
+		existing := []Entry{{Date: "2026-08-25", Meal: MealDinner, Position: 0, RecipeID: "r9"}}
 		got, err := PlanCopy("2026-08-25", source, existing, CopyModeAppend, ShareBatchDistinct)
 		if err != nil {
 			t.Fatalf("err: %v", err)
@@ -78,8 +78,8 @@ func TestPlanCopy(t *testing.T) {
 
 	t.Run("existing has 2 items, overwrite starts at 0 and ignores existing", func(t *testing.T) {
 		existing := []Entry{
-			{Date: "2026-08-25", Slot: SlotDinner, Position: 0, RecipeID: "r9"},
-			{Date: "2026-08-25", Slot: SlotDinner, Position: 1, RecipeID: "r8"},
+			{Date: "2026-08-25", Meal: MealDinner, Position: 0, RecipeID: "r9"},
+			{Date: "2026-08-25", Meal: MealDinner, Position: 1, RecipeID: "r8"},
 		}
 		got, err := PlanCopy("2026-08-25", source, existing, CopyModeOverwrite, ShareBatchDistinct)
 		if err != nil {
@@ -100,8 +100,8 @@ func TestPlanCopy(t *testing.T) {
 
 	t.Run("append skips duplicate recipeID when target is source date", func(t *testing.T) {
 		existing := []Entry{
-			{Date: "2026-08-24", Slot: SlotDinner, Position: 0, RecipeID: "r1"},
-			{Date: "2026-08-24", Slot: SlotDinner, Position: 1, RecipeID: "r2"},
+			{Date: "2026-08-24", Meal: MealDinner, Position: 0, RecipeID: "r1"},
+			{Date: "2026-08-24", Meal: MealDinner, Position: 1, RecipeID: "r2"},
 		}
 		got, err := PlanCopy("2026-08-24", source, existing, CopyModeAppend, ShareBatchDistinct)
 		if err != nil {
@@ -122,7 +122,7 @@ func TestPlanCopy(t *testing.T) {
 
 func TestPlanCopy_ShareBatch(t *testing.T) {
 	sourceShared := []Entry{
-		{Date: "2026-08-24", Slot: SlotDinner, Position: 0, RecipeID: "r1", BatchID: "b-source"},
+		{Date: "2026-08-24", Meal: MealDinner, Position: 0, RecipeID: "r1", BatchID: "b-source"},
 	}
 
 	t.Run("shareBatch=true keeps source BatchID on every returned Entry", func(t *testing.T) {
@@ -140,8 +140,8 @@ func TestPlanCopy_ShareBatch(t *testing.T) {
 
 	t.Run("shareBatch=false assigns a fresh BatchID per returned Entry", func(t *testing.T) {
 		multi := []Entry{
-			{Date: "2026-08-24", Slot: SlotDinner, Position: 0, RecipeID: "r1", BatchID: "b-source"},
-			{Date: "2026-08-24", Slot: SlotDinner, Position: 1, RecipeID: "r2", BatchID: "b-source"},
+			{Date: "2026-08-24", Meal: MealDinner, Position: 0, RecipeID: "r1", BatchID: "b-source"},
+			{Date: "2026-08-24", Meal: MealDinner, Position: 1, RecipeID: "r2", BatchID: "b-source"},
 		}
 		got, err := PlanCopy("2026-08-25", multi, nil, CopyModeAppend, ShareBatchDistinct)
 		if err != nil {

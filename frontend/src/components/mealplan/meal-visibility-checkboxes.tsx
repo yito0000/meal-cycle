@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
-import { Slot } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
-import { SLOT_RENDER_ORDER } from "./mealplan-config";
+import { Meal } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
+import { MEAL_RENDER_ORDER } from "./mealplan-config";
 
 type Props = {
   value: Set<string>;
@@ -8,24 +8,24 @@ type Props = {
 };
 
 const LABEL_KEY: Record<string, string> = {
-  [Slot.SlotBreakfast]: "pages.meal_plan.slot.breakfast",
-  [Slot.SlotLunch]: "pages.meal_plan.slot.lunch",
-  [Slot.SlotDinner]: "pages.meal_plan.slot.dinner",
+  [Meal.MealBreakfast]: "pages.meal_plan.meal.breakfast",
+  [Meal.MealLunch]: "pages.meal_plan.meal.lunch",
+  [Meal.MealDinner]: "pages.meal_plan.meal.dinner",
 };
 
-export function SlotVisibilityCheckboxes({ value, onChange }: Props) {
+export function MealVisibilityCheckboxes({ value, onChange }: Props) {
   const { t } = useTranslation();
 
   return (
     <fieldset className="inline-flex items-center gap-3 rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-sm">
-      <legend className="sr-only">{t("pages.meal_plan.slot_visibility.aria_label")}</legend>
-      {SLOT_RENDER_ORDER.map((slot) => {
-        const checked = value.has(slot);
-        // 常に 1 個以上の slot を残すため、唯一 ON の checkbox は disable にする。
+      <legend className="sr-only">{t("pages.meal_plan.meal_visibility.aria_label")}</legend>
+      {MEAL_RENDER_ORDER.map((meal) => {
+        const checked = value.has(meal);
+        // 常に 1 個以上の時間帯を残すため、唯一 ON の checkbox は disable にする。
         const isLastOne = checked && value.size === 1;
         return (
           <label
-            key={slot}
+            key={meal}
             className={`flex items-center gap-1.5 ${
               isLastOne ? "cursor-not-allowed text-neutral-400" : "cursor-pointer text-neutral-800"
             }`}
@@ -38,14 +38,14 @@ export function SlotVisibilityCheckboxes({ value, onChange }: Props) {
               onChange={(e) => {
                 const next = new Set(value);
                 if (e.target.checked) {
-                  next.add(slot);
+                  next.add(meal);
                 } else {
-                  next.delete(slot);
+                  next.delete(meal);
                 }
                 onChange(next);
               }}
             />
-            {t(LABEL_KEY[slot])}
+            {t(LABEL_KEY[meal])}
           </label>
         );
       })}

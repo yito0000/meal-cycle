@@ -125,19 +125,19 @@ addedAt      : timestamp
 
 ### MealPlan（献立エントリ）
 
-**1 行 = slot に割り当てられた 1 品**。同じ `(date, slot)` に対して 0..N 行が入る（1 食で主菜＋副菜＋汁物のような複数品構成を表現するため）。
+**1 行 = meal (時間帯) に割り当てられた 1 品**。同じ `(date, meal)` に対して 0..N 行が入る（1 食で主菜＋副菜＋汁物のような複数品構成を表現するため）。
 
 ```
 id           : string
 date         : date             // YYYY-MM-DD
-slot         : "breakfast" | "lunch" | "dinner" | "other"
+meal         : "breakfast" | "lunch" | "dinner" | "other"
 recipeId     : string           // NOT NULL。未定は「行が無い」ことで表現
-position     : int              // 同一 (date, slot) 内での並び順（0 始まり、主菜→副菜→汁物 の順を想定）
+position     : int              // 同一 (date, meal) 内での並び順（0 始まり、主菜→副菜→汁物 の順を想定）
 ```
 
-- `(date, slot)` に一意制約はかけない。代わりに `(date, slot, position)` にユニークインデックスを張って表示順を安定化
+- `(date, meal)` に一意制約はかけない。代わりに `(date, meal, position)` にユニークインデックスを張って表示順を安定化
 - 「未定 = null」は現状の使い方（1 行必ずある + `recipeId` が null）から「行を作らない」に変える方が自然
-- `memo` は MVP からは外す。将来 slot 単位のメモが欲しくなれば `MealSlotMemo(date, slot, memo)` を別テーブルで足す
+- `memo` は MVP からは外す。将来時間帯単位のメモが欲しくなれば `MealMemo(date, meal, memo)` を別テーブルで足す
 
 ### 議論ポイント
 
@@ -358,7 +358,7 @@ add-mealplan-suggest-week-preset ← 週プリセット: 5コマ分を貪欲生�
 
 - **献立候補の提示（3 軸）**: 使い切り / 久しぶりに / 時短。方針は [product.md #5](product.md#5-献立候補の提示mvp-後拡張)。全自動生成は AI 前提になるため採らず、根拠つきで候補を並べてユーザーが選ぶ形にする
 - **料理実施と在庫消費の連動**: 「作った」マークで材料分の在庫を減らす。上記「使い切り」軸の精度向上に必要
-- **設定 UI（S09）**: MVP 期に定数として持っている可変値（slot 表示のデフォルト、「久しぶりに」の消費期間閾値、期限アラート日数、週プリセット品数など。全一覧は [product.md #1](product.md#1-想定利用シナリオ)）をユーザーが変更できる画面。データ import/export・表示言語切替もここに集約
+- **設定 UI（S09）**: MVP 期に定数として持っている可変値（時間帯表示のデフォルト、「久しぶりに」の消費期間閾値、期限アラート日数、週プリセット品数など。全一覧は [product.md #1](product.md#1-想定利用シナリオ)）をユーザーが変更できる画面。データ import/export・表示言語切替もここに集約
 - レシピの検索・タグフィルタ
 - 献立テンプレート（お気に入りの 1 週間パターンを保存）
 - 栄養計算

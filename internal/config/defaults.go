@@ -13,17 +13,17 @@ package config
 type Config struct {
 	// UI 既定値 --------------------------------------------------------
 
-	// S01 初回表示で見せる slot。internal/domain/mealplan.Slot と同じ文字列値を
+	// S01 初回表示で見せる meal。internal/domain/mealplan.Meal と同じ文字列値を
 	// []string で持つ (config が domain を import しないため)。
-	DefaultVisibleSlots []string `json:"defaultVisibleSlots"`
+	DefaultVisibleMeals []string `json:"defaultVisibleMeals"`
 
 	// 週プリセットが埋めるセル範囲。MVP はフリーテキスト、後で型付けする。
 	WeeklyFillPattern string `json:"weeklyFillPattern"`
 
-	// slot ごとの品数目標 {min, max}。強制ではなく、提案生成と UI コピー向けヒント。
-	ItemsPerSlotHint [2]int `json:"itemsPerSlotHint"`
+	// meal ごとの品数目標 {min, max}。強制ではなく、提案生成と UI コピー向けヒント。
+	ItemsPerMealHint [2]int `json:"itemsPerMealHint"`
 
-	// S01 の (date, slot) セルで折り畳まずに見せる品数の上限 ("他 N 件" 表示の閾値)。
+	// S01 の (date, meal) セルで折り畳まずに見せる品数の上限 ("他 N 件" 表示の閾値)。
 	MealPlanCellVisibleItems int `json:"mealPlanCellVisibleItems"`
 
 	// S02 で保存直後の行をハイライトし続ける時間 (ms)。S04 → S02 復帰時に使う
@@ -55,9 +55,9 @@ type Config struct {
 // された既定値を返す (docs/product.md §1)。
 func Defaults() Config {
 	return Config{
-		DefaultVisibleSlots:      []string{"dinner"},
+		DefaultVisibleMeals:      []string{"dinner"},
 		WeeklyFillPattern:        "mon-fri-dinner",
-		ItemsPerSlotHint:         [2]int{1, 3},
+		ItemsPerMealHint:         [2]int{1, 3},
 		MealPlanCellVisibleItems: 2,
 		RecipeListHighlightMs:    2000,
 		RecencyThresholdDays:     10,

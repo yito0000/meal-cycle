@@ -7,9 +7,9 @@ const KEY_UNKNOWN = "pages.meal_plan.errors.unknown";
 
 const RULES: [string, string][] = [
   ["mealplan: invalid date", "pages.meal_plan.errors.invalid_date"],
-  ["mealplan: invalid slot", "pages.meal_plan.errors.invalid_slot"],
+  ["mealplan: invalid meal", "pages.meal_plan.errors.invalid_meal"],
   ["mealplan: invalid position", "pages.meal_plan.errors.invalid_position"],
-  // MergeBatch のみ「合流先バッチが同 slot に無い」の文脈で ErrEntryNotFound を返すため、
+  // MergeBatch のみ「合流先バッチが同 meal に無い」の文脈で ErrEntryNotFound を返すため、
   // 判別できないメッセージ側で先に load される順序に頼らない (先勝ちで entry_not_found)。
   ["mealplan: entry not found", "pages.meal_plan.errors.entry_not_found"],
   ["mealplan: reorder mismatch", "pages.meal_plan.errors.reorder_mismatch"],

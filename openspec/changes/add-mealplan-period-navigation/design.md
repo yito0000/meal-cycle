@@ -4,7 +4,7 @@
   取得。フロントは `useQuery(["mealplan", "week", weekStart], () => ListWeek(...))` で 1 週ぶんだけ
   取得している
 - 期間切替 UI は product.md §S01 で計画されていたが未実装
-- 期間切替は `resize-mealplan-cells` の `CellSizePreset` (期間 × slot 数) を受け取る前提で設計されている
+- 期間切替は `resize-mealplan-cells` の `CellSizePreset` (期間 × 時間帯数) を受け取る前提で設計されている
   (この proposal で状態を渡す起点ができる)
 
 ## Goals / Non-Goals
@@ -79,7 +79,7 @@ invalidate する形に変える。
 
 - [`wails3 generate bindings` の再生成で bindings shim の型が壊れる] → 既に何度か経験しており、パターン
   として `frontend/e2e/bindings-shim/mealplanservice.ts` の該当メソッドを合わせて更新するだけ
-- [4 週表示は 28 日 × N slot でセル数が増えるので、`ListWeek` の SQL が重くなる可能性] → 28 日でも数百行
+- [4 週表示は 28 日 × N meal でセル数が増えるので、`ListWeek` の SQL が重くなる可能性] → 28 日でも数百行
   規模。SQLite で問題になるスケールではない。indexed date range スキャンで十分
 - [`resize-mealplan-cells` proposal と実装順序の依存関係] → 本 proposal は `periodWeeks` を state で持つ
   だけ。CellSizePreset の適用 (2 週 → セル狭く、4 週 → セル最小) は resize-mealplan-cells 側の

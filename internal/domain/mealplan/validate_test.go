@@ -27,7 +27,7 @@ func TestValidateDate(t *testing.T) {
 	}
 }
 
-func TestValidateSlot(t *testing.T) {
+func TestValidateMeal(t *testing.T) {
 	cases := []struct {
 		name string
 		in   string
@@ -36,15 +36,15 @@ func TestValidateSlot(t *testing.T) {
 		{"breakfast", "breakfast", nil},
 		{"lunch", "lunch", nil},
 		{"dinner", "dinner", nil},
-		{"unknown", "snack", ErrInvalidSlot},
-		{"empty", "", ErrInvalidSlot},
-		{"uppercase", "Dinner", ErrInvalidSlot},
+		{"unknown", "snack", ErrInvalidMeal},
+		{"empty", "", ErrInvalidMeal},
+		{"uppercase", "Dinner", ErrInvalidMeal},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := ValidateSlot(tc.in)
+			got := ValidateMeal(tc.in)
 			if !errors.Is(got, tc.want) {
-				t.Errorf("ValidateSlot(%q) = %v, want %v", tc.in, got, tc.want)
+				t.Errorf("ValidateMeal(%q) = %v, want %v", tc.in, got, tc.want)
 			}
 		})
 	}

@@ -17,13 +17,13 @@
       "today": "Today",
       "loading": "Loading…",
       "load_error": "Failed to load meal plan",
-      "slot": {
+      "meal": {
         "breakfast": "Breakfast",
         "lunch": "Lunch",
         "dinner": "Dinner"
       },
-      "slot_visibility": {
-        "aria_label": "Slot visibility"
+      "meal_visibility": {
+        "aria_label": "Meal visibility"
       },
       "cell": {
         "more_items": "+{{count}} more"
@@ -37,7 +37,7 @@
       "cell_actions": {
         "add_first": "Assign a recipe",
         "add_more": "Add another dish",
-        "slot_menu": "Slot menu",
+        "meal_menu": "Meal menu",
         "item_menu": "Dish menu"
       },
       "item_menu": {
@@ -48,9 +48,9 @@
         "split_batch": "Detach from batch",
         "merge_batch": "Merge into another batch"
       },
-      "slot_menu": {
-        "clear": "Clear this slot",
-        "copy_days": "Copy this slot for {{days}} days",
+      "meal_menu": {
+        "clear": "Clear this meal",
+        "copy_days": "Copy this meal for {{days}} days",
         "reorder": "Reorder"
       },
       "reorder": {
@@ -63,8 +63,8 @@
         "days_option": "{{days}} days",
         "confirm": "Copy",
         "conflict": {
-          "title": "Target slots already have dishes",
-          "body": "{{count}} slot(s) already have dishes. Choose how to merge.",
+          "title": "Target meals already have dishes",
+          "body": "{{count}} meal(s) already have dishes. Choose how to merge.",
           "append": "Append",
           "overwrite": "Overwrite",
           "cancel": "Cancel"
@@ -84,16 +84,16 @@
         },
         "merge_dialog": {
           "title": "Pick a batch to merge into",
-          "empty": "No other batches in this slot to merge into",
+          "empty": "No other batches in this meal to merge into",
           "item_label": "{{date}} {{recipeName}} ({{count}} items)"
         }
       },
       "errors": {
         "invalid_date": "Invalid date format",
-        "invalid_slot": "Invalid slot",
+        "invalid_meal": "Invalid meal",
         "invalid_position": "Invalid position",
         "entry_not_found": "Dish not found",
-        "reorder_mismatch": "Reorder request does not match current slot",
+        "reorder_mismatch": "Reorder request does not match current meal",
         "invalid_copy_days": "Unsupported day count",
         "unknown_recipe": "Unknown recipe",
         "batch_target_not_found": "Target batch not found",

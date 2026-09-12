@@ -12,17 +12,17 @@ import (
 // mealPlanRepo は MealPlanService が使う MealPlanRepo の抽象。テストで in-memory 実装に差し替えられる。
 type mealPlanRepo interface {
 	ListWeek(ctx context.Context, weekStart string) ([]mealplan.Entry, error)
-	Assign(ctx context.Context, date, slot, recipeID string) (mealplan.Entry, error)
-	Replace(ctx context.Context, date, slot string, position int, recipeID string) error
-	Remove(ctx context.Context, date, slot string, position int) error
-	ClearSlot(ctx context.Context, date, slot string) error
-	Reorder(ctx context.Context, date, slot string, orderedRecipeIDs []string) error
-	CopyLeftover(ctx context.Context, slot string, targets []string,
+	Assign(ctx context.Context, date, meal, recipeID string) (mealplan.Entry, error)
+	Replace(ctx context.Context, date, meal string, position int, recipeID string) error
+	Remove(ctx context.Context, date, meal string, position int) error
+	ClearMeal(ctx context.Context, date, meal string) error
+	Reorder(ctx context.Context, date, meal string, orderedRecipeIDs []string) error
+	CopyLeftover(ctx context.Context, meal string, targets []string,
 		sourceEntries []mealplan.Entry, mode mealplan.CopyMode, shareBatch mealplan.ShareBatch) error
-	SlotEntries(ctx context.Context, date, slot string) ([]mealplan.Entry, error)
-	SplitBatch(ctx context.Context, date, slot string, position int) (string, error)
-	MergeBatch(ctx context.Context, date, slot string, position int, targetBatchID string) error
-	ListSlotBatches(ctx context.Context, date, slot, recipeID string) ([]mealplan.BatchSummary, error)
+	MealEntries(ctx context.Context, date, meal string) ([]mealplan.Entry, error)
+	SplitBatch(ctx context.Context, date, meal string, position int) (string, error)
+	MergeBatch(ctx context.Context, date, meal string, position int, targetBatchID string) error
+	ListMealBatches(ctx context.Context, date, meal, recipeID string) ([]mealplan.BatchSummary, error)
 }
 
 // MealPlanService は S01 献立カレンダーのデータをフロントに公開する。
@@ -48,63 +48,63 @@ func (s *MealPlanService) ListWeek(ctx context.Context, weekStart string) ([]mea
 }
 
 func (s *MealPlanService) AssignRecipe(
-	ctx context.Context, date, slot, recipeID string,
+	ctx context.Context, date, meal, recipeID string,
 ) (mealplan.Entry, error) {
-	if err := s.validateSlotAddress(date, slot); err != nil {
+	if err := s.validateMealAddress(date, meal); err != nil {
 		return mealplan.Entry{}, err
 	}
-	return s.repo.Assign(ctx, date, slot, recipeID)
+	return s.repo.Assign(ctx, date, meal, recipeID)
 }
 
 func (s *MealPlanService) ReplaceEntry(
-	ctx context.Context, date, slot string, position int, recipeID string,
+	ctx context.Context, date, meal string, position int, recipeID string,
 ) error {
-	if err := s.validateSlotAddress(date, slot); err != nil {
+	if err := s.validateMealAddress(date, meal); err != nil {
 		return err
 	}
 	if err := mealplan.ValidatePosition(position); err != nil {
 		return err
 	}
-	return s.repo.Replace(ctx, date, slot, position, recipeID)
+	return s.repo.Replace(ctx, date, meal, position, recipeID)
 }
 
 func (s *MealPlanService) RemoveEntry(
-	ctx context.Context, date, slot string, position int,
+	ctx context.Context, date, meal string, position int,
 ) error {
-	if err := s.validateSlotAddress(date, slot); err != nil {
+	if err := s.validateMealAddress(date, meal); err != nil {
 		return err
 	}
 	if err := mealplan.ValidatePosition(position); err != nil {
 		return err
 	}
-	return s.repo.Remove(ctx, date, slot, position)
+	return s.repo.Remove(ctx, date, meal, position)
 }
 
-func (s *MealPlanService) ClearSlot(ctx context.Context, date, slot string) error {
-	if err := s.validateSlotAddress(date, slot); err != nil {
+func (s *MealPlanService) ClearMeal(ctx context.Context, date, meal string) error {
+	if err := s.validateMealAddress(date, meal); err != nil {
 		return err
 	}
-	return s.repo.ClearSlot(ctx, date, slot)
+	return s.repo.ClearMeal(ctx, date, meal)
 }
 
-func (s *MealPlanService) ReorderSlot(
-	ctx context.Context, date, slot string, orderedRecipeIDs []string,
+func (s *MealPlanService) ReorderMeal(
+	ctx context.Context, date, meal string, orderedRecipeIDs []string,
 ) error {
-	if err := s.validateSlotAddress(date, slot); err != nil {
+	if err := s.validateMealAddress(date, meal); err != nil {
 		return err
 	}
-	return s.repo.Reorder(ctx, date, slot, orderedRecipeIDs)
+	return s.repo.Reorder(ctx, date, meal, orderedRecipeIDs)
 }
 
-// CopyLeftover は起点 (date, slot) を含む days 日連続の同 slot にコピーを反映する。
-// position < 0 は slot 全体、position >= 0 はその 1 品だけをコピー元とする。
+// CopyLeftover は起点 (date, meal) を含む days 日連続の同 meal にコピーを反映する。
+// position < 0 は meal 全体、position >= 0 はその 1 品だけをコピー元とする。
 // days は config.LeftoverCopyPresets に含まれる値のみ許容 (call site に閾値を書かない)。
 // shareBatch=true (作り置き) は同一レシピの全 target 行が起点行と同じ BatchID を共有する。
 // shareBatch=false (別調理) は 1 行ごとに独立した新 BatchID を割り振る (design.md D3)。
 func (s *MealPlanService) CopyLeftover(
-	ctx context.Context, date, slot string, days int, position int, mode string, shareBatch bool,
+	ctx context.Context, date, meal string, days int, position int, mode string, shareBatch bool,
 ) error {
-	if err := s.validateSlotAddress(date, slot); err != nil {
+	if err := s.validateMealAddress(date, meal); err != nil {
 		return err
 	}
 	if !s.isAllowedCopyDays(days) {
@@ -115,15 +115,15 @@ func (s *MealPlanService) CopyLeftover(
 		return mealplan.ErrInvalidCopyMode
 	}
 
-	sourceSlot, err := s.repo.SlotEntries(ctx, date, slot)
+	sourceMeal, err := s.repo.MealEntries(ctx, date, meal)
 	if err != nil {
 		return err
 	}
 	var source []mealplan.Entry
 	if position < 0 {
-		source = sourceSlot
+		source = sourceMeal
 	} else {
-		for _, e := range sourceSlot {
+		for _, e := range sourceMeal {
 			if e.Position == position {
 				source = []mealplan.Entry{e}
 				break
@@ -150,29 +150,29 @@ func (s *MealPlanService) CopyLeftover(
 		}
 		filtered = append(filtered, d)
 	}
-	return s.repo.CopyLeftover(ctx, slot, filtered, source, cm, mealplan.ShareBatch(shareBatch))
+	return s.repo.CopyLeftover(ctx, meal, filtered, source, cm, mealplan.ShareBatch(shareBatch))
 }
 
 // SplitBatch は 1 行を単独バッチに分離する。新 BatchID を返し、フロントの UI 更新に使う。
 func (s *MealPlanService) SplitBatch(
-	ctx context.Context, date, slot string, position int,
+	ctx context.Context, date, meal string, position int,
 ) (string, error) {
-	if err := s.validateSlotAddress(date, slot); err != nil {
+	if err := s.validateMealAddress(date, meal); err != nil {
 		return "", err
 	}
 	if err := mealplan.ValidatePosition(position); err != nil {
 		return "", err
 	}
-	return s.repo.SplitBatch(ctx, date, slot, position)
+	return s.repo.SplitBatch(ctx, date, meal, position)
 }
 
 // MergeBatch は 1 行の BatchID を targetBatchID に付け替え、既存の作り置きに合流させる。
-// targetBatchID を持つ他の行が同じ slot に無ければ ErrBatchTargetNotFound、3 条件 (同 slot /
+// targetBatchID を持つ他の行が同じ meal に無ければ ErrBatchTargetNotFound、3 条件 (同 meal /
 // 同一レシピ / ±LeftoverCopyPresets max 日以内) を満たす行が無ければ ErrBatchMergeDenied。
 func (s *MealPlanService) MergeBatch(
-	ctx context.Context, date, slot string, position int, targetBatchID string,
+	ctx context.Context, date, meal string, position int, targetBatchID string,
 ) error {
-	if err := s.validateSlotAddress(date, slot); err != nil {
+	if err := s.validateMealAddress(date, meal); err != nil {
 		return err
 	}
 	if err := mealplan.ValidatePosition(position); err != nil {
@@ -181,28 +181,28 @@ func (s *MealPlanService) MergeBatch(
 	if targetBatchID == "" {
 		return mealplan.ErrBatchTargetNotFound
 	}
-	return s.repo.MergeBatch(ctx, date, slot, position, targetBatchID)
+	return s.repo.MergeBatch(ctx, date, meal, position, targetBatchID)
 }
 
-// ListSlotBatches は合流候補ダイアログ用に、3 条件 (同 slot / 同一レシピ / ±日以内) を満たす
+// ListMealBatches は合流候補ダイアログ用に、3 条件 (同 meal / 同一レシピ / ±日以内) を満たす
 // 他バッチ代表行を返す。recipeID は起点行のレシピ ID (呼び出し側は Entry.RecipeID から渡す)。
-func (s *MealPlanService) ListSlotBatches(
-	ctx context.Context, date, slot, recipeID string,
+func (s *MealPlanService) ListMealBatches(
+	ctx context.Context, date, meal, recipeID string,
 ) ([]mealplan.BatchSummary, error) {
-	if err := s.validateSlotAddress(date, slot); err != nil {
+	if err := s.validateMealAddress(date, meal); err != nil {
 		return nil, err
 	}
 	if recipeID == "" {
 		return nil, mealplan.ErrUnknownRecipe
 	}
-	return s.repo.ListSlotBatches(ctx, date, slot, recipeID)
+	return s.repo.ListMealBatches(ctx, date, meal, recipeID)
 }
 
-func (s *MealPlanService) validateSlotAddress(date, slot string) error {
+func (s *MealPlanService) validateMealAddress(date, meal string) error {
 	if err := mealplan.ValidateDate(date); err != nil {
 		return err
 	}
-	if err := mealplan.ValidateSlot(slot); err != nil {
+	if err := mealplan.ValidateMeal(meal); err != nil {
 		return err
 	}
 	return nil

@@ -88,7 +88,7 @@ func TestMealPlanRepo_ListWeek(t *testing.T) {
 func TestMealPlanRepo_Assign(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("Assign should append with position = max+1 when the slot already has items", func(t *testing.T) {
+	t.Run("Assign should append with position = max+1 when the meal already has items", func(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "A", "B", "C")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
@@ -169,25 +169,25 @@ func TestMealPlanRepo_Remove(t *testing.T) {
 	})
 }
 
-func TestMealPlanRepo_ClearSlot(t *testing.T) {
+func TestMealPlanRepo_ClearMeal(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("ClearSlot should delete every row in the target (date, slot) and leave other slots untouched", func(t *testing.T) {
+	t.Run("ClearMeal should delete every row in the target (date, meal) and leave other meals untouched", func(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "A", "B")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[1].ID)
 		_, _ = repo.Assign(ctx, "2026-08-24", "lunch", rs[0].ID)
 
-		if err := repo.ClearSlot(ctx, "2026-08-24", "dinner"); err != nil {
-			t.Fatalf("ClearSlot: %v", err)
+		if err := repo.ClearMeal(ctx, "2026-08-24", "dinner"); err != nil {
+			t.Fatalf("ClearMeal: %v", err)
 		}
 		got, _ := repo.ListWeek(ctx, "2026-08-24")
 		if len(got) != 1 {
 			t.Fatalf("want 1 (lunch only), got %d", len(got))
 		}
-		if got[0].Slot != mealplan.SlotLunch {
-			t.Errorf("remaining slot = %s, want lunch", got[0].Slot)
+		if got[0].Meal != mealplan.MealLunch {
+			t.Errorf("remaining meal = %s, want lunch", got[0].Meal)
 		}
 	})
 }
@@ -212,7 +212,7 @@ func TestMealPlanRepo_Reorder(t *testing.T) {
 		}
 	})
 
-	t.Run("Reorder should return error when orderedRecipeIDs mismatches the current slot content", func(t *testing.T) {
+	t.Run("Reorder should return error when orderedRecipeIDs mismatches the current meal content", func(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "A", "B")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
@@ -234,12 +234,12 @@ func TestMealPlanRepo_CopyLeftover(t *testing.T) {
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[1].ID)
 		_, _ = repo.Assign(ctx, "2026-08-25", "dinner", rs[2].ID)
 
-		source, _ := repo.SlotEntries(ctx, "2026-08-24", "dinner")
+		source, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
 		if err := repo.CopyLeftover(ctx, "dinner",
 			[]string{"2026-08-25"}, source, mealplan.CopyModeAppend, mealplan.ShareBatchDistinct); err != nil {
 			t.Fatalf("CopyLeftover: %v", err)
 		}
-		got, _ := repo.SlotEntries(ctx, "2026-08-25", "dinner")
+		got, _ := repo.MealEntries(ctx, "2026-08-25", "dinner")
 		if len(got) != 3 {
 			t.Fatalf("want 3 (existing + A + B), got %d", len(got))
 		}
@@ -255,12 +255,12 @@ func TestMealPlanRepo_CopyLeftover(t *testing.T) {
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[1].ID)
 		_, _ = repo.Assign(ctx, "2026-08-25", "dinner", rs[2].ID)
 
-		source, _ := repo.SlotEntries(ctx, "2026-08-24", "dinner")
+		source, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
 		if err := repo.CopyLeftover(ctx, "dinner",
 			[]string{"2026-08-25"}, source, mealplan.CopyModeOverwrite, mealplan.ShareBatchDistinct); err != nil {
 			t.Fatalf("CopyLeftover: %v", err)
 		}
-		got, _ := repo.SlotEntries(ctx, "2026-08-25", "dinner")
+		got, _ := repo.MealEntries(ctx, "2026-08-25", "dinner")
 		if len(got) != 2 {
 			t.Fatalf("want 2 (A + B), got %d", len(got))
 		}
@@ -276,12 +276,12 @@ func TestMealPlanRepo_CopyLeftover(t *testing.T) {
 		rs := seedRecipes(t, rr, "A")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
 
-		source, _ := repo.SlotEntries(ctx, "2026-08-24", "dinner")
+		source, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
 		if err := repo.CopyLeftover(ctx, "dinner",
 			[]string{"2026-08-24"}, source, mealplan.CopyModeAppend, mealplan.ShareBatchDistinct); err != nil {
 			t.Fatalf("CopyLeftover: %v", err)
 		}
-		got, _ := repo.SlotEntries(ctx, "2026-08-24", "dinner")
+		got, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
 		if len(got) != 1 {
 			t.Fatalf("want 1 (no duplicate), got %d", len(got))
 		}
@@ -307,7 +307,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "肉じゃが")
 		src, _ := repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
-		source, _ := repo.SlotEntries(ctx, "2026-08-24", "dinner")
+		source, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
 		if err := repo.CopyLeftover(ctx, "dinner",
 			[]string{"2026-08-25", "2026-08-26"}, source,
 			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover); err != nil {
@@ -330,7 +330,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "肉じゃが")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
-		source, _ := repo.SlotEntries(ctx, "2026-08-24", "dinner")
+		source, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
 		if err := repo.CopyLeftover(ctx, "dinner",
 			[]string{"2026-08-25", "2026-08-26"}, source,
 			mealplan.CopyModeAppend, mealplan.ShareBatchDistinct); err != nil {
@@ -350,7 +350,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "肉じゃが")
 		src, _ := repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
-		source, _ := repo.SlotEntries(ctx, "2026-08-24", "dinner")
+		source, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
 		_ = repo.CopyLeftover(ctx, "dinner",
 			[]string{"2026-08-25", "2026-08-26"}, source,
 			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover)
@@ -378,7 +378,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "肉じゃが")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
-		source, _ := repo.SlotEntries(ctx, "2026-08-24", "dinner")
+		source, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
 		_ = repo.CopyLeftover(ctx, "dinner",
 			[]string{"2026-08-25", "2026-08-26"}, source,
 			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover)
@@ -414,7 +414,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "肉じゃが", "みそ汁")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
-		source, _ := repo.SlotEntries(ctx, "2026-08-24", "dinner")
+		source, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
 		_ = repo.CopyLeftover(ctx, "dinner",
 			[]string{"2026-08-25", "2026-08-26"}, source,
 			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover)
@@ -423,7 +423,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		if _, err := repo.SplitBatch(ctx, "2026-08-26", "dinner", 0); err != nil {
 			t.Fatalf("SplitBatch: %v", err)
 		}
-		got, _ := repo.SlotEntries(ctx, "2026-08-25", "dinner")
+		got, _ := repo.MealEntries(ctx, "2026-08-25", "dinner")
 		found := false
 		for _, e := range got {
 			if e.BatchID == other.BatchID {
@@ -454,7 +454,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		}
 	})
 
-	t.Run("MergeBatch returns ErrBatchTargetNotFound when target batch has no other row in the same slot", func(t *testing.T) {
+	t.Run("MergeBatch returns ErrBatchTargetNotFound when target batch has no other row in the same meal", func(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "肉じゃが")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
@@ -464,18 +464,18 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		}
 	})
 
-	t.Run("ListSlotBatches returns only same-slot same-recipe within ±4 days batches", func(t *testing.T) {
+	t.Run("ListMealBatches returns only same-meal same-recipe within ±4 days batches", func(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "肉じゃが", "みそ汁")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)    // 起点 (r1)
 		tue, _ := repo.Assign(ctx, "2026-08-25", "dinner", rs[0].ID) // ±4 日以内、同レシピ (候補)
 		_, _ = repo.Assign(ctx, "2026-08-25", "dinner", rs[1].ID)    // 別レシピ (除外)
 		_, _ = repo.Assign(ctx, "2026-09-05", "dinner", rs[0].ID)    // 12 日後 (除外)
-		_, _ = repo.Assign(ctx, "2026-08-24", "lunch", rs[0].ID)     // 別 slot (除外)
+		_, _ = repo.Assign(ctx, "2026-08-24", "lunch", rs[0].ID)     // 別 meal (除外)
 
-		got, err := repo.ListSlotBatches(ctx, "2026-08-24", "dinner", rs[0].ID)
+		got, err := repo.ListMealBatches(ctx, "2026-08-24", "dinner", rs[0].ID)
 		if err != nil {
-			t.Fatalf("ListSlotBatches: %v", err)
+			t.Fatalf("ListMealBatches: %v", err)
 		}
 		if len(got) != 1 {
 			t.Fatalf("want 1 candidate, got %d: %+v", len(got), got)
@@ -483,8 +483,8 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		if got[0].BatchID != tue.BatchID {
 			t.Errorf("batchID = %q, want %q", got[0].BatchID, tue.BatchID)
 		}
-		if got[0].Slot != mealplan.SlotDinner {
-			t.Errorf("slot = %q, want dinner", got[0].Slot)
+		if got[0].Meal != mealplan.MealDinner {
+			t.Errorf("meal = %q, want dinner", got[0].Meal)
 		}
 	})
 
@@ -514,7 +514,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "肉じゃが")
 		mon, _ := repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID) // 月
-		source, _ := repo.SlotEntries(ctx, "2026-08-24", "dinner")
+		source, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
 		_ = repo.CopyLeftover(ctx, "dinner",
 			[]string{"2026-08-25"}, source,
 			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover)
@@ -539,7 +539,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "肉じゃが")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
-		source, _ := repo.SlotEntries(ctx, "2026-08-24", "dinner")
+		source, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
 		_ = repo.CopyLeftover(ctx, "dinner",
 			[]string{"2026-08-25"}, source,
 			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover)

@@ -22,7 +22,7 @@
 
 - 1 週 × 夕食のみ (S01 の既定表示) で「セルがスカスカ」問題を解消する。1 週間の 7 セルが縦幅の
   半分以上を使うようにする
-- 「期間 × 表示 slot 数」の全 9 組み合わせ (1/2/4 週 × 1/2/3 slot) について、セル高さ / typography /
+- 「期間 × 表示時間帯数」の全 9 組み合わせ (1/2/4 週 × 1/2/3 時間帯) について、セル高さ / typography /
   visible items が破綻しない
 - セルサイズと typography を可変にするための **1 つの源** (`config.Defaults()`) を用意する
 - Wails bindings 経由でフロントに自動配信されるよう Go 側 struct を追加する (S09 実装時に UI から
@@ -33,7 +33,7 @@
 - 期間切替 UI (1 週 / 2 週 / 4 週) 自体の実装 (別 proposal)
 - CSS カスタムプロパティを介した動的テーマ (Tailwind class 事前列挙で足りる)
 - ユーザーごとの永続的なセルサイズ設定 (S09 で扱う)
-- ワイヤーフレームの完全リビルド (更新は 1 週 × 1 slot と 1 週 × 3 slots の 2 状態のみ)
+- ワイヤーフレームの完全リビルド (更新は 1 週 × 1 時間帯 と 1 週 × 3 時間帯 の 2 状態のみ)
 
 ## Decisions
 
@@ -71,7 +71,7 @@
 **採用: (b)**。理由: プロジェクト規約 (可変値は `defaults.go`) と一致し、S09 で ConfigService が
 入ったときに mirror を外すだけで済む。既存 `MealPlanCellVisibleItems` が同じ道を通っている前例あり。
 
-### D3. 「期間 × slot 数 → セル高さ / typography / visible items」テーブル構造
+### D3. 「期間 × 時間帯数 → セル高さ / typography / visible items」テーブル構造
 
 **選択肢:**
 
@@ -79,7 +79,7 @@
   2=4 週) の意味が call site で不明瞭
 - (b) `map[string]CellSizePreset`、キーは `"1w-1s"` のような文字列 — Pros: キーが読める。 Cons:
   タイポで silent 失敗、JSON serialize がやや不自然
-- (c) `[]CellSizePreset` の平坦配列 (各要素が `Period` / `Slots` を持つ) ← 採用 — Pros: enum 的な
+- (c) `[]CellSizePreset` の平坦配列 (各要素が `Period` / `Meals` を持つ) ← 採用 — Pros: enum 的な
   組み合わせが構造体に載る、フロントで `find` するだけ、JSON serialize が自然、未定義組み合わせは
   fallback ロジック 1 箇所で扱える。 Cons: 検索が O(N) だが N=9 で問題ない
 
@@ -90,7 +90,7 @@
 ```go
 type CellSizePreset struct {
     PeriodWeeks   int    `json:"periodWeeks"`   // 1 / 2 / 4
-    VisibleSlots  int    `json:"visibleSlots"`  // 1 / 2 / 3
+    VisibleMeals  int    `json:"visibleMeals"`  // 1 / 2 / 3
     MinHeightRem  int    `json:"minHeightRem"`  // Tailwind 単位 (4 / 6 / 8 / 12 → min-h-16 / -24 / -32 / -48)
     FontSizeClass string `json:"fontSizeClass"` // "text-base" | "text-sm" | "text-xs"
     VisibleItems  int    `json:"visibleItems"`  // セル内で折り畳まずに見せる品数
@@ -111,7 +111,7 @@ type CellSizePreset struct {
 
 割り当て案 (design 内での仮値、実装時に微調整):
 
-| 期間 \ slot 数 | 1 slot | 2 slots | 3 slots |
+| 期間 \ 時間帯数 | 1 時間帯 | 2 時間帯 | 3 時間帯 |
 |---|---|---|---|
 | 1 週 | `min-h-48` / `text-base` / 4 品 | `min-h-40` / `text-base` / 4 品 | `min-h-32` / `text-base` / 3 品 |
 | 2 週 | `min-h-32` / `text-base` / 3 品 | `min-h-24` / `text-sm` / 3 品 | `min-h-24` / `text-sm` / 2 品 |
@@ -121,16 +121,16 @@ type CellSizePreset struct {
 
 **選択肢:**
 
-- (a) 全ワイヤー (1 週 × 3 slots / 2 週 / 4 週) を新規で書き直す — Pros: 全状態が絵で見える。
+- (a) 全ワイヤー (1 週 × 3 時間帯 / 2 週 / 4 週) を新規で書き直す — Pros: 全状態が絵で見える。
   Cons: drawio XML 二重構造 (SVG + `content=` 属性の XML) の編集コストが大きく、実装完了までの
   スループットが下がる
-- (b) 1 週 × 1 slot (推奨サイズ) と 1 週 × 3 slots (現行に近い密度) の 2 状態のみ更新 ← 採用 —
+- (b) 1 週 × 1 時間帯 (推奨サイズ) と 1 週 × 3 時間帯 (現行に近い密度) の 2 状態のみ更新 ← 採用 —
   Pros: ペルソナ既定と最頻使用状態を押さえる。 Cons: 2 週 / 4 週の見た目は絵で確認できない
   (テーブルの数値からの想像に依存)
 - (c) ワイヤー更新は本 proposal では扱わず、後続の proposal に押し出す — Pros: proposal スコープが
   純粋にコード。 Cons: 「ワイヤーは視覚レイアウトの正」の規約 (docs/wireframes/README.md) と衝突する
 
-**採用: (b)**。1 週 × 夕食のみは既定なので必ず絵で示す。3 slots は「1 週の中で最も密度が高い」上限
+**採用: (b)**。1 週 × 夕食のみは既定なので必ず絵で示す。3 時間帯 は「1 週の中で最も密度が高い」上限
 なので、この 2 状態が押さえられれば読者は間の状態を想像できる。
 
 ### D6. `MealPlanCellVisibleItems` (既存 int) の扱い
@@ -139,7 +139,7 @@ type CellSizePreset struct {
 
 - (a) 削除する — Pros: 単一の source of truth になる。 Cons: 過去の Wails bindings が持つフィールド
   が消えるので、フロント側 mirror にも影響
-- (b) 残して deprecate、`CellSizePresets` の 1 週 × 1 slot 行と同じ値を返す ← 採用 — Pros:
+- (b) 残して deprecate、`CellSizePresets` の 1 週 × 1 時間帯行と同じ値を返す ← 採用 — Pros:
   bindings の diff が最小、S09 実装時に外せる。 Cons: 一時的に「同じ意味を 2 か所」で持つ
 
 **採用: (b)**。本 proposal は「セル表示のリサイズ」だけを扱うので、既存フィールドの削除は
@@ -153,8 +153,8 @@ type CellSizePreset struct {
   一覧」をコメントで残す
 - [Go 側 struct を追加するので `wails3 generate bindings` の再生成が必要] → 本 proposal では config
   struct を Wails サービスから返すことはしないため、実は再生成不要。フロントは mirror で読む
-- [未定義組み合わせ (仕様外の期間 / slot 数) に到達したときの fallback] → 「最も密度が高い」プリセット
-  (4 週 × 3 slots) に落とす。log なし
+- [未定義組み合わせ (仕様外の期間 / 時間帯数) に到達したときの fallback] → 「最も密度が高い」プリセット
+  (4 週 × 3 時間帯) に落とす。log なし
 - [S09 実装時に mirror を消す必要がある] → 本 proposal の deprecate コメントと defaults_test.go に
   「S09 実装時に mirror 経路を切り替える」と TODO を残す
 

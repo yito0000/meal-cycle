@@ -138,7 +138,7 @@ if now == existing.UpdatedAt { ... }
 
 ## データモデルの癖
 
-- `MealPlan` は **1 行 = 1 品**。`(date, slot)` は意図的に非一意で、複数行が主菜＋副菜＋汁物を表現する。`position` で slot 内の並び順、`recipeId` は NOT NULL（「未定」= 行が無い状態）。詳細は [design.md §4](docs/design.md)
+- `MealPlan` は **1 行 = 1 品**。`(date, meal)` は意図的に非一意で、複数行が主菜＋副菜＋汁物を表現する。`position` で meal (時間帯) 内の並び順、`recipeId` は NOT NULL（「未定」= 行が無い状態）。詳細は [design.md §4](docs/design.md)
 - データモデルの変更は **それを必要とする proposal と一緒に**入れる。スキーマだけの proposal は作らない
 
 ## ドキュメントは load-bearing

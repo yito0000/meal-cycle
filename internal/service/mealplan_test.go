@@ -32,32 +32,32 @@ func (r *fakeMealPlanRepo) ListWeek(_ context.Context, weekStart string) ([]meal
 	return out, nil
 }
 
-func (r *fakeMealPlanRepo) Assign(_ context.Context, date, slot, recipeID string) (mealplan.Entry, error) {
+func (r *fakeMealPlanRepo) Assign(_ context.Context, date, meal, recipeID string) (mealplan.Entry, error) {
 	name, ok := r.knownRecipes[recipeID]
 	if !ok {
 		return mealplan.Entry{}, mealplan.ErrUnknownRecipe
 	}
 	pos := 0
 	for _, e := range r.entries {
-		if e.Date == date && string(e.Slot) == slot && e.Position >= pos {
+		if e.Date == date && string(e.Meal) == meal && e.Position >= pos {
 			pos = e.Position + 1
 		}
 	}
 	entry := mealplan.Entry{
-		Date: date, Slot: mealplan.Slot(slot), Position: pos,
+		Date: date, Meal: mealplan.Meal(meal), Position: pos,
 		RecipeID: recipeID, RecipeName: name, BatchID: mealplan.NewBatchID(),
 	}
 	r.entries = append(r.entries, entry)
 	return entry, nil
 }
 
-func (r *fakeMealPlanRepo) Replace(_ context.Context, date, slot string, position int, recipeID string) error {
+func (r *fakeMealPlanRepo) Replace(_ context.Context, date, meal string, position int, recipeID string) error {
 	name, ok := r.knownRecipes[recipeID]
 	if !ok {
 		return mealplan.ErrUnknownRecipe
 	}
 	for i, e := range r.entries {
-		if e.Date == date && string(e.Slot) == slot && e.Position == position {
+		if e.Date == date && string(e.Meal) == meal && e.Position == position {
 			r.entries[i].RecipeID = recipeID
 			r.entries[i].RecipeName = name
 			return nil
@@ -66,10 +66,10 @@ func (r *fakeMealPlanRepo) Replace(_ context.Context, date, slot string, positio
 	return mealplan.ErrEntryNotFound
 }
 
-func (r *fakeMealPlanRepo) Remove(_ context.Context, date, slot string, position int) error {
+func (r *fakeMealPlanRepo) Remove(_ context.Context, date, meal string, position int) error {
 	idx := -1
 	for i, e := range r.entries {
-		if e.Date == date && string(e.Slot) == slot && e.Position == position {
+		if e.Date == date && string(e.Meal) == meal && e.Position == position {
 			idx = i
 			break
 		}
@@ -79,17 +79,17 @@ func (r *fakeMealPlanRepo) Remove(_ context.Context, date, slot string, position
 	}
 	r.entries = append(r.entries[:idx], r.entries[idx+1:]...)
 	for i, e := range r.entries {
-		if e.Date == date && string(e.Slot) == slot && e.Position > position {
+		if e.Date == date && string(e.Meal) == meal && e.Position > position {
 			r.entries[i].Position--
 		}
 	}
 	return nil
 }
 
-func (r *fakeMealPlanRepo) ClearSlot(_ context.Context, date, slot string) error {
+func (r *fakeMealPlanRepo) ClearMeal(_ context.Context, date, meal string) error {
 	kept := r.entries[:0]
 	for _, e := range r.entries {
-		if e.Date == date && string(e.Slot) == slot {
+		if e.Date == date && string(e.Meal) == meal {
 			continue
 		}
 		kept = append(kept, e)
@@ -98,10 +98,10 @@ func (r *fakeMealPlanRepo) ClearSlot(_ context.Context, date, slot string) error
 	return nil
 }
 
-func (r *fakeMealPlanRepo) Reorder(_ context.Context, date, slot string, orderedRecipeIDs []string) error {
+func (r *fakeMealPlanRepo) Reorder(_ context.Context, date, meal string, orderedRecipeIDs []string) error {
 	current := map[string]int{}
 	for _, e := range r.entries {
-		if e.Date == date && string(e.Slot) == slot {
+		if e.Date == date && string(e.Meal) == meal {
 			current[e.RecipeID]++
 		}
 	}
@@ -122,7 +122,7 @@ func (r *fakeMealPlanRepo) Reorder(_ context.Context, date, slot string, ordered
 		newPos[id] = pos
 	}
 	for i, e := range r.entries {
-		if e.Date == date && string(e.Slot) == slot {
+		if e.Date == date && string(e.Meal) == meal {
 			r.entries[i].Position = newPos[e.RecipeID]
 		}
 	}
@@ -130,7 +130,7 @@ func (r *fakeMealPlanRepo) Reorder(_ context.Context, date, slot string, ordered
 }
 
 func (r *fakeMealPlanRepo) CopyLeftover(
-	_ context.Context, slot string, targets []string,
+	_ context.Context, meal string, targets []string,
 	source []mealplan.Entry, mode mealplan.CopyMode, shareBatch mealplan.ShareBatch,
 ) error {
 	prepared := prepareFakeCopySource(source, shareBatch)
@@ -138,7 +138,7 @@ func (r *fakeMealPlanRepo) CopyLeftover(
 		if mode == mealplan.CopyModeOverwrite {
 			kept := r.entries[:0]
 			for _, e := range r.entries {
-				if e.Date == target && string(e.Slot) == slot {
+				if e.Date == target && string(e.Meal) == meal {
 					continue
 				}
 				kept = append(kept, e)
@@ -147,7 +147,7 @@ func (r *fakeMealPlanRepo) CopyLeftover(
 		}
 		existing := make([]mealplan.Entry, 0)
 		for _, e := range r.entries {
-			if e.Date == target && string(e.Slot) == slot {
+			if e.Date == target && string(e.Meal) == meal {
 				existing = append(existing, e)
 			}
 		}
@@ -187,10 +187,10 @@ func prepareFakeCopySource(source []mealplan.Entry, shareBatch mealplan.ShareBat
 	return out
 }
 
-func (r *fakeMealPlanRepo) SplitBatch(_ context.Context, date, slot string, position int) (string, error) {
+func (r *fakeMealPlanRepo) SplitBatch(_ context.Context, date, meal string, position int) (string, error) {
 	var currentBatchID string
 	for _, e := range r.entries {
-		if e.Date == date && string(e.Slot) == slot && e.Position == position {
+		if e.Date == date && string(e.Meal) == meal && e.Position == position {
 			currentBatchID = e.BatchID
 			break
 		}
@@ -219,7 +219,7 @@ func (r *fakeMealPlanRepo) SplitBatch(_ context.Context, date, slot string, posi
 
 	kept := r.entries[:0]
 	for _, e := range r.entries {
-		isOrigin := e.Date == origin.Date && e.Slot == origin.Slot && e.Position == origin.Position
+		isOrigin := e.Date == origin.Date && e.Meal == origin.Meal && e.Position == origin.Position
 		if e.BatchID == currentBatchID && !isOrigin {
 			continue
 		}
@@ -229,7 +229,7 @@ func (r *fakeMealPlanRepo) SplitBatch(_ context.Context, date, slot string, posi
 
 	for _, cr := range sameBatch[1:] {
 		for i := range r.entries {
-			if r.entries[i].Date == cr.Date && r.entries[i].Slot == cr.Slot &&
+			if r.entries[i].Date == cr.Date && r.entries[i].Meal == cr.Meal &&
 				r.entries[i].Position > cr.Position {
 				r.entries[i].Position--
 			}
@@ -238,7 +238,7 @@ func (r *fakeMealPlanRepo) SplitBatch(_ context.Context, date, slot string, posi
 
 	newID := mealplan.NewBatchID()
 	for i := range r.entries {
-		if r.entries[i].Date == origin.Date && r.entries[i].Slot == origin.Slot &&
+		if r.entries[i].Date == origin.Date && r.entries[i].Meal == origin.Meal &&
 			r.entries[i].Position == origin.Position {
 			r.entries[i].BatchID = newID
 			return newID, nil
@@ -248,11 +248,11 @@ func (r *fakeMealPlanRepo) SplitBatch(_ context.Context, date, slot string, posi
 }
 
 func (r *fakeMealPlanRepo) MergeBatch(
-	_ context.Context, date, slot string, position int, targetBatchID string,
+	_ context.Context, date, meal string, position int, targetBatchID string,
 ) error {
 	var sourceRecipe string
 	for _, e := range r.entries {
-		if e.Date == date && string(e.Slot) == slot && e.Position == position {
+		if e.Date == date && string(e.Meal) == meal && e.Position == position {
 			sourceRecipe = e.RecipeID
 			break
 		}
@@ -260,29 +260,29 @@ func (r *fakeMealPlanRepo) MergeBatch(
 	if sourceRecipe == "" {
 		return mealplan.ErrEntryNotFound
 	}
-	sameSlotAndBatch := 0
+	sameMealAndBatch := 0
 	eligible := 0
 	dayRange := r.mergeDayRange()
 	for _, e := range r.entries {
-		if string(e.Slot) != slot || e.BatchID != targetBatchID {
+		if string(e.Meal) != meal || e.BatchID != targetBatchID {
 			continue
 		}
 		if e.Date == date && e.Position == position {
 			continue
 		}
-		sameSlotAndBatch++
+		sameMealAndBatch++
 		if e.RecipeID == sourceRecipe && absDayGap(e.Date, date) <= dayRange {
 			eligible++
 		}
 	}
-	if sameSlotAndBatch == 0 {
+	if sameMealAndBatch == 0 {
 		return mealplan.ErrBatchTargetNotFound
 	}
 	if eligible == 0 {
 		return mealplan.ErrBatchMergeDenied
 	}
 	for i, e := range r.entries {
-		if e.Date == date && string(e.Slot) == slot && e.Position == position {
+		if e.Date == date && string(e.Meal) == meal && e.Position == position {
 			r.entries[i].BatchID = targetBatchID
 			return nil
 		}
@@ -290,12 +290,12 @@ func (r *fakeMealPlanRepo) MergeBatch(
 	return mealplan.ErrEntryNotFound
 }
 
-func (r *fakeMealPlanRepo) ListSlotBatches(
-	_ context.Context, date, slot, recipeID string,
+func (r *fakeMealPlanRepo) ListMealBatches(
+	_ context.Context, date, meal, recipeID string,
 ) ([]mealplan.BatchSummary, error) {
 	var ownBatchID string
 	for _, e := range r.entries {
-		if e.Date == date && string(e.Slot) == slot {
+		if e.Date == date && string(e.Meal) == meal {
 			ownBatchID = e.BatchID
 			break
 		}
@@ -310,7 +310,7 @@ func (r *fakeMealPlanRepo) ListSlotBatches(
 	}
 	byBatch := map[string]*rep{}
 	for _, e := range r.entries {
-		if string(e.Slot) != slot || e.RecipeID != recipeID {
+		if string(e.Meal) != meal || e.RecipeID != recipeID {
 			continue
 		}
 		if e.BatchID == ownBatchID {
@@ -335,7 +335,7 @@ func (r *fakeMealPlanRepo) ListSlotBatches(
 	out := make([]mealplan.BatchSummary, 0, len(byBatch))
 	for bid, r := range byBatch {
 		out = append(out, mealplan.BatchSummary{
-			BatchID: bid, Date: r.date, Slot: mealplan.Slot(slot),
+			BatchID: bid, Date: r.date, Meal: mealplan.Meal(meal),
 			RecipeID: r.recipe, RecipeName: r.name, MemberCount: r.count,
 		})
 	}
@@ -365,10 +365,10 @@ func absDayGap(d1, d2 string) int {
 	return diff
 }
 
-func (r *fakeMealPlanRepo) SlotEntries(_ context.Context, date, slot string) ([]mealplan.Entry, error) {
+func (r *fakeMealPlanRepo) MealEntries(_ context.Context, date, meal string) ([]mealplan.Entry, error) {
 	out := make([]mealplan.Entry, 0)
 	for _, e := range r.entries {
-		if e.Date == date && string(e.Slot) == slot {
+		if e.Date == date && string(e.Meal) == meal {
 			out = append(out, e)
 		}
 	}
@@ -412,7 +412,7 @@ func TestMealPlanService_ListWeek_returnsRepoEntries(t *testing.T) {
 func TestMealPlanService_AssignRecipe(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("should return an entry with a fresh position when the slot already has items", func(t *testing.T) {
+	t.Run("should return an entry with a fresh position when the meal already has items", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A", "r2": "B"})
 		svc := newMealPlanServiceWithRepo(repo)
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
@@ -437,12 +437,12 @@ func TestMealPlanService_AssignRecipe(t *testing.T) {
 		}
 	})
 
-	t.Run("with slot=snack should return ErrInvalidSlot and leave meal_plans untouched", func(t *testing.T) {
+	t.Run("with meal=snack should return ErrInvalidMeal and leave meal_plans untouched", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
 		svc := newMealPlanServiceWithRepo(repo)
 		_, err := svc.AssignRecipe(ctx, "2026-08-24", "snack", "r1")
-		if !errors.Is(err, mealplan.ErrInvalidSlot) {
-			t.Errorf("err = %v, want ErrInvalidSlot", err)
+		if !errors.Is(err, mealplan.ErrInvalidMeal) {
+			t.Errorf("err = %v, want ErrInvalidMeal", err)
 		}
 		if len(repo.entries) != 0 {
 			t.Errorf("meal_plans changed: %d entries", len(repo.entries))
@@ -514,15 +514,15 @@ func TestMealPlanService_RemoveEntry(t *testing.T) {
 	})
 }
 
-func TestMealPlanService_ClearSlot(t *testing.T) {
-	t.Run("should delete every entry in the target (date, slot)", func(t *testing.T) {
+func TestMealPlanService_ClearMeal(t *testing.T) {
+	t.Run("should delete every entry in the target (date, meal)", func(t *testing.T) {
 		ctx := context.Background()
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A", "r2": "B"})
 		svc := newMealPlanServiceWithRepo(repo)
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r2")
-		if err := svc.ClearSlot(ctx, "2026-08-24", "dinner"); err != nil {
-			t.Fatalf("ClearSlot: %v", err)
+		if err := svc.ClearMeal(ctx, "2026-08-24", "dinner"); err != nil {
+			t.Fatalf("ClearMeal: %v", err)
 		}
 		got, _ := svc.ListWeek(ctx, "2026-08-24")
 		if len(got) != 0 {
@@ -531,7 +531,7 @@ func TestMealPlanService_ClearSlot(t *testing.T) {
 	})
 }
 
-func TestMealPlanService_ReorderSlot(t *testing.T) {
+func TestMealPlanService_ReorderMeal(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("with recipeIDs missing or duplicating an existing entry should return ErrReorderMismatch", func(t *testing.T) {
@@ -539,7 +539,7 @@ func TestMealPlanService_ReorderSlot(t *testing.T) {
 		svc := newMealPlanServiceWithRepo(repo)
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r2")
-		err := svc.ReorderSlot(ctx, "2026-08-24", "dinner", []string{"r1"})
+		err := svc.ReorderMeal(ctx, "2026-08-24", "dinner", []string{"r1"})
 		if !errors.Is(err, mealplan.ErrReorderMismatch) {
 			t.Errorf("err = %v, want ErrReorderMismatch", err)
 		}
@@ -549,7 +549,7 @@ func TestMealPlanService_ReorderSlot(t *testing.T) {
 func TestMealPlanService_CopyLeftover(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("with position=-1 and mode=append should append every source entry into each target slot", func(t *testing.T) {
+	t.Run("with position=-1 and mode=append should append every source entry into each target meal", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A", "r2": "B"})
 		svc := newMealPlanServiceWithRepo(repo)
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
@@ -559,14 +559,14 @@ func TestMealPlanService_CopyLeftover(t *testing.T) {
 			t.Fatalf("CopyLeftover: %v", err)
 		}
 		// 起点日 + 2 日で合計 3 日、うち起点自身は除外され 2 日に反映
-		got25, _ := repo.SlotEntries(ctx, "2026-08-25", "dinner")
-		got26, _ := repo.SlotEntries(ctx, "2026-08-26", "dinner")
+		got25, _ := repo.MealEntries(ctx, "2026-08-25", "dinner")
+		got26, _ := repo.MealEntries(ctx, "2026-08-26", "dinner")
 		if len(got25) != 2 || len(got26) != 2 {
 			t.Errorf("target counts: 25=%d, 26=%d", len(got25), len(got26))
 		}
 	})
 
-	t.Run("with position=0 and mode=overwrite should replace target slot with the single source item", func(t *testing.T) {
+	t.Run("with position=0 and mode=overwrite should replace target meal with the single source item", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A", "r2": "B", "r9": "既存"})
 		svc := newMealPlanServiceWithRepo(repo)
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
@@ -576,7 +576,7 @@ func TestMealPlanService_CopyLeftover(t *testing.T) {
 		if err := svc.CopyLeftover(ctx, "2026-08-24", "dinner", 2, 0, "overwrite", false); err != nil {
 			t.Fatalf("CopyLeftover: %v", err)
 		}
-		got25, _ := repo.SlotEntries(ctx, "2026-08-25", "dinner")
+		got25, _ := repo.MealEntries(ctx, "2026-08-25", "dinner")
 		if len(got25) != 1 || got25[0].RecipeID != "r1" {
 			t.Errorf("got25 = %+v; want single r1", got25)
 		}
@@ -702,7 +702,7 @@ func TestMealPlanService_SplitBatch(t *testing.T) {
 func TestMealPlanService_MergeBatch(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("should re-tag row to the target BatchID when it exists in the same slot", func(t *testing.T) {
+	t.Run("should re-tag row to the target BatchID when it exists in the same meal", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが"})
 		svc := newMealPlanServiceWithRepo(repo)
 		monEntry, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1") // 月曜
@@ -718,7 +718,7 @@ func TestMealPlanService_MergeBatch(t *testing.T) {
 		}
 	})
 
-	t.Run("returns ErrBatchTargetNotFound when targetBatchID has no other row in the same slot", func(t *testing.T) {
+	t.Run("returns ErrBatchTargetNotFound when targetBatchID has no other row in the same meal", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
 		svc := newMealPlanServiceWithRepo(repo)
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
@@ -729,21 +729,21 @@ func TestMealPlanService_MergeBatch(t *testing.T) {
 	})
 }
 
-func TestMealPlanService_ListSlotBatches(t *testing.T) {
+func TestMealPlanService_ListMealBatches(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("should return only same-slot same-recipe within ±4 days batches", func(t *testing.T) {
+	t.Run("should return only same-meal same-recipe within ±4 days batches", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが", "r2": "みそ汁"})
 		svc := newMealPlanServiceWithRepo(repo)
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1") // 起点行 (月曜・夕、r1)
 		_, _ = svc.AssignRecipe(ctx, "2026-08-25", "dinner", "r1") // 火曜・夕 (別バッチ、同レシピ)
 		_, _ = svc.AssignRecipe(ctx, "2026-08-25", "dinner", "r2") // 火曜・夕 (別レシピ、除外)
 		_, _ = svc.AssignRecipe(ctx, "2026-09-05", "dinner", "r1") // 12 日後 (レンジ外、除外)
-		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "lunch", "r1")  // 別 slot、除外
+		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "lunch", "r1")  // 別 meal、除外
 
-		got, err := svc.ListSlotBatches(ctx, "2026-08-24", "dinner", "r1")
+		got, err := svc.ListMealBatches(ctx, "2026-08-24", "dinner", "r1")
 		if err != nil {
-			t.Fatalf("ListSlotBatches: %v", err)
+			t.Fatalf("ListMealBatches: %v", err)
 		}
 		if len(got) != 1 {
 			t.Fatalf("want 1 candidate, got %d: %+v", len(got), got)
@@ -757,7 +757,7 @@ func TestMealPlanService_ListSlotBatches(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
 		svc := newMealPlanServiceWithRepo(repo)
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
-		_, err := svc.ListSlotBatches(ctx, "2026-08-24", "dinner", "")
+		_, err := svc.ListMealBatches(ctx, "2026-08-24", "dinner", "")
 		if !errors.Is(err, mealplan.ErrUnknownRecipe) {
 			t.Errorf("err = %v, want ErrUnknownRecipe", err)
 		}

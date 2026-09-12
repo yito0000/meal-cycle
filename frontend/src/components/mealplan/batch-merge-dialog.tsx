@@ -10,7 +10,7 @@ interface Props {
   onSelect: (batchID: string) => void;
 }
 
-// 「バッチに合流する」を押したときの候補一覧。同じ slot の他バッチだけを表示する
+// 「バッチに合流する」を押したときの候補一覧。同じ時間帯の他バッチだけを表示する
 // (spec の合流候補要件、design.md D7)。候補ゼロなら空メッセージを表示。
 export function BatchMergeDialog({ open, candidates, onOpenChange, onSelect }: Props) {
   const { t } = useTranslation();

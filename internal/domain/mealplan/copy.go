@@ -32,7 +32,7 @@ func CopyDates(startDate string, days int) ([]string, error) {
 	return out, nil
 }
 
-// PlanCopy はコピー元の品を target 日の slot に合流させた結果 (実際に挿入すべき Entry 列) を返す。
+// PlanCopy はコピー元の品を target 日の meal に合流させた結果 (実際に挿入すべき Entry 列) を返す。
 //
 // mode=append は existing の末尾に source を並べる (positions は existing の max+1 から)。
 // mode=overwrite は existing を捨てて source だけを 0 から採番する (existing の削除は
@@ -74,7 +74,7 @@ func PlanCopy(
 		}
 		out = append(out, Entry{
 			Date:       target,
-			Slot:       s.Slot,
+			Meal:       s.Meal,
 			Position:   pos,
 			RecipeID:   s.RecipeID,
 			RecipeName: s.RecipeName,
@@ -86,6 +86,6 @@ func PlanCopy(
 }
 
 // IsShared は ShareBatch を bool として読み替えるためのアクセサ。
-// alias 型のまま `if shareBatch { ... }` と書くと slot まわりで「なぜ true を渡すのか」が
+// alias 型のまま `if shareBatch { ... }` と書くと meal まわりで「なぜ true を渡すのか」が
 // 呼び出し側から埋没するため、意図が読める語彙で分岐する。
 func (s ShareBatch) IsShared() bool { return bool(s) }

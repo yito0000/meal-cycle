@@ -2,8 +2,8 @@ import { useTranslation } from "react-i18next";
 import type { Entry } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
 import { colorForBatch } from "./batch-color";
 import { CellItemMenu } from "./cell-item-menu";
+import { MealMenu } from "./meal-menu";
 import { MEALPLAN_DEFAULTS } from "./mealplan-config";
-import { SlotMenu } from "./slot-menu";
 
 export type EntryAction =
   | "replace"
@@ -12,27 +12,27 @@ export type EntryAction =
   | "copy-days"
   | "split-batch"
   | "merge-batch";
-export type SlotAction = "clear" | "copy-days" | "reorder";
+export type MealAction = "clear" | "copy-days" | "reorder";
 
 interface Props {
   date: string;
-  slot: string;
+  meal: string;
   entries: Entry[];
   onAddFirst: () => void;
   onAddMore: () => void;
   onEntryAction: (action: EntryAction, entry: Entry, days?: number) => void;
-  onSlotAction: (action: SlotAction, days?: number) => void;
+  onMealAction: (action: MealAction, days?: number) => void;
 }
 
-// 1 セル = 1 (date, slot)。0 品なら中央に `＋`、1..N 品ならレシピ名列 + 品ごと `⋯` +
-// 右上 `＋` + 右下 slot `⋯`。品数超過は「他 N 件」で折り畳む。
+// 1 セル = 1 (date, meal)。0 品なら中央に `＋`、1..N 品ならレシピ名列 + 品ごと `⋯` +
+// 右上 `＋` + 右下時間帯 `⋯`。品数超過は「他 N 件」で折り畳む。
 // バッチ (batch_id) が複数行に跨る品には枠色 + 🔗 アイコンを描画する (spec の視覚識別要件)。
 export function MealPlanCell({
   entries,
   onAddFirst,
   onAddMore,
   onEntryAction,
-  onSlotAction,
+  onMealAction,
 }: Props) {
   const { t } = useTranslation();
   const limit = MEALPLAN_DEFAULTS.mealPlanCellVisibleItems;
@@ -103,10 +103,10 @@ export function MealPlanCell({
         </div>
       )}
       <div className="mt-auto flex justify-end">
-        <SlotMenu
-          onClear={() => onSlotAction("clear")}
-          onCopyDays={(days) => onSlotAction("copy-days", days)}
-          onReorder={() => onSlotAction("reorder")}
+        <MealMenu
+          onClear={() => onMealAction("clear")}
+          onCopyDays={(days) => onMealAction("copy-days", days)}
+          onReorder={() => onMealAction("reorder")}
         />
       </div>
     </div>

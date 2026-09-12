@@ -53,7 +53,7 @@ test.describe("機能: 献立へのレシピ割当（1 時間帯に 0..N 品）"
   });
 
   test.skip("時間帯全体をクリアする", async () => {
-    // SlotMenu → clear は実装済み。
+    // MealMenu → clear は実装済み。
   });
 
   test.skip("割当済みの 1 品から S03 詳細を開き、S01 に戻る", async () => {
@@ -67,7 +67,7 @@ test.describe("機能: 作り置きコピー（同一レシピの連続割当）
   });
 
   test.skip("時間帯全体（複数品）を連続 N 日コピー", async () => {
-    // SlotMenu の「時間帯全体を連続 N 日」→ CopyLeftover。
+    // MealMenu の「時間帯全体を連続 N 日」→ CopyLeftover。
   });
 
   test.skip("コピー先に既存の割当があると追加 or 上書きを確認する", async () => {

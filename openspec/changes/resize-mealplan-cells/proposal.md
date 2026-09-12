@@ -8,10 +8,10 @@ S01 献立カレンダーの現行セル (`min-h-16` = 64px、`text-sm`) は、�
 
 ## What Changes
 
-- CSS Grid の `grid-auto-rows` (現状 `min-h-16` 固定) を、**期間 × 表示 slot 数** の 2 次元テーブルから引く
+- CSS Grid の `grid-auto-rows` (現状 `min-h-16` 固定) を、**期間 × 表示時間帯数** の 2 次元テーブルから引く
   可変値に変更する
-- 目安 (実際の値は design.md で決定): 1 週 × 1 slot は `min-h-48` (192px)、1 週 × 3 slots は `min-h-32`、
-  2 週 × 3 slots は `min-h-24`、4 週は現状の `min-h-16`
+- 目安 (実際の値は design.md で決定): 1 週 × 1 時間帯 は `min-h-48` (192px)、1 週 × 3 時間帯 は `min-h-32`、
+  2 週 × 3 時間帯 は `min-h-24`、4 週は現状の `min-h-16`
 - あわせて、広いセル高を活かすためのセル内デザインを調整する:
   - レシピ名の typography を段階的に上げる (期間が広いとき `text-sm` → `text-base`)
   - セル内で折り畳まずに見せる品数上限 (`MealPlanCellVisibleItems`、現状固定 2) を「セル高さから逆算」で
@@ -22,10 +22,10 @@ S01 献立カレンダーの現行セル (`min-h-16` = 64px、`text-sm`) は、�
     (文字サイズを `text-sm` → `text-2xl` 相当に、色を `text-neutral-400` → `text-neutral-500` に濃く)
   - 割当済セル右上 `＋` は現状 `text-xs` (12px 相当) と小さすぎるので `text-base` + `p-1.5` に拡大、
     hover ハイライト背景を追加してヒットボックスを明確化
-- 「期間 × slot 数 → セル高さ / typography / visible items」のテーブルは `internal/config/defaults.go`
+- 「期間 × 時間帯数 → セル高さ / typography / visible items」のテーブルは `internal/config/defaults.go`
   に集約 (call site にリテラル閾値を書かないプロジェクト規約に合わせる)
 - ワイヤーフレーム [S01_meal_calendar.drawio.svg](../../../docs/wireframes/S01_meal_calendar.drawio.svg) を
-  新レイアウト (1 週 × 夕食のみ / 1 週 × 3 slots) で更新する
+  新レイアウト (1 週 × 夕食のみ / 1 週 × 3 時間帯) で更新する
 - [docs/product.md](../../../docs/product.md) §S01 の描画説明と §1 可変値表を追記する
 
 ## Non-goals
@@ -49,8 +49,8 @@ S01 献立カレンダーの現行セル (`min-h-16` = 64px、`text-sm`) は、�
 
 - `mealplan`:
   - **MODIFIED**: 「セル内の品表示」Requirement — 「1..N 品はレシピ名を 1 行 1 品で描画する」を、
-    **期間 × 表示 slot 数** に応じてセル高さと表示件数上限が可変になる旨で拡張。「品数超過は先頭 2 品を表示し
-    3 行目に "他 N 件"」を「先頭 N 品 (`config.Defaults()` から期間 × slot 数 で決定) を表示、超過は "他 M 件"」
+    **期間 × 表示時間帯数** に応じてセル高さと表示件数上限が可変になる旨で拡張。「品数超過は先頭 2 品を表示し
+    3 行目に "他 N 件"」を「先頭 N 品 (`config.Defaults()` から期間 × 時間帯数 で決定) を表示、超過は "他 M 件"」
     に一般化
 
 ## Impact
@@ -59,7 +59,7 @@ S01 献立カレンダーの現行セル (`min-h-16` = 64px、`text-sm`) は、�
   - なし (既存ファイルの拡張のみ)
 - **更新ファイル**:
   - [internal/config/defaults.go](../../../internal/config/defaults.go) — `MealPlanCellSizePresets`
-    (期間 × slot 数 → セル高 / typography / visible items) を追加。既存の `MealPlanCellVisibleItems`
+    (期間 × 時間帯数 → セル高 / typography / visible items) を追加。既存の `MealPlanCellVisibleItems`
     (int 固定) は「表の 1 セル」に置き換わるので削除または後方互換のため deprecate 明記
   - [internal/config/defaults_test.go](../../../internal/config/defaults_test.go) — 新テーブルの
     デフォルト値を検証するテストを追加 (「デフォルト値変更時はこのテストと product.md 両方を更新」の
@@ -68,7 +68,7 @@ S01 献立カレンダーの現行セル (`min-h-16` = 64px、`text-sm`) は、�
     — Go 側 `MealPlanCellSizePresets` の mirror を追加 (S09 で ConfigService 経由で読めるようになるまでは
     手動同期する既存パターンに従う)
   - [frontend/src/components/mealplan/week-calendar.tsx](../../../frontend/src/components/mealplan/week-calendar.tsx)
-    — Grid の `gridAutoRows` を「期間 × 表示 slot 数」から算出。MealPlanCell に typography /
+    — Grid の `gridAutoRows` を「期間 × 表示時間帯数」から算出。MealPlanCell に typography /
     visibleItems props を渡す
   - [frontend/src/components/mealplan/meal-plan-cell.tsx](../../../frontend/src/components/mealplan/meal-plan-cell.tsx)
     — typography / padding / visibleItems を props で受ける。現状ハードコードの `text-sm` / `p-2` / `min-h-16` /
@@ -76,7 +76,7 @@ S01 献立カレンダーの現行セル (`min-h-16` = 64px、`text-sm`) は、�
     右上両方) を拡大して押しやすくする
   - [docs/wireframes/S01_meal_calendar.drawio.svg](../../../docs/wireframes/S01_meal_calendar.drawio.svg) —
     新レイアウトを反映 (可視 SVG + drawio 用 XML の二重構造)。1 週 × 夕食のみ (推奨サイズ) と
-    1 週 × 3 slots (縦がやや詰まる版) の 2 状態を描く
+    1 週 × 3 時間帯 (縦がやや詰まる版) の 2 状態を描く
   - [docs/product.md](../../../docs/product.md) §S01 描画説明 / §1 可変値表 (`MealPlanCellSizePresets`
     の追加)
 - **生成物 (再生成のみ)**: なし (config の struct 追加は Wails サービスの公開シグネチャに影響しないため、

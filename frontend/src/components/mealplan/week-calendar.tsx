@@ -5,34 +5,34 @@ import type {
   BatchSummary,
   Entry,
 } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
-import { Slot } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
+import { Meal } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
 import { MealPlanService } from "../../../bindings/github.com/yito0000/meal-cycle/internal/service";
 import { BatchMergeDialog } from "./batch-merge-dialog";
 import { CopyConflictDialog, type CopyConflictMode } from "./copy-conflict-dialog";
 import { CopyModeDialog } from "./copy-mode-dialog";
 import { previewCopy } from "./copy-planner";
 import { errorI18nKey } from "./error-messages";
-import { type EntryAction, MealPlanCell, type SlotAction } from "./meal-plan-cell";
-import { SLOT_RENDER_ORDER } from "./mealplan-config";
+import { type EntryAction, type MealAction, MealPlanCell } from "./meal-plan-cell";
+import { MEAL_RENDER_ORDER } from "./mealplan-config";
 import { RecipePickerDialog } from "./recipe-picker-dialog";
 import { formatDate, isSameLocalDate, weekDates } from "./week-utils";
 
 type Props = {
   weekStart: Date;
   entries: Entry[];
-  visibleSlots: Set<string>;
+  visibleMeals: Set<string>;
 };
 
 type PickerState =
   | { kind: "closed" }
-  | { kind: "add"; date: string; slot: string }
-  | { kind: "replace"; date: string; slot: string; position: number };
+  | { kind: "add"; date: string; meal: string }
+  | { kind: "replace"; date: string; meal: string; position: number };
 
 type PendingCopy = {
   date: string;
-  slot: string;
+  meal: string;
   days: number;
-  position: number; // -1 = slot 全体
+  position: number; // -1 = 時間帯全体
   targets: string[];
   conflicts: string[];
   shareBatch?: boolean;
@@ -40,20 +40,20 @@ type PendingCopy = {
 
 type MergeDialogState =
   | { kind: "closed" }
-  | { kind: "open"; date: string; slot: string; position: number; candidates: BatchSummary[] };
+  | { kind: "open"; date: string; meal: string; position: number; candidates: BatchSummary[] };
 
-function slotLabelKey(slot: string): string {
-  switch (slot) {
-    case Slot.SlotBreakfast:
-      return "pages.meal_plan.slot.breakfast";
-    case Slot.SlotLunch:
-      return "pages.meal_plan.slot.lunch";
+function mealLabelKey(meal: string): string {
+  switch (meal) {
+    case Meal.MealBreakfast:
+      return "pages.meal_plan.meal.breakfast";
+    case Meal.MealLunch:
+      return "pages.meal_plan.meal.lunch";
     default:
-      return "pages.meal_plan.slot.dinner";
+      return "pages.meal_plan.meal.dinner";
   }
 }
 
-export function WeekCalendar({ weekStart, entries, visibleSlots }: Props) {
+export function WeekCalendar({ weekStart, entries, visibleMeals }: Props) {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const [picker, setPicker] = useState<PickerState>({ kind: "closed" });
@@ -76,59 +76,59 @@ export function WeekCalendar({ weekStart, entries, visibleSlots }: Props) {
       });
 
   const assignMut = useMutation({
-    mutationFn: (v: { date: string; slot: string; recipeID: string }) =>
-      withHandlers(MealPlanService.AssignRecipe(v.date, v.slot, v.recipeID)),
+    mutationFn: (v: { date: string; meal: string; recipeID: string }) =>
+      withHandlers(MealPlanService.AssignRecipe(v.date, v.meal, v.recipeID)),
   });
   const replaceMut = useMutation({
-    mutationFn: (v: { date: string; slot: string; position: number; recipeID: string }) =>
-      withHandlers(MealPlanService.ReplaceEntry(v.date, v.slot, v.position, v.recipeID)),
+    mutationFn: (v: { date: string; meal: string; position: number; recipeID: string }) =>
+      withHandlers(MealPlanService.ReplaceEntry(v.date, v.meal, v.position, v.recipeID)),
   });
   const removeMut = useMutation({
-    mutationFn: (v: { date: string; slot: string; position: number }) =>
-      withHandlers(MealPlanService.RemoveEntry(v.date, v.slot, v.position)),
+    mutationFn: (v: { date: string; meal: string; position: number }) =>
+      withHandlers(MealPlanService.RemoveEntry(v.date, v.meal, v.position)),
   });
   const clearMut = useMutation({
-    mutationFn: (v: { date: string; slot: string }) =>
-      withHandlers(MealPlanService.ClearSlot(v.date, v.slot)),
+    mutationFn: (v: { date: string; meal: string }) =>
+      withHandlers(MealPlanService.ClearMeal(v.date, v.meal)),
   });
   const copyMut = useMutation({
     mutationFn: (v: {
       date: string;
-      slot: string;
+      meal: string;
       days: number;
       position: number;
       mode: string;
       shareBatch: boolean;
     }) =>
       withHandlers(
-        MealPlanService.CopyLeftover(v.date, v.slot, v.days, v.position, v.mode, v.shareBatch),
+        MealPlanService.CopyLeftover(v.date, v.meal, v.days, v.position, v.mode, v.shareBatch),
       ),
   });
   const splitMut = useMutation({
-    mutationFn: (v: { date: string; slot: string; position: number }) =>
-      withHandlers(MealPlanService.SplitBatch(v.date, v.slot, v.position)),
+    mutationFn: (v: { date: string; meal: string; position: number }) =>
+      withHandlers(MealPlanService.SplitBatch(v.date, v.meal, v.position)),
   });
   const mergeMut = useMutation({
-    mutationFn: (v: { date: string; slot: string; position: number; targetBatchID: string }) =>
-      withHandlers(MealPlanService.MergeBatch(v.date, v.slot, v.position, v.targetBatchID)),
+    mutationFn: (v: { date: string; meal: string; position: number; targetBatchID: string }) =>
+      withHandlers(MealPlanService.MergeBatch(v.date, v.meal, v.position, v.targetBatchID)),
   });
 
   const dates = weekDates(weekStart);
   const today = new Date();
-  const slots = SLOT_RENDER_ORDER.filter((s) => visibleSlots.has(s));
+  const meals = MEAL_RENDER_ORDER.filter((s) => visibleMeals.has(s));
 
   const grouped = new Map<string, Entry[]>();
   for (const e of entries) {
-    const key = `${e.date}::${e.slot}`;
+    const key = `${e.date}::${e.meal}`;
     const bucket = grouped.get(key);
     if (bucket) bucket.push(e);
     else grouped.set(key, [e]);
   }
 
-  const startCopy = (date: string, slot: string, days: number, position: number) => {
-    const { targets, conflicts } = previewCopy(date, slot, days, entries);
+  const startCopy = (date: string, meal: string, days: number, position: number) => {
+    const { targets, conflicts } = previewCopy(date, meal, days, entries);
     if (targets.length === 0) return;
-    setPendingCopy({ date, slot, days, position, targets, conflicts });
+    setPendingCopy({ date, meal, days, position, targets, conflicts });
   };
 
   const resolveMode = (shareBatch: boolean) => {
@@ -136,7 +136,7 @@ export function WeekCalendar({ weekStart, entries, visibleSlots }: Props) {
     if (pendingCopy.conflicts.length === 0) {
       copyMut.mutate({
         date: pendingCopy.date,
-        slot: pendingCopy.slot,
+        meal: pendingCopy.meal,
         days: pendingCopy.days,
         position: pendingCopy.position,
         mode: "append",
@@ -156,7 +156,7 @@ export function WeekCalendar({ weekStart, entries, visibleSlots }: Props) {
     }
     copyMut.mutate({
       date: pendingCopy.date,
-      slot: pendingCopy.slot,
+      meal: pendingCopy.meal,
       days: pendingCopy.days,
       position: pendingCopy.position,
       mode,
@@ -167,13 +167,13 @@ export function WeekCalendar({ weekStart, entries, visibleSlots }: Props) {
 
   const openMergeDialog = async (
     date: string,
-    slot: string,
+    meal: string,
     position: number,
     recipeID: string,
   ) => {
     try {
-      const candidates = (await MealPlanService.ListSlotBatches(date, slot, recipeID)) ?? [];
-      setMergeDialog({ kind: "open", date, slot, position, candidates });
+      const candidates = (await MealPlanService.ListMealBatches(date, meal, recipeID)) ?? [];
+      setMergeDialog({ kind: "open", date, meal, position, candidates });
       setErrorKey(null);
     } catch (err) {
       setErrorKey(errorI18nKey(err));
@@ -182,41 +182,41 @@ export function WeekCalendar({ weekStart, entries, visibleSlots }: Props) {
 
   const handleEntryAction = (
     date: string,
-    slot: string,
+    meal: string,
     action: EntryAction,
     entry: Entry,
     days?: number,
   ) => {
     switch (action) {
       case "replace":
-        setPicker({ kind: "replace", date, slot, position: entry.position });
+        setPicker({ kind: "replace", date, meal, position: entry.position });
         break;
       case "remove":
-        removeMut.mutate({ date, slot, position: entry.position });
+        removeMut.mutate({ date, meal, position: entry.position });
         break;
       case "view-detail":
         // S03 レシピ詳細ドロワーは別 proposal で実装。現状はエラー表示に留める。
         setErrorKey("pages.meal_plan.errors.unknown");
         break;
       case "copy-days":
-        if (days) startCopy(date, slot, days, entry.position);
+        if (days) startCopy(date, meal, days, entry.position);
         break;
       case "split-batch":
-        splitMut.mutate({ date, slot, position: entry.position });
+        splitMut.mutate({ date, meal, position: entry.position });
         break;
       case "merge-batch":
-        void openMergeDialog(date, slot, entry.position, entry.recipeId);
+        void openMergeDialog(date, meal, entry.position, entry.recipeId);
         break;
     }
   };
 
-  const handleSlotAction = (date: string, slot: string, action: SlotAction, days?: number) => {
+  const handleMealAction = (date: string, meal: string, action: MealAction, days?: number) => {
     switch (action) {
       case "clear":
-        clearMut.mutate({ date, slot });
+        clearMut.mutate({ date, meal });
         break;
       case "copy-days":
-        if (days) startCopy(date, slot, days, -1);
+        if (days) startCopy(date, meal, days, -1);
         break;
       case "reorder":
         // 上下ボタン UI は後続タスクで足す。現状は unknown 表示。
@@ -270,25 +270,25 @@ export function WeekCalendar({ weekStart, entries, visibleSlots }: Props) {
           );
         })}
 
-        {slots.map((slot) => (
-          <div key={`row-${slot}`} className="contents">
+        {meals.map((meal) => (
+          <div key={`row-${meal}`} className="contents">
             <div className="flex items-center justify-end pr-2 text-xs font-medium text-neutral-500">
-              {t(slotLabelKey(slot))}
+              {t(mealLabelKey(meal))}
             </div>
             {dates.map((d) => {
               const date = formatDate(d);
-              const key = `${date}::${slot}`;
+              const key = `${date}::${meal}`;
               const cellEntries = grouped.get(key) ?? [];
               return (
                 <MealPlanCell
                   key={key}
                   date={date}
-                  slot={slot}
+                  meal={meal}
                   entries={cellEntries}
-                  onAddFirst={() => setPicker({ kind: "add", date, slot })}
-                  onAddMore={() => setPicker({ kind: "add", date, slot })}
-                  onEntryAction={(a, e, days) => handleEntryAction(date, slot, a, e, days)}
-                  onSlotAction={(a, days) => handleSlotAction(date, slot, a, days)}
+                  onAddFirst={() => setPicker({ kind: "add", date, meal })}
+                  onAddMore={() => setPicker({ kind: "add", date, meal })}
+                  onEntryAction={(a, e, days) => handleEntryAction(date, meal, a, e, days)}
+                  onMealAction={(a, days) => handleMealAction(date, meal, a, days)}
                 />
               );
             })}
@@ -305,11 +305,11 @@ export function WeekCalendar({ weekStart, entries, visibleSlots }: Props) {
         }}
         onSelect={(r) => {
           if (picker.kind === "add") {
-            assignMut.mutate({ date: picker.date, slot: picker.slot, recipeID: r.id });
+            assignMut.mutate({ date: picker.date, meal: picker.meal, recipeID: r.id });
           } else if (picker.kind === "replace") {
             replaceMut.mutate({
               date: picker.date,
-              slot: picker.slot,
+              meal: picker.meal,
               position: picker.position,
               recipeID: r.id,
             });
@@ -342,7 +342,7 @@ export function WeekCalendar({ weekStart, entries, visibleSlots }: Props) {
           if (mergeDialog.kind === "open") {
             mergeMut.mutate({
               date: mergeDialog.date,
-              slot: mergeDialog.slot,
+              meal: mergeDialog.meal,
               position: mergeDialog.position,
               targetBatchID: batchID,
             });

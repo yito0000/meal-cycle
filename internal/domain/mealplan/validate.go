@@ -9,7 +9,7 @@ import (
 // 文言はここで持たず、`frontend/src/locales/*.json` の `mealplan.errors.*` に置く。
 var (
 	ErrInvalidDate         = errors.New("mealplan: invalid date")
-	ErrInvalidSlot         = errors.New("mealplan: invalid slot")
+	ErrInvalidMeal         = errors.New("mealplan: invalid meal")
 	ErrInvalidPosition     = errors.New("mealplan: invalid position")
 	ErrEntryNotFound       = errors.New("mealplan: entry not found")
 	ErrReorderMismatch     = errors.New("mealplan: reorder mismatch")
@@ -35,13 +35,13 @@ func ValidateDate(s string) error {
 	return nil
 }
 
-// ValidateSlot は breakfast|lunch|dinner のいずれかを許容する。大文字小文字の揺れは不許可。
-func ValidateSlot(s string) error {
-	switch Slot(s) {
-	case SlotBreakfast, SlotLunch, SlotDinner:
+// ValidateMeal は breakfast|lunch|dinner のいずれかを許容する。大文字小文字の揺れは不許可。
+func ValidateMeal(s string) error {
+	switch Meal(s) {
+	case MealBreakfast, MealLunch, MealDinner:
 		return nil
 	}
-	return ErrInvalidSlot
+	return ErrInvalidMeal
 }
 
 func ValidatePosition(p int) error {

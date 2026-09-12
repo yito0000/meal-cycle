@@ -21,7 +21,7 @@ S01 の基本操作としても最低限「次週 / 前週」に移動できな�
   - `＜`: `periodStart` を `periodWeeks` 分過去にシフト
   - `＞`: `periodStart` を `periodWeeks` 分未来にシフト
   - 「今週」: `periodStart` を「今日を含む週」の月曜日に戻す
-- 期間切替と `resize-mealplan-cells` の `CellSizePreset` (期間 × slot 数) が正しく連動する
+- 期間切替と `resize-mealplan-cells` の `CellSizePreset` (期間 × 時間帯数) が正しく連動する
   (2 週 / 4 週表示のときはセルが小さくなる、既に設計済み)
 
 ## Non-goals
@@ -74,5 +74,5 @@ S01 の基本操作としても最低限「次週 / 前週」に移動できな�
   は既に週跨ぎ対応済み。ナビが動けば画面上でも追跡できる)
 - **`add-shopping-list` (S07)**: 期間切替と同期する CTA を張るために、`periodStart` / `periodWeeks` を
   引数化する下地ができる
-- **`add-mealplan-cross-slot-leftover`**: 別 proposal だが、期間ナビの実装後は跨ぎシナリオの表示検証が
+- **`add-mealplan-cross-meal-leftover`**: 別 proposal だが、期間ナビの実装後は跨ぎシナリオの表示検証が
   楽になる

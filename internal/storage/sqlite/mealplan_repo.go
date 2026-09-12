@@ -42,12 +42,12 @@ func (r *MealPlanRepo) ListWeek(ctx context.Context, weekStart string) ([]mealpl
 		return nil, err
 	}
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT m.date, m.slot, m.position, m.recipe_id, r.name, m.batch_id,
+		SELECT m.date, m.meal, m.position, m.recipe_id, r.name, m.batch_id,
 		       COUNT(*) OVER (PARTITION BY m.batch_id) AS batch_member_count
 		FROM meal_plans m
 		JOIN recipes r ON r.id = m.recipe_id
 		WHERE m.date >= ? AND m.date < ?
-		ORDER BY m.date, m.slot, m.position
+		ORDER BY m.date, m.meal, m.position
 	`, weekStart, end)
 	if err != nil {
 		return nil, fmt.Errorf("query meal_plans: %w", err)
@@ -57,12 +57,12 @@ func (r *MealPlanRepo) ListWeek(ctx context.Context, weekStart string) ([]mealpl
 	out := make([]mealplan.Entry, 0)
 	for rows.Next() {
 		var e mealplan.Entry
-		var slot string
-		if err := rows.Scan(&e.Date, &slot, &e.Position, &e.RecipeID, &e.RecipeName,
+		var meal string
+		if err := rows.Scan(&e.Date, &meal, &e.Position, &e.RecipeID, &e.RecipeName,
 			&e.BatchID, &e.BatchMemberCount); err != nil {
 			return nil, fmt.Errorf("scan meal_plans row: %w", err)
 		}
-		e.Slot = mealplan.Slot(slot)
+		e.Meal = mealplan.Meal(meal)
 		out = append(out, e)
 	}
 	if err := rows.Err(); err != nil {
@@ -71,21 +71,21 @@ func (r *MealPlanRepo) ListWeek(ctx context.Context, weekStart string) ([]mealpl
 	return out, nil
 }
 
-// Assign は対象 (date, slot) の末尾 (position = max+1) に recipe_id を追加する。
+// Assign は対象 (date, meal) の末尾 (position = max+1) に recipe_id を追加する。
 // 単独割当は「新しい 1 バッチ」の意味なので、常に新 batch_id を発行する。
-func (r *MealPlanRepo) Assign(ctx context.Context, date, slot, recipeID string) (mealplan.Entry, error) {
+func (r *MealPlanRepo) Assign(ctx context.Context, date, meal, recipeID string) (mealplan.Entry, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return mealplan.Entry{}, fmt.Errorf("begin tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	pos, err := nextPosition(ctx, tx, date, slot)
+	pos, err := nextPosition(ctx, tx, date, meal)
 	if err != nil {
 		return mealplan.Entry{}, err
 	}
 	batchID := mealplan.NewBatchID()
-	entry, err := insertMealPlan(ctx, tx, date, slot, pos, recipeID, batchID)
+	entry, err := insertMealPlan(ctx, tx, date, meal, pos, recipeID, batchID)
 	if err != nil {
 		return mealplan.Entry{}, err
 	}
@@ -95,12 +95,12 @@ func (r *MealPlanRepo) Assign(ctx context.Context, date, slot, recipeID string) 
 	return entry, nil
 }
 
-// Replace は指定 (date, slot, position) の recipe_id を差し替える。該当行が無ければ ErrEntryNotFound。
+// Replace は指定 (date, meal, position) の recipe_id を差し替える。該当行が無ければ ErrEntryNotFound。
 // batch_id は変更しない (「同じバッチのまま中身のレシピを差し替える」意味)。
-func (r *MealPlanRepo) Replace(ctx context.Context, date, slot string, position int, recipeID string) error {
+func (r *MealPlanRepo) Replace(ctx context.Context, date, meal string, position int, recipeID string) error {
 	res, err := r.db.ExecContext(ctx, `
-		UPDATE meal_plans SET recipe_id = ? WHERE date = ? AND slot = ? AND position = ?
-	`, recipeID, date, slot, position)
+		UPDATE meal_plans SET recipe_id = ? WHERE date = ? AND meal = ? AND position = ?
+	`, recipeID, date, meal, position)
 	if err != nil {
 		if isForeignKeyErr(err) {
 			return mealplan.ErrUnknownRecipe
@@ -118,9 +118,9 @@ func (r *MealPlanRepo) Replace(ctx context.Context, date, slot string, position 
 }
 
 // Remove は 1 行削除し、後続 position を 1 つずつ詰め直す。
-// 詰め直しは (date, slot, position) が PRIMARY KEY のため、下から上に UPDATE する必要は無く、
+// 詰め直しは (date, meal, position) が PRIMARY KEY のため、下から上に UPDATE する必要は無く、
 // 小さい position 側から順に上書きしていけば衝突しない (position=3 → 2、position=4 → 3、...)。
-func (r *MealPlanRepo) Remove(ctx context.Context, date, slot string, position int) error {
+func (r *MealPlanRepo) Remove(ctx context.Context, date, meal string, position int) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
@@ -128,8 +128,8 @@ func (r *MealPlanRepo) Remove(ctx context.Context, date, slot string, position i
 	defer func() { _ = tx.Rollback() }()
 
 	res, err := tx.ExecContext(ctx, `
-		DELETE FROM meal_plans WHERE date = ? AND slot = ? AND position = ?
-	`, date, slot, position)
+		DELETE FROM meal_plans WHERE date = ? AND meal = ? AND position = ?
+	`, date, meal, position)
 	if err != nil {
 		return fmt.Errorf("delete meal_plans: %w", err)
 	}
@@ -142,8 +142,8 @@ func (r *MealPlanRepo) Remove(ctx context.Context, date, slot string, position i
 	}
 	if _, err := tx.ExecContext(ctx, `
 		UPDATE meal_plans SET position = position - 1
-		WHERE date = ? AND slot = ? AND position > ?
-	`, date, slot, position); err != nil {
+		WHERE date = ? AND meal = ? AND position > ?
+	`, date, meal, position); err != nil {
 		return fmt.Errorf("renumber positions: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
@@ -152,20 +152,20 @@ func (r *MealPlanRepo) Remove(ctx context.Context, date, slot string, position i
 	return nil
 }
 
-// ClearSlot は (date, slot) の全 position を削除する。0 件でもエラーにしない。
-func (r *MealPlanRepo) ClearSlot(ctx context.Context, date, slot string) error {
+// ClearMeal は (date, meal) の全 position を削除する。0 件でもエラーにしない。
+func (r *MealPlanRepo) ClearMeal(ctx context.Context, date, meal string) error {
 	if _, err := r.db.ExecContext(ctx, `
-		DELETE FROM meal_plans WHERE date = ? AND slot = ?
-	`, date, slot); err != nil {
-		return fmt.Errorf("clear slot: %w", err)
+		DELETE FROM meal_plans WHERE date = ? AND meal = ?
+	`, date, meal); err != nil {
+		return fmt.Errorf("clear meal: %w", err)
 	}
 	return nil
 }
 
 // Reorder は orderedRecipeIDs の順で position を 0..N-1 に採番し直す。
-// 既存 slot の recipe_id 集合と一致しない場合は ErrReorderMismatch。
-// PRIMARY KEY (date, slot, position) の衝突を避けるため、一旦 +1000 のオフセットに退避する。
-func (r *MealPlanRepo) Reorder(ctx context.Context, date, slot string, orderedRecipeIDs []string) error {
+// 既存 meal の recipe_id 集合と一致しない場合は ErrReorderMismatch。
+// PRIMARY KEY (date, meal, position) の衝突を避けるため、一旦 +1000 のオフセットに退避する。
+func (r *MealPlanRepo) Reorder(ctx context.Context, date, meal string, orderedRecipeIDs []string) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
@@ -173,17 +173,17 @@ func (r *MealPlanRepo) Reorder(ctx context.Context, date, slot string, orderedRe
 	defer func() { _ = tx.Rollback() }()
 
 	rows, err := tx.QueryContext(ctx, `
-		SELECT recipe_id FROM meal_plans WHERE date = ? AND slot = ?
-	`, date, slot)
+		SELECT recipe_id FROM meal_plans WHERE date = ? AND meal = ?
+	`, date, meal)
 	if err != nil {
-		return fmt.Errorf("query current slot: %w", err)
+		return fmt.Errorf("query current meal: %w", err)
 	}
 	current := map[string]int{}
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
 			rows.Close()
-			return fmt.Errorf("scan current slot: %w", err)
+			return fmt.Errorf("scan current meal: %w", err)
 		}
 		current[id]++
 	}
@@ -202,11 +202,11 @@ func (r *MealPlanRepo) Reorder(ctx context.Context, date, slot string, orderedRe
 		}
 	}
 
-	// 一時オフセット (+1000) に退避して PRIMARY KEY 衝突を避ける。slot 内の品数は最大でも
+	// 一時オフセット (+1000) に退避して PRIMARY KEY 衝突を避ける。meal 内の品数は最大でも
 	// 数個〜十数個の想定で、+1000 で衝突する状況は現実的に無い。
 	if _, err := tx.ExecContext(ctx, `
-		UPDATE meal_plans SET position = position + 1000 WHERE date = ? AND slot = ?
-	`, date, slot); err != nil {
+		UPDATE meal_plans SET position = position + 1000 WHERE date = ? AND meal = ?
+	`, date, meal); err != nil {
 		return fmt.Errorf("shift positions: %w", err)
 	}
 
@@ -216,9 +216,9 @@ func (r *MealPlanRepo) Reorder(ctx context.Context, date, slot string, orderedRe
 		var oldPos int
 		err := tx.QueryRowContext(ctx, `
 			SELECT position FROM meal_plans
-			WHERE date = ? AND slot = ? AND recipe_id = ? AND position >= 1000
+			WHERE date = ? AND meal = ? AND recipe_id = ? AND position >= 1000
 			ORDER BY position LIMIT 1
-		`, date, slot, id).Scan(&oldPos)
+		`, date, meal, id).Scan(&oldPos)
 		if errors.Is(err, sql.ErrNoRows) {
 			return mealplan.ErrReorderMismatch
 		}
@@ -227,8 +227,8 @@ func (r *MealPlanRepo) Reorder(ctx context.Context, date, slot string, orderedRe
 		}
 		if _, err := tx.ExecContext(ctx, `
 			UPDATE meal_plans SET position = ?
-			WHERE date = ? AND slot = ? AND position = ?
-		`, newPos, date, slot, oldPos); err != nil {
+			WHERE date = ? AND meal = ? AND position = ?
+		`, newPos, date, meal, oldPos); err != nil {
 			return fmt.Errorf("reorder position %d: %w", newPos, err)
 		}
 	}
@@ -239,7 +239,7 @@ func (r *MealPlanRepo) Reorder(ctx context.Context, date, slot string, orderedRe
 	return nil
 }
 
-// CopyLeftover は targets の各日付 slot に sourceEntries を反映する。mode=overwrite は既存を消してから、
+// CopyLeftover は targets の各日付 meal に sourceEntries を反映する。mode=overwrite は既存を消してから、
 // mode=append は既存の末尾に追加する (二重追加防止のため domain.PlanCopy を経由)。
 //
 // shareBatch=true (作り置き) は「同じレシピ ID を持つコピー先行は全 target で 1 batch_id」を割り振る。
@@ -248,7 +248,7 @@ func (r *MealPlanRepo) Reorder(ctx context.Context, date, slot string, orderedRe
 // 発行する。
 func (r *MealPlanRepo) CopyLeftover(
 	ctx context.Context,
-	slot string,
+	meal string,
 	targets []string,
 	sourceEntries []mealplan.Entry,
 	mode mealplan.CopyMode,
@@ -265,12 +265,12 @@ func (r *MealPlanRepo) CopyLeftover(
 	for _, target := range targets {
 		if mode == mealplan.CopyModeOverwrite {
 			if _, err := tx.ExecContext(ctx, `
-				DELETE FROM meal_plans WHERE date = ? AND slot = ?
-			`, target, slot); err != nil {
+				DELETE FROM meal_plans WHERE date = ? AND meal = ?
+			`, target, meal); err != nil {
 				return fmt.Errorf("clear target %s: %w", target, err)
 			}
 		}
-		existing, err := loadSlotEntries(ctx, tx, target, slot)
+		existing, err := loadMealEntries(ctx, tx, target, meal)
 		if err != nil {
 			return err
 		}
@@ -283,7 +283,7 @@ func (r *MealPlanRepo) CopyLeftover(
 			if batchID == "" {
 				batchID = mealplan.NewBatchID()
 			}
-			if _, err := insertMealPlan(ctx, tx, e.Date, string(e.Slot), e.Position, e.RecipeID, batchID); err != nil {
+			if _, err := insertMealPlan(ctx, tx, e.Date, string(e.Meal), e.Position, e.RecipeID, batchID); err != nil {
 				return err
 			}
 		}
@@ -298,7 +298,7 @@ func (r *MealPlanRepo) CopyLeftover(
 // 対象行が属する作り置き全体を対象に、起点日 (バッチ内で最も古い日付 → MIN(position) を tiebreaker
 // にした行) を残し、他の同バッチ行を全削除。残った起点行に新 batch_id を発行して返す。
 // バッチが元々 1 行しか含まない場合は no-op で現行 batch_id を返す (design.md D4a)。
-func (r *MealPlanRepo) SplitBatch(ctx context.Context, date, slot string, position int) (string, error) {
+func (r *MealPlanRepo) SplitBatch(ctx context.Context, date, meal string, position int) (string, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return "", fmt.Errorf("begin tx: %w", err)
@@ -307,8 +307,8 @@ func (r *MealPlanRepo) SplitBatch(ctx context.Context, date, slot string, positi
 
 	var currentBatchID string
 	err = tx.QueryRowContext(ctx, `
-		SELECT batch_id FROM meal_plans WHERE date = ? AND slot = ? AND position = ?
-	`, date, slot, position).Scan(&currentBatchID)
+		SELECT batch_id FROM meal_plans WHERE date = ? AND meal = ? AND position = ?
+	`, date, meal, position).Scan(&currentBatchID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", mealplan.ErrEntryNotFound
 	}
@@ -329,33 +329,33 @@ func (r *MealPlanRepo) SplitBatch(ctx context.Context, date, slot string, positi
 		return currentBatchID, nil
 	}
 
-	var originDate, originSlot string
+	var originDate, originMeal string
 	var originPosition int
 	if err := tx.QueryRowContext(ctx, `
-		SELECT date, slot, position FROM meal_plans
+		SELECT date, meal, position FROM meal_plans
 		WHERE batch_id = ?
 		ORDER BY date, position
 		LIMIT 1
-	`, currentBatchID).Scan(&originDate, &originSlot, &originPosition); err != nil {
+	`, currentBatchID).Scan(&originDate, &originMeal, &originPosition); err != nil {
 		return "", fmt.Errorf("locate origin: %w", err)
 	}
 
 	rows, err := tx.QueryContext(ctx, `
-		SELECT date, slot, position FROM meal_plans
-		WHERE batch_id = ? AND NOT (date = ? AND slot = ? AND position = ?)
-		ORDER BY date, slot, position
-	`, currentBatchID, originDate, originSlot, originPosition)
+		SELECT date, meal, position FROM meal_plans
+		WHERE batch_id = ? AND NOT (date = ? AND meal = ? AND position = ?)
+		ORDER BY date, meal, position
+	`, currentBatchID, originDate, originMeal, originPosition)
 	if err != nil {
 		return "", fmt.Errorf("query siblings: %w", err)
 	}
 	type cellRow struct {
-		date, slot string
+		date, meal string
 		position   int
 	}
 	toDelete := make([]cellRow, 0)
 	for rows.Next() {
 		var cr cellRow
-		if err := rows.Scan(&cr.date, &cr.slot, &cr.position); err != nil {
+		if err := rows.Scan(&cr.date, &cr.meal, &cr.position); err != nil {
 			rows.Close()
 			return "", fmt.Errorf("scan siblings: %w", err)
 		}
@@ -368,14 +368,14 @@ func (r *MealPlanRepo) SplitBatch(ctx context.Context, date, slot string, positi
 
 	for _, cr := range toDelete {
 		if _, err := tx.ExecContext(ctx, `
-			DELETE FROM meal_plans WHERE date = ? AND slot = ? AND position = ?
-		`, cr.date, cr.slot, cr.position); err != nil {
+			DELETE FROM meal_plans WHERE date = ? AND meal = ? AND position = ?
+		`, cr.date, cr.meal, cr.position); err != nil {
 			return "", fmt.Errorf("delete sibling row: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, `
 			UPDATE meal_plans SET position = position - 1
-			WHERE date = ? AND slot = ? AND position > ?
-		`, cr.date, cr.slot, cr.position); err != nil {
+			WHERE date = ? AND meal = ? AND position > ?
+		`, cr.date, cr.meal, cr.position); err != nil {
 			return "", fmt.Errorf("renumber positions in cell: %w", err)
 		}
 	}
@@ -383,8 +383,8 @@ func (r *MealPlanRepo) SplitBatch(ctx context.Context, date, slot string, positi
 	newID := mealplan.NewBatchID()
 	if _, err := tx.ExecContext(ctx, `
 		UPDATE meal_plans SET batch_id = ?
-		WHERE date = ? AND slot = ? AND position = ?
-	`, newID, originDate, originSlot, originPosition); err != nil {
+		WHERE date = ? AND meal = ? AND position = ?
+	`, newID, originDate, originMeal, originPosition); err != nil {
 		return "", fmt.Errorf("assign new batch_id: %w", err)
 	}
 
@@ -395,11 +395,11 @@ func (r *MealPlanRepo) SplitBatch(ctx context.Context, date, slot string, positi
 }
 
 // MergeBatch は対象行の batch_id を targetBatchID に付け替える。
-// 3 条件 (同 slot / 同一レシピ / 対象行の日付から ±mergeDayRange 日以内) を防御的にチェックし、
-// 違反時は ErrBatchMergeDenied、そもそも targetBatchID の行が同 slot に無ければ
+// 3 条件 (同 meal / 同一レシピ / 対象行の日付から ±mergeDayRange 日以内) を防御的にチェックし、
+// 違反時は ErrBatchMergeDenied、そもそも targetBatchID の行が同 meal に無ければ
 // ErrBatchTargetNotFound を返す (design.md D4b)。
 func (r *MealPlanRepo) MergeBatch(
-	ctx context.Context, date, slot string, position int, targetBatchID string,
+	ctx context.Context, date, meal string, position int, targetBatchID string,
 ) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -409,8 +409,8 @@ func (r *MealPlanRepo) MergeBatch(
 
 	var sourceRecipeID string
 	err = tx.QueryRowContext(ctx, `
-		SELECT recipe_id FROM meal_plans WHERE date = ? AND slot = ? AND position = ?
-	`, date, slot, position).Scan(&sourceRecipeID)
+		SELECT recipe_id FROM meal_plans WHERE date = ? AND meal = ? AND position = ?
+	`, date, meal, position).Scan(&sourceRecipeID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return mealplan.ErrEntryNotFound
 	}
@@ -421,8 +421,8 @@ func (r *MealPlanRepo) MergeBatch(
 	var targetExists int
 	if err := tx.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM meal_plans
-		WHERE slot = ? AND batch_id = ? AND NOT (date = ? AND position = ?)
-	`, slot, targetBatchID, date, position).Scan(&targetExists); err != nil {
+		WHERE meal = ? AND batch_id = ? AND NOT (date = ? AND position = ?)
+	`, meal, targetBatchID, date, position).Scan(&targetExists); err != nil {
 		return fmt.Errorf("check target batch: %w", err)
 	}
 	if targetExists == 0 {
@@ -433,10 +433,10 @@ func (r *MealPlanRepo) MergeBatch(
 	var eligible int
 	if err := tx.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM meal_plans
-		WHERE slot = ? AND batch_id = ? AND recipe_id = ?
+		WHERE meal = ? AND batch_id = ? AND recipe_id = ?
 		  AND NOT (date = ? AND position = ?)
 		  AND ABS(julianday(date) - julianday(?)) <= ?
-	`, slot, targetBatchID, sourceRecipeID, date, position, date, dayRange).Scan(&eligible); err != nil {
+	`, meal, targetBatchID, sourceRecipeID, date, position, date, dayRange).Scan(&eligible); err != nil {
 		return fmt.Errorf("check merge eligibility: %w", err)
 	}
 	if eligible == 0 {
@@ -445,8 +445,8 @@ func (r *MealPlanRepo) MergeBatch(
 
 	res, err := tx.ExecContext(ctx, `
 		UPDATE meal_plans SET batch_id = ?
-		WHERE date = ? AND slot = ? AND position = ?
-	`, targetBatchID, date, slot, position)
+		WHERE date = ? AND meal = ? AND position = ?
+	`, targetBatchID, date, meal, position)
 	if err != nil {
 		return fmt.Errorf("merge batch: %w", err)
 	}
@@ -463,30 +463,30 @@ func (r *MealPlanRepo) MergeBatch(
 	return nil
 }
 
-// ListSlotBatches は (date, slot, recipeID) から見た合流可能な作り置きの候補を列挙する。
-// フィルタ条件: 同じ slot / 同一 recipeID / 起点行 (date) から ±mergeDayRange 日以内 /
+// ListMealBatches は (date, meal, recipeID) から見た合流可能な作り置きの候補を列挙する。
+// フィルタ条件: 同じ meal / 同一 recipeID / 起点行 (date) から ±mergeDayRange 日以内 /
 // 起点行自身が属するバッチは除外 (design.md D4b)。各バッチにつき代表行 1 つを返す。
-func (r *MealPlanRepo) ListSlotBatches(
-	ctx context.Context, date, slot, recipeID string,
+func (r *MealPlanRepo) ListMealBatches(
+	ctx context.Context, date, meal, recipeID string,
 ) ([]mealplan.BatchSummary, error) {
 	var ownBatchID string
 	err := r.db.QueryRowContext(ctx, `
 		SELECT batch_id FROM meal_plans
-		WHERE date = ? AND slot = ?
+		WHERE date = ? AND meal = ?
 		LIMIT 1
-	`, date, slot).Scan(&ownBatchID)
+	`, date, meal).Scan(&ownBatchID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("query own batch: %w", err)
 	}
 
 	dayRange := r.mergeDayRange()
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT m.batch_id, m.date, m.slot, m.recipe_id, r.name, cnt
+		SELECT m.batch_id, m.date, m.meal, m.recipe_id, r.name, cnt
 		FROM (
 			SELECT batch_id, MIN(date || printf('%04d', position)) AS pk_key,
 			       COUNT(*) AS cnt
 			FROM meal_plans
-			WHERE slot = ? AND recipe_id = ?
+			WHERE meal = ? AND recipe_id = ?
 			  AND ABS(julianday(date) - julianday(?)) <= ?
 			GROUP BY batch_id
 		) g
@@ -496,28 +496,28 @@ func (r *MealPlanRepo) ListSlotBatches(
 		JOIN recipes r ON r.id = m.recipe_id
 		WHERE m.batch_id <> ?
 		ORDER BY m.date, m.position
-	`, slot, recipeID, date, dayRange, ownBatchID)
+	`, meal, recipeID, date, dayRange, ownBatchID)
 	if err != nil {
-		return nil, fmt.Errorf("query slot batches: %w", err)
+		return nil, fmt.Errorf("query meal batches: %w", err)
 	}
 	defer rows.Close()
 
 	out := make([]mealplan.BatchSummary, 0)
 	for rows.Next() {
 		var s mealplan.BatchSummary
-		var slotStr string
-		if err := rows.Scan(&s.BatchID, &s.Date, &slotStr, &s.RecipeID, &s.RecipeName, &s.MemberCount); err != nil {
-			return nil, fmt.Errorf("scan slot batch: %w", err)
+		var mealStr string
+		if err := rows.Scan(&s.BatchID, &s.Date, &mealStr, &s.RecipeID, &s.RecipeName, &s.MemberCount); err != nil {
+			return nil, fmt.Errorf("scan meal batch: %w", err)
 		}
-		s.Slot = mealplan.Slot(slotStr)
+		s.Meal = mealplan.Meal(mealStr)
 		out = append(out, s)
 	}
 	return out, rows.Err()
 }
 
-// SlotEntries は特定 (date, slot) の Entry 列を返す。CopyLeftover の domain 呼び出し用ヘルパ。
-func (r *MealPlanRepo) SlotEntries(ctx context.Context, date, slot string) ([]mealplan.Entry, error) {
-	return loadSlotEntries(ctx, r.db, date, slot)
+// MealEntries は特定 (date, meal) の Entry 列を返す。CopyLeftover の domain 呼び出し用ヘルパ。
+func (r *MealPlanRepo) MealEntries(ctx context.Context, date, meal string) ([]mealplan.Entry, error) {
+	return loadMealEntries(ctx, r.db, date, meal)
 }
 
 // --- 内部ヘルパ ------------------------------------------------------------
@@ -528,36 +528,36 @@ type querier interface {
 	ExecContext(ctx context.Context, q string, args ...any) (sql.Result, error)
 }
 
-func loadSlotEntries(ctx context.Context, q querier, date, slot string) ([]mealplan.Entry, error) {
+func loadMealEntries(ctx context.Context, q querier, date, meal string) ([]mealplan.Entry, error) {
 	rows, err := q.QueryContext(ctx, `
-		SELECT m.date, m.slot, m.position, m.recipe_id, COALESCE(r.name, ''), m.batch_id
+		SELECT m.date, m.meal, m.position, m.recipe_id, COALESCE(r.name, ''), m.batch_id
 		FROM meal_plans m
 		LEFT JOIN recipes r ON r.id = m.recipe_id
-		WHERE m.date = ? AND m.slot = ?
+		WHERE m.date = ? AND m.meal = ?
 		ORDER BY m.position
-	`, date, slot)
+	`, date, meal)
 	if err != nil {
-		return nil, fmt.Errorf("query slot: %w", err)
+		return nil, fmt.Errorf("query meal: %w", err)
 	}
 	defer rows.Close()
 	out := make([]mealplan.Entry, 0)
 	for rows.Next() {
 		var e mealplan.Entry
-		var slotStr string
-		if err := rows.Scan(&e.Date, &slotStr, &e.Position, &e.RecipeID, &e.RecipeName, &e.BatchID); err != nil {
-			return nil, fmt.Errorf("scan slot row: %w", err)
+		var mealStr string
+		if err := rows.Scan(&e.Date, &mealStr, &e.Position, &e.RecipeID, &e.RecipeName, &e.BatchID); err != nil {
+			return nil, fmt.Errorf("scan meal row: %w", err)
 		}
-		e.Slot = mealplan.Slot(slotStr)
+		e.Meal = mealplan.Meal(mealStr)
 		out = append(out, e)
 	}
 	return out, rows.Err()
 }
 
-func nextPosition(ctx context.Context, q querier, date, slot string) (int, error) {
+func nextPosition(ctx context.Context, q querier, date, meal string) (int, error) {
 	var maxPos sql.NullInt64
 	if err := q.QueryRowContext(ctx, `
-		SELECT MAX(position) FROM meal_plans WHERE date = ? AND slot = ?
-	`, date, slot).Scan(&maxPos); err != nil {
+		SELECT MAX(position) FROM meal_plans WHERE date = ? AND meal = ?
+	`, date, meal).Scan(&maxPos); err != nil {
 		return 0, fmt.Errorf("query max position: %w", err)
 	}
 	if !maxPos.Valid {
@@ -569,16 +569,16 @@ func nextPosition(ctx context.Context, q querier, date, slot string) (int, error
 func insertMealPlan(
 	ctx context.Context,
 	q querier,
-	date, slot string,
+	date, meal string,
 	position int,
 	recipeID string,
 	batchID string,
 ) (mealplan.Entry, error) {
 	createdAt := time.Now().UTC().Format(time.RFC3339)
 	if _, err := q.ExecContext(ctx, `
-		INSERT INTO meal_plans (date, slot, position, recipe_id, created_at, batch_id)
+		INSERT INTO meal_plans (date, meal, position, recipe_id, created_at, batch_id)
 		VALUES (?, ?, ?, ?, ?, ?)
-	`, date, slot, position, recipeID, createdAt, batchID); err != nil {
+	`, date, meal, position, recipeID, createdAt, batchID); err != nil {
 		if isForeignKeyErr(err) {
 			return mealplan.Entry{}, mealplan.ErrUnknownRecipe
 		}
@@ -592,7 +592,7 @@ func insertMealPlan(
 	}
 	return mealplan.Entry{
 		Date:       date,
-		Slot:       mealplan.Slot(slot),
+		Meal:       mealplan.Meal(meal),
 		Position:   position,
 		RecipeID:   recipeID,
 		RecipeName: name,

@@ -44,11 +44,11 @@ test.describe("機能: 作り置き / 別調理の選択と事後編集", () => 
   });
 
   test.skip("レシピが違う作り置きにはまとめられない", async () => {
-    // ListSlotBatches が別レシピを候補から除外することを検証。同上。
+    // ListMealBatches が別レシピを候補から除外することを検証。同上。
   });
 
   test.skip("日付レンジ外の作り置きにはまとめられない", async () => {
-    // ListSlotBatches が ±4 日を超える候補を除外することを検証。同上。
+    // ListMealBatches が ±4 日を超える候補を除外することを検証。同上。
   });
 
   test.skip("1 日飛ばした同一レシピの行はまとめられる", async () => {

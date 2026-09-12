@@ -46,7 +46,7 @@
       追加し、`weekStart` を `periodStart` に改名する。完了判定: `npm run type-check` が通る
 - [ ] 4.2 Grid の列数を `periodWeeks` に応じて `7 / 14 / 7 (4 行折り返し)` にする。4 週表示は 7 列 × 4
       行折り返し、2 週表示は 14 列で横スクロール。完了判定: 目視で切替がレイアウトに反映
-- [ ] 4.3 `resize-mealplan-cells` の `pickCellPreset(periodWeeks, visibleSlots.size)` に `periodWeeks`
+- [ ] 4.3 `resize-mealplan-cells` の `pickCellPreset(periodWeeks, visibleMeals.size)` に `periodWeeks`
       を正しく渡す (resize-mealplan-cells 実装完了後にこの task を再確認)。完了判定: 各 preset が
       正しく効く (2 週 → 小、4 週 → 最小)
 

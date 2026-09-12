@@ -5,14 +5,14 @@ import type { Entry } from "../../../bindings/github.com/yito0000/meal-cycle/int
 // (作り置きは翌日以降に伸ばす目的なので)。
 export function previewCopy(
   sourceDate: string,
-  slot: string,
+  meal: string,
   days: number,
   allEntries: Entry[],
 ): { targets: string[]; conflicts: string[] } {
   const targets = enumerateTargets(sourceDate, days);
   const occupied = new Set<string>();
   for (const e of allEntries) {
-    if (e.slot === slot) occupied.add(e.date);
+    if (e.meal === meal) occupied.add(e.date);
   }
   const conflicts = targets.filter((d) => occupied.has(d));
   return { targets, conflicts };

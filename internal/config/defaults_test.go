@@ -13,7 +13,7 @@ func TestDefaults(t *testing.T) {
 		want any
 	}{
 		{"WeeklyFillPattern", c.WeeklyFillPattern, "mon-fri-dinner"},
-		{"ItemsPerSlotHint", c.ItemsPerSlotHint, [2]int{1, 3}},
+		{"ItemsPerMealHint", c.ItemsPerMealHint, [2]int{1, 3}},
 		{"MealPlanCellVisibleItems", c.MealPlanCellVisibleItems, 2},
 		{"RecipeListHighlightMs", c.RecipeListHighlightMs, 2000},
 		{"RecencyThresholdDays", c.RecencyThresholdDays, 10},
@@ -31,8 +31,8 @@ func TestDefaults(t *testing.T) {
 		t.Errorf("LeftoverCopyPresets: got %v, want %v", got, want)
 	}
 
-	if got, want := c.DefaultVisibleSlots, []string{"dinner"}; !equalStrings(got, want) {
-		t.Errorf("DefaultVisibleSlots: got %v, want %v", got, want)
+	if got, want := c.DefaultVisibleMeals, []string{"dinner"}; !equalStrings(got, want) {
+		t.Errorf("DefaultVisibleMeals: got %v, want %v", got, want)
 	}
 
 	if c.ExpiryAlertRedDays >= c.ExpiryAlertYellowDays {
