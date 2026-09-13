@@ -24,7 +24,14 @@ type Config struct {
 	ItemsPerMealHint [2]int `json:"itemsPerMealHint"`
 
 	// S01 の (date, meal) セルで折り畳まずに見せる品数の上限 ("他 N 件" 表示の閾値)。
+	//
+	// Deprecated: S09 実装時に MealPlanCellSizePresets に完全移行する。それまでの間は
+	// 1 週 × 1 時間帯 (夕食のみ) プリセットの VisibleItems と同じ値を保つ。
 	MealPlanCellVisibleItems int `json:"mealPlanCellVisibleItems"`
+
+	// S01 のセル描画を「期間 × 表示時間帯数」で切り替えるためのプリセット表。
+	// 未定義組み合わせに到達したときは最も密度が高い (4 週 × 3 時間帯) プリセットに fallback する。
+	MealPlanCellSizePresets []CellSizePreset `json:"mealPlanCellSizePresets"`
 
 	// S02 で保存直後の行をハイライトし続ける時間 (ms)。S04 → S02 復帰時に使う
 	// (design.md D6)。
@@ -51,6 +58,18 @@ type Config struct {
 	ExpiryAlertYellowDays int `json:"expiryAlertYellowDays"`
 }
 
+// CellSizePreset は S01 献立カレンダーの (date, meal) セル描画パラメータ。
+// PeriodWeeks × VisibleMeals ごとに 1 行、セル高 / typography / 表示件数上限を持つ。
+// FontSizeClass / MinHeightRem は Tailwind class 名に対応するが、JIT が拾えるように
+// フロント側 (mealplan-config.ts) 冒頭で class 文字列をリテラル列挙してある。
+type CellSizePreset struct {
+	PeriodWeeks   int    `json:"periodWeeks"`
+	VisibleMeals  int    `json:"visibleMeals"`
+	MinHeightRem  int    `json:"minHeightRem"`
+	FontSizeClass string `json:"fontSizeClass"`
+	VisibleItems  int    `json:"visibleItems"`
+}
+
 // Defaults は主要ペルソナ (作り置き中心 / 夕食メイン) 向けにチューニング
 // された既定値を返す (docs/product.md §1)。
 func Defaults() Config {
@@ -58,12 +77,29 @@ func Defaults() Config {
 		DefaultVisibleMeals:      []string{"dinner"},
 		WeeklyFillPattern:        "mon-fri-dinner",
 		ItemsPerMealHint:         [2]int{1, 3},
-		MealPlanCellVisibleItems: 2,
+		MealPlanCellVisibleItems: 4,
 		RecipeListHighlightMs:    2000,
 		RecencyThresholdDays:     10,
 		LeftoverCopyPresets:      []int{2, 3, 4},
 		WeeklyPresetRecipeCount:  [2]int{2, 3},
 		ExpiryAlertRedDays:       3,
 		ExpiryAlertYellowDays:    7,
+		MealPlanCellSizePresets:  defaultCellSizePresets(),
+	}
+}
+
+// defaultCellSizePresets は design.md D4 の 3×3 表を平坦配列に展開して返す。
+// (期間 週数 × 表示時間帯数) → (min-h-*, text-*, 表示件数) の割り当ての source of truth。
+func defaultCellSizePresets() []CellSizePreset {
+	return []CellSizePreset{
+		{PeriodWeeks: 1, VisibleMeals: 1, MinHeightRem: 48, FontSizeClass: "text-base", VisibleItems: 4},
+		{PeriodWeeks: 1, VisibleMeals: 2, MinHeightRem: 40, FontSizeClass: "text-base", VisibleItems: 4},
+		{PeriodWeeks: 1, VisibleMeals: 3, MinHeightRem: 32, FontSizeClass: "text-base", VisibleItems: 3},
+		{PeriodWeeks: 2, VisibleMeals: 1, MinHeightRem: 32, FontSizeClass: "text-base", VisibleItems: 3},
+		{PeriodWeeks: 2, VisibleMeals: 2, MinHeightRem: 24, FontSizeClass: "text-sm", VisibleItems: 3},
+		{PeriodWeeks: 2, VisibleMeals: 3, MinHeightRem: 24, FontSizeClass: "text-sm", VisibleItems: 2},
+		{PeriodWeeks: 4, VisibleMeals: 1, MinHeightRem: 20, FontSizeClass: "text-sm", VisibleItems: 2},
+		{PeriodWeeks: 4, VisibleMeals: 2, MinHeightRem: 16, FontSizeClass: "text-sm", VisibleItems: 2},
+		{PeriodWeeks: 4, VisibleMeals: 3, MinHeightRem: 16, FontSizeClass: "text-xs", VisibleItems: 2},
 	}
 }

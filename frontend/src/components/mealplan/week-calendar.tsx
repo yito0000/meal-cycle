@@ -13,7 +13,7 @@ import { CopyModeDialog } from "./copy-mode-dialog";
 import { previewCopy } from "./copy-planner";
 import { errorI18nKey } from "./error-messages";
 import { type EntryAction, type MealAction, MealPlanCell } from "./meal-plan-cell";
-import { MEAL_RENDER_ORDER } from "./mealplan-config";
+import { MEAL_RENDER_ORDER, pickCellPreset } from "./mealplan-config";
 import { RecipePickerDialog } from "./recipe-picker-dialog";
 import { formatDate, isSameLocalDate, weekDates } from "./week-utils";
 
@@ -116,6 +116,9 @@ export function WeekCalendar({ weekStart, entries, visibleMeals }: Props) {
   const dates = weekDates(weekStart);
   const today = new Date();
   const meals = MEAL_RENDER_ORDER.filter((s) => visibleMeals.has(s));
+  // 期間切替 UI は未実装 (後続 `add-mealplan-period-switch` で state から取る)。
+  // 現状は 1 週固定で決め打ち。preset は「期間 × 表示時間帯数」で解決する。
+  const preset = pickCellPreset(1, meals.length);
 
   const grouped = new Map<string, Entry[]>();
   for (const e of entries) {
@@ -285,6 +288,7 @@ export function WeekCalendar({ weekStart, entries, visibleMeals }: Props) {
                   date={date}
                   meal={meal}
                   entries={cellEntries}
+                  preset={preset}
                   onAddFirst={() => setPicker({ kind: "add", date, meal })}
                   onAddMore={() => setPicker({ kind: "add", date, meal })}
                   onEntryAction={(a, e, days) => handleEntryAction(date, meal, a, e, days)}
