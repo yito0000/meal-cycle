@@ -14,6 +14,67 @@ async function openMealCalendar(page: import("@playwright/test").Page) {
   await expect(page.getByRole("heading", { name: t.title })).toBeVisible();
 }
 
+test.describe("機能: 献立カレンダーの表示", () => {
+  test("期間切替の既定は 1 週", async ({ page }) => {
+    await openMealCalendar(page);
+    const oneWeek = page.getByTestId("period-weeks-1");
+    await expect(oneWeek).toHaveAttribute("aria-pressed", "true");
+    const calendar = page.getByTestId("period-calendar");
+    await expect(calendar).toHaveAttribute("data-period-weeks", "1");
+  });
+
+  test("`＞` を押すと表示中の期間長ぶん未来にシフトする", async ({ page }) => {
+    await openMealCalendar(page);
+    const todayBtn = page.getByTestId("period-today");
+    const before = await todayBtn.getAttribute("data-period-start");
+    if (!before) throw new Error("initial data-period-start missing");
+
+    await page.getByTestId("period-next").click();
+
+    // periodStart が 7 日進んでいることを確認する。
+    const expected = shiftIsoDate(before, 7);
+    await expect(todayBtn).toHaveAttribute("data-period-start", expected);
+  });
+
+  test("2 週を選ぶと 14 日分が表示される", async ({ page }) => {
+    await openMealCalendar(page);
+    await page.getByTestId("period-weeks-2").click();
+    const calendar = page.getByTestId("period-calendar");
+    await expect(calendar).toHaveAttribute("data-period-weeks", "2");
+  });
+
+  test("4 週を選ぶと 4 週分が行方向に折り返す", async ({ page }) => {
+    await openMealCalendar(page);
+    await page.getByTestId("period-weeks-4").click();
+    const calendar = page.getByTestId("period-calendar");
+    await expect(calendar).toHaveAttribute("data-period-weeks", "4");
+  });
+
+  test("「今週」ボタンで現在の週に戻る", async ({ page }) => {
+    await openMealCalendar(page);
+    const todayBtn = page.getByTestId("period-today");
+    const initial = await todayBtn.getAttribute("data-period-start");
+    if (!initial) throw new Error("initial data-period-start missing");
+
+    await page.getByTestId("period-next").click();
+    await page.getByTestId("period-next").click();
+    await expect(todayBtn).not.toHaveAttribute("data-period-start", initial);
+
+    await todayBtn.click();
+    await expect(todayBtn).toHaveAttribute("data-period-start", initial);
+  });
+});
+
+// shiftIsoDate は "YYYY-MM-DD" を days 日ぶんシフトする。UTC ではなくローカル日付として扱う。
+function shiftIsoDate(iso: string, days: number): string {
+  const [y, m, d] = iso.split("-").map((s) => Number.parseInt(s, 10));
+  const dt = new Date(y, m - 1, d + days);
+  const yy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
+
 test.describe("機能: 献立へのレシピ割当（1 時間帯に 0..N 品）", () => {
   test("空セルに 1 品目を割り当てる", async ({ page }) => {
     await createRecipe(page, "肉じゃが");

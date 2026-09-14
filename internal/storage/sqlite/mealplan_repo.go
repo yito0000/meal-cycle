@@ -33,11 +33,13 @@ func (r *MealPlanRepo) mergeDayRange() int {
 	return max
 }
 
-// ListWeek は weekStart (月曜 "YYYY-MM-DD") を含む 7 日分の Entry を position 順で返す。
+// ListPeriod は periodStart (月曜 "YYYY-MM-DD") から periodDays 日ぶんの Entry を position 順で返す。
 // recipes と JOIN してレシピ名を解決し、batch_member_count はウィンドウ関数で「同じ batch_id
-// を持つ全行の件数」を返す (design.md D6)。週外の行も PARTITION に加算されるのが仕様。
-func (r *MealPlanRepo) ListWeek(ctx context.Context, weekStart string) ([]mealplan.Entry, error) {
-	end, err := addDays(weekStart, 7)
+// を持つ全行の件数」を返す (design.md D6)。期間外の行も PARTITION に加算されるのが仕様。
+func (r *MealPlanRepo) ListPeriod(
+	ctx context.Context, periodStart string, periodDays int,
+) ([]mealplan.Entry, error) {
+	end, err := addDays(periodStart, periodDays)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +50,7 @@ func (r *MealPlanRepo) ListWeek(ctx context.Context, weekStart string) ([]mealpl
 		JOIN recipes r ON r.id = m.recipe_id
 		WHERE m.date >= ? AND m.date < ?
 		ORDER BY m.date, m.meal, m.position
-	`, weekStart, end)
+	`, periodStart, end)
 	if err != nil {
 		return nil, fmt.Errorf("query meal_plans: %w", err)
 	}

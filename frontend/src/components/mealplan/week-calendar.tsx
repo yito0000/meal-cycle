@@ -14,11 +14,13 @@ import { previewCopy } from "./copy-planner";
 import { errorI18nKey } from "./error-messages";
 import { type EntryAction, type MealAction, MealPlanCell } from "./meal-plan-cell";
 import { MEAL_RENDER_ORDER, pickCellPreset } from "./mealplan-config";
+import type { PeriodWeeks } from "./period-nav";
 import { RecipePickerDialog } from "./recipe-picker-dialog";
-import { formatDate, isSameLocalDate, weekDates } from "./week-utils";
+import { formatDate, isSameLocalDate, periodDates } from "./week-utils";
 
 type Props = {
-  weekStart: Date;
+  periodStart: Date;
+  periodWeeks: PeriodWeeks;
   entries: Entry[];
   visibleMeals: Set<string>;
 };
@@ -53,7 +55,7 @@ function mealLabelKey(meal: string): string {
   }
 }
 
-export function WeekCalendar({ weekStart, entries, visibleMeals }: Props) {
+export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }: Props) {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const [picker, setPicker] = useState<PickerState>({ kind: "closed" });
@@ -61,7 +63,9 @@ export function WeekCalendar({ weekStart, entries, visibleMeals }: Props) {
   const [mergeDialog, setMergeDialog] = useState<MergeDialogState>({ kind: "closed" });
   const [errorKey, setErrorKey] = useState<string | null>(null);
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["mealplan", "week"] });
+  // 期間切替と前後ナビの再取得は queryKey ["mealplan", "period", …] を共通 prefix ["mealplan"] で
+  // 全部落とすように統一する (design.md D4)。
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["mealplan"] });
 
   const withHandlers = <T,>(promise: Promise<T>) =>
     promise
@@ -113,12 +117,18 @@ export function WeekCalendar({ weekStart, entries, visibleMeals }: Props) {
       withHandlers(MealPlanService.MergeBatch(v.date, v.meal, v.position, v.targetBatchID)),
   });
 
-  const dates = weekDates(weekStart);
+  const dates = periodDates(periodStart, periodWeeks * 7);
   const today = new Date();
   const meals = MEAL_RENDER_ORDER.filter((s) => visibleMeals.has(s));
-  // 期間切替 UI は未実装 (後続 `add-mealplan-period-switch` で state から取る)。
-  // 現状は 1 週固定で決め打ち。preset は「期間 × 表示時間帯数」で解決する。
-  const preset = pickCellPreset(1, meals.length);
+  const preset = pickCellPreset(periodWeeks, meals.length);
+  // 4 週表示は「7 列 × 4 週分の縦積み」、それ以外は「periodWeeks*7 列」の 1 グリッドで表示する。
+  // 2 週表示は 14 列で、画面幅が足りなければ横スクロール (overflow-x-auto)。
+  const isWrapped = periodWeeks === 4;
+  const columnsPerBlock = isWrapped ? 7 : periodWeeks * 7;
+  const blockCount = isWrapped ? 4 : 1;
+  const dateBlocks = Array.from({ length: blockCount }, (_, i) =>
+    dates.slice(i * columnsPerBlock, (i + 1) * columnsPerBlock),
+  );
 
   const grouped = new Map<string, Entry[]>();
   for (const e of entries) {
@@ -248,56 +258,71 @@ export function WeekCalendar({ weekStart, entries, visibleMeals }: Props) {
         </p>
       )}
       <div
-        className="grid gap-1 text-sm"
-        style={{ gridTemplateColumns: "6rem repeat(7, minmax(0, 1fr))" }}
+        className={`flex flex-col gap-3 ${isWrapped ? "" : "overflow-x-auto"}`}
+        data-testid="period-calendar"
+        data-period-weeks={periodWeeks}
       >
-        <div />
-        {dates.map((d) => {
-          const isToday = isSameLocalDate(d, today);
+        {dateBlocks.map((blockDates) => {
+          const blockKey = blockDates[0].toISOString();
           return (
             <div
-              key={d.toISOString()}
-              className={`flex flex-col items-center rounded-md p-2 text-center ${
-                isToday ? "bg-blue-50 text-blue-900" : "text-neutral-700"
-              }`}
-              aria-current={isToday ? "date" : undefined}
+              key={blockKey}
+              className="grid gap-1 text-sm"
+              style={{
+                gridTemplateColumns: `6rem repeat(${columnsPerBlock}, minmax(0, 1fr))`,
+                minWidth: isWrapped ? undefined : `${columnsPerBlock * 6 + 6}rem`,
+              }}
             >
-              <span className="text-xs text-neutral-500">{weekdayFmt.format(d)}</span>
-              <span className="text-base font-semibold">{dateFmt.format(d)}</span>
-              {isToday && (
-                <span className="text-[10px] uppercase tracking-wide text-blue-700">
-                  {t("pages.meal_plan.today")}
-                </span>
-              )}
+              <div />
+              {blockDates.map((d) => {
+                const isToday = isSameLocalDate(d, today);
+                return (
+                  <div
+                    key={d.toISOString()}
+                    className={`flex flex-col items-center rounded-md p-2 text-center ${
+                      isToday ? "bg-blue-50 text-blue-900" : "text-neutral-700"
+                    }`}
+                    aria-current={isToday ? "date" : undefined}
+                  >
+                    <span className="text-xs text-neutral-500">{weekdayFmt.format(d)}</span>
+                    <span className="text-base font-semibold">{dateFmt.format(d)}</span>
+                    {isToday && (
+                      <span className="text-[10px] uppercase tracking-wide text-blue-700">
+                        {t("pages.meal_plan.today")}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+
+              {meals.map((meal) => (
+                <div key={`row-${blockKey}-${meal}`} className="contents">
+                  <div className="flex items-center justify-end pr-2 text-xs font-medium text-neutral-500">
+                    {t(mealLabelKey(meal))}
+                  </div>
+                  {blockDates.map((d) => {
+                    const date = formatDate(d);
+                    const key = `${date}::${meal}`;
+                    const cellEntries = grouped.get(key) ?? [];
+                    return (
+                      <MealPlanCell
+                        key={key}
+                        date={date}
+                        meal={meal}
+                        entries={cellEntries}
+                        preset={preset}
+                        onAddFirst={() => setPicker({ kind: "add", date, meal })}
+                        onAddMore={() => setPicker({ kind: "add", date, meal })}
+                        onEntryAction={(a, e, days) => handleEntryAction(date, meal, a, e, days)}
+                        onMealAction={(a, days) => handleMealAction(date, meal, a, days)}
+                      />
+                    );
+                  })}
+                </div>
+              ))}
             </div>
           );
         })}
-
-        {meals.map((meal) => (
-          <div key={`row-${meal}`} className="contents">
-            <div className="flex items-center justify-end pr-2 text-xs font-medium text-neutral-500">
-              {t(mealLabelKey(meal))}
-            </div>
-            {dates.map((d) => {
-              const date = formatDate(d);
-              const key = `${date}::${meal}`;
-              const cellEntries = grouped.get(key) ?? [];
-              return (
-                <MealPlanCell
-                  key={key}
-                  date={date}
-                  meal={meal}
-                  entries={cellEntries}
-                  preset={preset}
-                  onAddFirst={() => setPicker({ kind: "add", date, meal })}
-                  onAddMore={() => setPicker({ kind: "add", date, meal })}
-                  onEntryAction={(a, e, days) => handleEntryAction(date, meal, a, e, days)}
-                  onMealAction={(a, days) => handleMealAction(date, meal, a, days)}
-                />
-              );
-            })}
-          </div>
-        ))}
       </div>
 
       <p className="text-xs text-neutral-500">{t("pages.meal_plan.batch.legend.leftover")}</p>

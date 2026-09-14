@@ -21,11 +21,13 @@ func newFakeMealPlanRepo(recipes map[string]string) *fakeMealPlanRepo {
 	return &fakeMealPlanRepo{knownRecipes: recipes}
 }
 
-func (r *fakeMealPlanRepo) ListWeek(_ context.Context, weekStart string) ([]mealplan.Entry, error) {
-	end, _ := addDaysStr(weekStart, 7)
+func (r *fakeMealPlanRepo) ListPeriod(
+	_ context.Context, periodStart string, periodDays int,
+) ([]mealplan.Entry, error) {
+	end, _ := addDaysStr(periodStart, periodDays)
 	out := make([]mealplan.Entry, 0)
 	for _, e := range r.entries {
-		if e.Date >= weekStart && e.Date < end {
+		if e.Date >= periodStart && e.Date < end {
 			out = append(out, e)
 		}
 	}
@@ -376,35 +378,81 @@ func (r *fakeMealPlanRepo) MealEntries(_ context.Context, date, meal string) ([]
 }
 
 func addDaysStr(s string, days int) (string, error) {
-	// service_test 独自の軽量ヘルパ。domain 側の ValidateDate 経由で厳密性は担保される。
+	// service_test 独自の日付ヘルパ。ListPeriod で 14/28 日先まで扱うため月跨ぎ対応する。
 	if err := mealplan.ValidateDate(s); err != nil {
 		return "", err
 	}
-	// 7 日先を返せば十分。date の year-month を跨ぐ計算は sqlite 実装側で保証されるので、
-	// このテストでは同月内の範囲だけ扱う。
-	return s[:8] + advanceDay(s[8:], days), nil
-}
-
-func advanceDay(dd string, days int) string {
-	n := (int(dd[0]-'0')*10 + int(dd[1]-'0')) + days
-	if n < 10 {
-		return "0" + string(rune('0'+n))
+	t, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		return "", err
 	}
-	return string(rune('0'+n/10)) + string(rune('0'+n%10))
+	return t.AddDate(0, 0, days).Format("2006-01-02"), nil
 }
 
-func TestMealPlanService_ListWeek_returnsRepoEntries(t *testing.T) {
-	t.Run("should return entries from the repository when the week is requested", func(t *testing.T) {
+func TestMealPlanService_ListPeriod(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("should return entries from the repository when periodWeeks=1", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが"})
 		svc := newMealPlanServiceWithRepo(repo)
-		_, _ = svc.AssignRecipe(context.Background(), "2026-08-24", "dinner", "r1")
+		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 
-		got, err := svc.ListWeek(context.Background(), "2026-08-24")
+		got, err := svc.ListPeriod(ctx, "2026-08-24", 1)
 		if err != nil {
-			t.Fatalf("ListWeek: %v", err)
+			t.Fatalf("ListPeriod: %v", err)
 		}
 		if len(got) != 1 || got[0].RecipeID != "r1" {
 			t.Errorf("got %+v", got)
+		}
+	})
+
+	t.Run("periodWeeks=2 should include entries in the following week", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
+		svc := newMealPlanServiceWithRepo(repo)
+		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
+		_, _ = svc.AssignRecipe(ctx, "2026-08-31", "dinner", "r1")
+		_, _ = svc.AssignRecipe(ctx, "2026-09-07", "dinner", "r1") // 3 週目 (レンジ外)
+
+		got, err := svc.ListPeriod(ctx, "2026-08-24", 2)
+		if err != nil {
+			t.Fatalf("ListPeriod: %v", err)
+		}
+		if len(got) != 2 {
+			t.Errorf("want 2, got %d: %+v", len(got), got)
+		}
+	})
+
+	t.Run("periodWeeks=4 should include entries across 4 weeks", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
+		svc := newMealPlanServiceWithRepo(repo)
+		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
+		_, _ = svc.AssignRecipe(ctx, "2026-09-14", "dinner", "r1") // 4 週目
+		_, _ = svc.AssignRecipe(ctx, "2026-09-21", "dinner", "r1") // 5 週目 (レンジ外)
+
+		got, err := svc.ListPeriod(ctx, "2026-08-24", 4)
+		if err != nil {
+			t.Fatalf("ListPeriod: %v", err)
+		}
+		if len(got) != 2 {
+			t.Errorf("want 2, got %d: %+v", len(got), got)
+		}
+	})
+
+	t.Run("periodWeeks=3 should return ErrInvalidPeriodWeeks", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(map[string]string{})
+		svc := newMealPlanServiceWithRepo(repo)
+		_, err := svc.ListPeriod(ctx, "2026-08-24", 3)
+		if !errors.Is(err, mealplan.ErrInvalidPeriodWeeks) {
+			t.Errorf("err = %v, want ErrInvalidPeriodWeeks", err)
+		}
+	})
+
+	t.Run("with malformed date should return ErrInvalidDate", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(map[string]string{})
+		svc := newMealPlanServiceWithRepo(repo)
+		_, err := svc.ListPeriod(ctx, "2026/08/24", 1)
+		if !errors.Is(err, mealplan.ErrInvalidDate) {
+			t.Errorf("err = %v, want ErrInvalidDate", err)
 		}
 	})
 }
@@ -461,7 +509,7 @@ func TestMealPlanService_ReplaceEntry(t *testing.T) {
 		if err := svc.ReplaceEntry(ctx, "2026-08-24", "dinner", 1, "r3"); err != nil {
 			t.Fatalf("Replace: %v", err)
 		}
-		got, _ := svc.ListWeek(ctx, "2026-08-24")
+		got, _ := svc.ListPeriod(ctx, "2026-08-24", 1)
 		if got[0].RecipeID != "r1" || got[1].RecipeID != "r3" {
 			t.Errorf("got %+v", got)
 		}
@@ -498,7 +546,7 @@ func TestMealPlanService_RemoveEntry(t *testing.T) {
 		if err := svc.RemoveEntry(ctx, "2026-08-24", "dinner", 1); err != nil {
 			t.Fatalf("Remove: %v", err)
 		}
-		got, _ := svc.ListWeek(ctx, "2026-08-24")
+		got, _ := svc.ListPeriod(ctx, "2026-08-24", 1)
 		if len(got) != 2 || got[0].Position != 0 || got[1].Position != 1 {
 			t.Errorf("positions after remove: %+v", got)
 		}
@@ -524,7 +572,7 @@ func TestMealPlanService_ClearMeal(t *testing.T) {
 		if err := svc.ClearMeal(ctx, "2026-08-24", "dinner"); err != nil {
 			t.Fatalf("ClearMeal: %v", err)
 		}
-		got, _ := svc.ListWeek(ctx, "2026-08-24")
+		got, _ := svc.ListPeriod(ctx, "2026-08-24", 1)
 		if len(got) != 0 {
 			t.Errorf("want 0, got %d", len(got))
 		}
@@ -664,7 +712,7 @@ func TestMealPlanService_SplitBatch(t *testing.T) {
 		if newID == "" || newID == src.BatchID {
 			t.Errorf("newID = %q, src.BatchID = %q", newID, src.BatchID)
 		}
-		remaining, _ := svc.ListWeek(ctx, "2026-08-24")
+		remaining, _ := svc.ListPeriod(ctx, "2026-08-24", 1)
 		if len(remaining) != 1 {
 			t.Fatalf("want 1 remaining row (origin only), got %d: %+v", len(remaining), remaining)
 		}

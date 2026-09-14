@@ -25,6 +25,16 @@
       "meal_visibility": {
         "aria_label": "Meal visibility"
       },
+      "period": {
+        "aria_label": "Period navigation",
+        "length_aria_label": "Period length",
+        "prev": "Previous",
+        "next": "Next",
+        "today": "This week",
+        "week_1": "1 week",
+        "week_2": "2 weeks",
+        "week_4": "4 weeks"
+      },
       "cell": {
         "more_items": "+{{count}} more"
       },
@@ -98,6 +108,7 @@
         "unknown_recipe": "Unknown recipe",
         "batch_target_not_found": "Target batch not found",
         "batch_merge_denied": "Cannot merge into that batch",
+        "invalid_period_weeks": "Unsupported period length",
         "unknown": "Something went wrong"
       }
     },

@@ -18,8 +18,15 @@ export function weekStartOf(d: Date): Date {
 }
 
 export function weekDates(weekStart: Date): Date[] {
-  return Array.from({ length: 7 }, (_, i) => {
-    return new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + i);
+  return periodDates(weekStart, 7);
+}
+
+// periodDates は periodStart から days 日ぶんの Date 列を返す。
+// 1 週 = 7、2 週 = 14、4 週 = 28 で呼び出す。DST を跨いでも「同じ時刻の別日」を返せるよう、
+// getFullYear / getMonth / getDate + オフセットで組み立てる。
+export function periodDates(periodStart: Date, days: number): Date[] {
+  return Array.from({ length: days }, (_, i) => {
+    return new Date(periodStart.getFullYear(), periodStart.getMonth(), periodStart.getDate() + i);
   });
 }
 

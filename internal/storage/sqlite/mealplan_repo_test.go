@@ -38,14 +38,14 @@ func seedRecipes(t *testing.T, rr *RecipeRepo, names ...string) []recipe.Recipe 
 	return out
 }
 
-func TestMealPlanRepo_ListWeek(t *testing.T) {
+func TestMealPlanRepo_ListPeriod(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("should return empty slice when no meal plans exist", func(t *testing.T) {
 		repo, _ := newMealPlanRepoForTest(t)
-		got, err := repo.ListWeek(ctx, "2026-08-24")
+		got, err := repo.ListPeriod(ctx, "2026-08-24", 7)
 		if err != nil {
-			t.Fatalf("ListWeek: %v", err)
+			t.Fatalf("ListPeriod: %v", err)
 		}
 		if len(got) != 0 {
 			t.Errorf("want empty, got %d", len(got))
@@ -61,9 +61,9 @@ func TestMealPlanRepo_ListWeek(t *testing.T) {
 		if _, err := repo.Assign(ctx, "2026-08-25", "dinner", rs[1].ID); err != nil {
 			t.Fatalf("Assign: %v", err)
 		}
-		got, err := repo.ListWeek(ctx, "2026-08-24")
+		got, err := repo.ListPeriod(ctx, "2026-08-24", 7)
 		if err != nil {
-			t.Fatalf("ListWeek: %v", err)
+			t.Fatalf("ListPeriod: %v", err)
 		}
 		if len(got) != 2 {
 			t.Fatalf("want 2, got %d", len(got))
@@ -78,9 +78,44 @@ func TestMealPlanRepo_ListWeek(t *testing.T) {
 		rs := seedRecipes(t, rr, "肉じゃが")
 		_, _ = repo.Assign(ctx, "2026-08-23", "dinner", rs[0].ID) // 前週日曜
 		_, _ = repo.Assign(ctx, "2026-08-31", "dinner", rs[0].ID) // 翌週月曜
-		got, _ := repo.ListWeek(ctx, "2026-08-24")
+		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
 		if len(got) != 0 {
 			t.Errorf("want 0 (both dates outside week), got %d", len(got))
+		}
+	})
+
+	t.Run("periodDays=14 should include entries in the next week", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが")
+		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID) // 月曜 (1 週目)
+		_, _ = repo.Assign(ctx, "2026-08-31", "dinner", rs[0].ID) // 翌週月曜 (2 週目)
+		_, _ = repo.Assign(ctx, "2026-09-07", "dinner", rs[0].ID) // 3 週目 (レンジ外)
+		got, err := repo.ListPeriod(ctx, "2026-08-24", 14)
+		if err != nil {
+			t.Fatalf("ListPeriod: %v", err)
+		}
+		if len(got) != 2 {
+			t.Fatalf("want 2 (2 週分), got %d: %+v", len(got), got)
+		}
+		if got[0].Date != "2026-08-24" || got[1].Date != "2026-08-31" {
+			t.Errorf("dates = %s, %s; want 2026-08-24, 2026-08-31", got[0].Date, got[1].Date)
+		}
+	})
+
+	t.Run("periodDays=28 should include entries across 4 weeks", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが")
+		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID) // 1 週目
+		_, _ = repo.Assign(ctx, "2026-08-31", "dinner", rs[0].ID) // 2 週目
+		_, _ = repo.Assign(ctx, "2026-09-07", "dinner", rs[0].ID) // 3 週目
+		_, _ = repo.Assign(ctx, "2026-09-14", "dinner", rs[0].ID) // 4 週目
+		_, _ = repo.Assign(ctx, "2026-09-21", "dinner", rs[0].ID) // 5 週目 (レンジ外)
+		got, err := repo.ListPeriod(ctx, "2026-08-24", 28)
+		if err != nil {
+			t.Fatalf("ListPeriod: %v", err)
+		}
+		if len(got) != 4 {
+			t.Errorf("want 4 (4 週分), got %d", len(got))
 		}
 	})
 }
@@ -122,7 +157,7 @@ func TestMealPlanRepo_Replace(t *testing.T) {
 		if err := repo.Replace(ctx, "2026-08-24", "dinner", 1, rs[2].ID); err != nil {
 			t.Fatalf("Replace: %v", err)
 		}
-		got, _ := repo.ListWeek(ctx, "2026-08-24")
+		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
 		if len(got) != 2 {
 			t.Fatalf("want 2, got %d", len(got))
 		}
@@ -156,7 +191,7 @@ func TestMealPlanRepo_Remove(t *testing.T) {
 		if err := repo.Remove(ctx, "2026-08-24", "dinner", 1); err != nil {
 			t.Fatalf("Remove: %v", err)
 		}
-		got, _ := repo.ListWeek(ctx, "2026-08-24")
+		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
 		if len(got) != 2 {
 			t.Fatalf("want 2, got %d", len(got))
 		}
@@ -182,7 +217,7 @@ func TestMealPlanRepo_ClearMeal(t *testing.T) {
 		if err := repo.ClearMeal(ctx, "2026-08-24", "dinner"); err != nil {
 			t.Fatalf("ClearMeal: %v", err)
 		}
-		got, _ := repo.ListWeek(ctx, "2026-08-24")
+		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
 		if len(got) != 1 {
 			t.Fatalf("want 1 (lunch only), got %d", len(got))
 		}
@@ -204,7 +239,7 @@ func TestMealPlanRepo_Reorder(t *testing.T) {
 		if err := repo.Reorder(ctx, "2026-08-24", "dinner", []string{rs[2].ID, rs[0].ID, rs[1].ID}); err != nil {
 			t.Fatalf("Reorder: %v", err)
 		}
-		got, _ := repo.ListWeek(ctx, "2026-08-24")
+		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
 		if got[0].RecipeID != rs[2].ID || got[1].RecipeID != rs[0].ID || got[2].RecipeID != rs[1].ID {
 			t.Errorf("order = %s, %s, %s; want %s, %s, %s",
 				got[0].RecipeID, got[1].RecipeID, got[2].RecipeID,
@@ -313,7 +348,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover); err != nil {
 			t.Fatalf("CopyLeftover: %v", err)
 		}
-		got, _ := repo.ListWeek(ctx, "2026-08-24")
+		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
 		bids := map[string]bool{}
 		for _, e := range got {
 			bids[e.BatchID] = true
@@ -336,7 +371,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 			mealplan.CopyModeAppend, mealplan.ShareBatchDistinct); err != nil {
 			t.Fatalf("CopyLeftover: %v", err)
 		}
-		got, _ := repo.ListWeek(ctx, "2026-08-24")
+		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
 		bids := map[string]bool{}
 		for _, e := range got {
 			bids[e.BatchID] = true
@@ -362,7 +397,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		if newID == "" || newID == src.BatchID {
 			t.Errorf("newID = %q, want != %q and non-empty", newID, src.BatchID)
 		}
-		got, _ := repo.ListWeek(ctx, "2026-08-24")
+		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
 		if len(got) != 1 {
 			t.Fatalf("want 1 remaining row (origin), got %d: %+v", len(got), got)
 		}
@@ -387,7 +422,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		if err != nil {
 			t.Fatalf("SplitBatch: %v", err)
 		}
-		got, _ := repo.ListWeek(ctx, "2026-08-24")
+		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
 		if len(got) != 1 || got[0].Date != "2026-08-24" || got[0].BatchID != newID {
 			t.Errorf("got %+v; want 1 row on 2026-08-24 with batchID=%q", got, newID)
 		}
@@ -404,7 +439,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		if returned != src.BatchID {
 			t.Errorf("returned = %q, want current batch_id %q", returned, src.BatchID)
 		}
-		got, _ := repo.ListWeek(ctx, "2026-08-24")
+		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
 		if len(got) != 1 || got[0].BatchID != src.BatchID {
 			t.Errorf("row count/batch_id changed unexpectedly: %+v", got)
 		}
@@ -443,7 +478,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		if err := repo.MergeBatch(ctx, "2026-08-25", "dinner", 0, mon.BatchID); err != nil {
 			t.Fatalf("MergeBatch: %v", err)
 		}
-		got, _ := repo.ListWeek(ctx, "2026-08-24")
+		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
 		for _, e := range got {
 			if e.BatchID != mon.BatchID {
 				t.Errorf("row not merged: %+v", e)
@@ -523,7 +558,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		if err := repo.MergeBatch(ctx, "2026-08-28", "dinner", 0, mon.BatchID); err != nil {
 			t.Fatalf("MergeBatch: %v", err)
 		}
-		got, _ := repo.ListWeek(ctx, "2026-08-24")
+		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
 		merged := 0
 		for _, e := range got {
 			if e.BatchID == mon.BatchID {
@@ -535,7 +570,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		}
 	})
 
-	t.Run("ListWeek populates batch_member_count via window function", func(t *testing.T) {
+	t.Run("ListPeriod populates batch_member_count via window function", func(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "肉じゃが")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
@@ -546,7 +581,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		// もう 1 品を単独割当 (1 行だけのバッチ)
 		_, _ = repo.Assign(ctx, "2026-08-26", "dinner", rs[0].ID)
 
-		got, _ := repo.ListWeek(ctx, "2026-08-24")
+		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
 		for _, e := range got {
 			switch e.Date {
 			case "2026-08-24", "2026-08-25":

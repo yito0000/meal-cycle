@@ -18,7 +18,23 @@ var (
 	ErrUnknownRecipe       = errors.New("mealplan: unknown recipe")
 	ErrBatchTargetNotFound = errors.New("mealplan: batch target not found")
 	ErrBatchMergeDenied    = errors.New("mealplan: batch merge denied")
+	ErrInvalidPeriodWeeks  = errors.New("mealplan: invalid period weeks")
 )
+
+// AllowedPeriodWeeks は S01 で受け付ける期間長 (単位: 週) の集合。
+// UI 側の期間切替トグル (1 / 2 / 4 週) と対応する。ここを増減するとフロントの
+// PeriodNav / CellSizePreset マップも合わせて更新する。
+var AllowedPeriodWeeks = []int{1, 2, 4}
+
+// ValidatePeriodWeeks は AllowedPeriodWeeks のいずれかを許容する。
+func ValidatePeriodWeeks(w int) error {
+	for _, allowed := range AllowedPeriodWeeks {
+		if w == allowed {
+			return nil
+		}
+	}
+	return ErrInvalidPeriodWeeks
+}
 
 // dateLayout はローカル日付を "YYYY-MM-DD" の厳密形式で扱う。time.RFC3339 の date-only 相当。
 const dateLayout = "2006-01-02"

@@ -11,7 +11,7 @@ import (
 
 // mealPlanRepo は MealPlanService が使う MealPlanRepo の抽象。テストで in-memory 実装に差し替えられる。
 type mealPlanRepo interface {
-	ListWeek(ctx context.Context, weekStart string) ([]mealplan.Entry, error)
+	ListPeriod(ctx context.Context, periodStart string, periodDays int) ([]mealplan.Entry, error)
 	Assign(ctx context.Context, date, meal, recipeID string) (mealplan.Entry, error)
 	Replace(ctx context.Context, date, meal string, position int, recipeID string) error
 	Remove(ctx context.Context, date, meal string, position int) error
@@ -40,11 +40,19 @@ func newMealPlanServiceWithRepo(repo mealPlanRepo) *MealPlanService {
 	return &MealPlanService{repo: repo, cfg: config.Defaults()}
 }
 
-func (s *MealPlanService) ListWeek(ctx context.Context, weekStart string) ([]mealplan.Entry, error) {
-	if err := mealplan.ValidateDate(weekStart); err != nil {
+// ListPeriod は periodStart から periodWeeks 週分 (7 / 14 / 28 日) の Entry を返す。
+// periodStart は "YYYY-MM-DD" (任意の日付、月曜スナップは呼び出し側の責任 — design.md D2)。
+// periodWeeks は AllowedPeriodWeeks (1 / 2 / 4) 以外を渡すと ErrInvalidPeriodWeeks を返す。
+func (s *MealPlanService) ListPeriod(
+	ctx context.Context, periodStart string, periodWeeks int,
+) ([]mealplan.Entry, error) {
+	if err := mealplan.ValidateDate(periodStart); err != nil {
 		return nil, err
 	}
-	return s.repo.ListWeek(ctx, weekStart)
+	if err := mealplan.ValidatePeriodWeeks(periodWeeks); err != nil {
+		return nil, err
+	}
+	return s.repo.ListPeriod(ctx, periodStart, periodWeeks*7)
 }
 
 func (s *MealPlanService) AssignRecipe(

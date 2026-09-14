@@ -25,6 +25,16 @@
       "meal_visibility": {
         "aria_label": "時間帯の表示切替"
       },
+      "period": {
+        "aria_label": "期間ナビゲーション",
+        "length_aria_label": "期間の長さ",
+        "prev": "前へ",
+        "next": "次へ",
+        "today": "今週",
+        "week_1": "1 週",
+        "week_2": "2 週",
+        "week_4": "4 週"
+      },
       "cell": {
         "more_items": "他 {{count}} 件"
       },
@@ -98,6 +108,7 @@
         "unknown_recipe": "指定したレシピが見つかりません",
         "batch_target_not_found": "まとめ先の作り置きが見つかりません",
         "batch_merge_denied": "その作り置きにはまとめられません",
+        "invalid_period_weeks": "選択できない期間長です",
         "unknown": "処理に失敗しました"
       }
     },
