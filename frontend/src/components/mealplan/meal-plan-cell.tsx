@@ -65,16 +65,18 @@ export function MealPlanCell({
 
   return (
     <div
-      className={`relative flex ${heightCls} flex-col gap-1 rounded-md border border-neutral-200 bg-white ${paddingCls}`}
+      className={`flex ${heightCls} flex-col gap-1 rounded-md border border-neutral-200 bg-white ${paddingCls}`}
     >
-      <button
-        type="button"
-        className="absolute right-1 top-1 rounded p-1.5 text-base text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800"
-        onClick={onAddMore}
-        aria-label={t("pages.meal_plan.cell_actions.add_more")}
-      >
-        ＋
-      </button>
+      <div className="flex justify-end">
+        <button
+          type="button"
+          className="rounded p-1 text-sm leading-none text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800"
+          onClick={onAddMore}
+          aria-label={t("pages.meal_plan.cell_actions.add_more")}
+        >
+          ＋
+        </button>
+      </div>
       {visible.map((entry) => {
         const color = colorForBatch(entry.batchId, entry.batchMemberCount);
         return (
