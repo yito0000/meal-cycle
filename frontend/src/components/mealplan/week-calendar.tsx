@@ -121,11 +121,10 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
   const today = new Date();
   const meals = MEAL_RENDER_ORDER.filter((s) => visibleMeals.has(s));
   const preset = pickCellPreset(periodWeeks, meals.length);
-  // 4 週表示は「7 列 × 4 週分の縦積み」、それ以外は「periodWeeks*7 列」の 1 グリッドで表示する。
-  // 2 週表示は 14 列で、画面幅が足りなければ横スクロール (overflow-x-auto)。
-  const isWrapped = periodWeeks === 4;
+  // 2 週以上は「7 列 × periodWeeks 行」の折り返しレイアウトに揃える (1 週は 1 行のまま)。
+  const isWrapped = periodWeeks >= 2;
   const columnsPerBlock = isWrapped ? 7 : periodWeeks * 7;
-  const blockCount = isWrapped ? 4 : 1;
+  const blockCount = isWrapped ? periodWeeks : 1;
   const dateBlocks = Array.from({ length: blockCount }, (_, i) =>
     dates.slice(i * columnsPerBlock, (i + 1) * columnsPerBlock),
   );
@@ -258,7 +257,7 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
         </p>
       )}
       <div
-        className={`flex flex-col gap-3 ${isWrapped ? "" : "overflow-x-auto"}`}
+        className="flex flex-col gap-3"
         data-testid="period-calendar"
         data-period-weeks={periodWeeks}
       >
@@ -270,7 +269,6 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
               className="grid gap-1 text-sm"
               style={{
                 gridTemplateColumns: `6rem repeat(${columnsPerBlock}, minmax(0, 1fr))`,
-                minWidth: isWrapped ? undefined : `${columnsPerBlock * 6 + 6}rem`,
               }}
             >
               <div />

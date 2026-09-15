@@ -41,6 +41,8 @@ test.describe("機能: 献立カレンダーの表示", () => {
     await page.getByTestId("period-weeks-2").click();
     const calendar = page.getByTestId("period-calendar");
     await expect(calendar).toHaveAttribute("data-period-weeks", "2");
+    // 折り返しレイアウトなので横スクロールは発生しない。
+    await expect(calendar).toHaveCSS("overflow-x", "visible");
   });
 
   test("4 週を選ぶと 4 週分が行方向に折り返す", async ({ page }) => {

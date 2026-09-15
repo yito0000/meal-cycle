@@ -140,7 +140,7 @@ graph LR
 
 ワイヤー: [wireframes/S01_meal_calendar.drawio.svg](wireframes/S01_meal_calendar.drawio.svg)
 
-- **列 = 日付、行 = 時間帯（朝 / 昼 / 夕）** の CSS Grid。1 週なら 7 列、2 週なら 14 列（横スクロール想定）、4 週は行方向に折り返す
+- **列 = 日付、行 = 時間帯（朝 / 昼 / 夕）** の CSS Grid。1 週 = 7 列 × 1 行、2 週 = 7 列 × 2 行折り返し、4 週 = 7 列 × 4 行折り返し。横スクロールは発生しない
 - **時間帯表示切替**（右上、期間切替の下）: 「夕食のみ」/「3 食表示」。**既定は「夕食のみ」**だが、他利用者は「3 食表示」に切り替えて使える（#1 の可変値一覧）。ワイヤー内では説明のため 3 食表示状態で描画している
 - **1 セル = 1 時間帯 = 0..N 品**。1 品なら中央 1 行、2〜3 品なら縦積み表示、超過は「他 N 件」で省略
 - **セル高さ / typography / 表示件数上限は「期間 × 表示時間帯数」で可変**。既定 (1 週 × 夕食のみ) は縦に大きめ (`min-h-48` / `text-base` / 最大 4 品)、密度が上がる (4 週など) と縮小する。9 プリセットの表は `internal/config/defaults.go` の `MealPlanCellSizePresets` を参照 (#1 の可変値一覧)。新レイアウトのワイヤーは [wireframes/S01_meal_calendar.v2.drawio.svg](wireframes/S01_meal_calendar.v2.drawio.svg)
