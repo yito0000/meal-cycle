@@ -10,10 +10,11 @@
 - S01 の 2 週表示のレイアウトを **「7 列 × 2 行折り返し」** に変更する
 - 1 週表示 (7 列 × 1 行) と 4 週表示 (7 列 × 4 行折り返し) の中間として、行数だけが増える形になる
 - 横スクロール (`overflow-x-auto`) は削除する。全期間で「1 週分 = 1 行」の一貫レイアウトになる
-- **BREAKING**: `mealplan` spec の Scenario「2 週を選ぶと 14 日分が表示される」を
-  「2 週を選ぶと 2 週分が行方向に折り返す」に置き換える (受け入れ基準の変更)
+- **BREAKING**: `mealplan` spec の Scenario「2 週を選ぶと 14 日分が表示される」の内容を
+  「折り返し表示 / 横スクロール無し」に置き換える (Scenario 名は変更しない。理由は design.md D3)
 - ワイヤー / product.md の記述「2 週なら 14 列（横スクロール想定）」を「2 週は 7 列 × 2 行折り返し」に更新
-- E2E テスト「2 週を選ぶと 14 日分が表示される」を新シナリオ名にリネーム、内容も新レイアウト検証に置換
+- E2E テスト「2 週を選ぶと 14 日分が表示される」の検証内容を新レイアウト前提に更新
+  (テスト名は Scenario 名と揃えるため変更しない)
 
 ## Non-goals
 
@@ -29,8 +30,8 @@
 ### Modified Capabilities
 
 - `mealplan`:
-  - **MODIFIED**: 「期間切替」Requirement の Scenario「2 週を選ぶと 14 日分が表示される」を
-    「2 週を選ぶと 2 週分が行方向に折り返す」に差し替える (14 列 1 行 → 7 列 × 2 行折り返し)
+  - **MODIFIED**: 「期間切替」Requirement を全体差し替え。Scenario「2 週を選ぶと 14 日分が表示される」
+    の内容を「折り返し / 横スクロール無し」に更新する (Scenario 名は不変。design.md D3 参照)
 
 ## Impact
 
@@ -39,12 +40,12 @@
   - `frontend/src/components/mealplan/week-calendar.tsx` — `isWrapped` の分岐を `periodWeeks >= 2` に
     広げ、`blockCount` を `periodWeeks` そのものに変える (1 週 = 1 block、2 週 = 2 block、4 週 = 4 block)。
     横スクロール (`overflow-x-auto`) の class を削除する
-  - `frontend/e2e/mealplan-assign.spec.ts` — 「2 週を選ぶと 14 日分が表示される」テストを
-    「2 週を選ぶと 2 週分が行方向に折り返す」にリネーム + 検証内容を新レイアウトに合わせて更新
+  - `frontend/e2e/mealplan-assign.spec.ts` — 「2 週を選ぶと 14 日分が表示される」テストの検証内容を
+    新レイアウト前提に更新 (テスト名は Scenario 名と揃えるため変更しない)
   - `docs/product.md` §S01 — 「1 週なら 7 列、2 週なら 14 列（横スクロール想定）、4 週は行方向に折り返す」
     の説明を「1 週 = 7 列 × 1 行、2 週 = 7 列 × 2 行折り返し、4 週 = 7 列 × 4 行折り返し」に更新
-  - `docs/scenarios/mealplan.feature` — 「2 週を選ぶと 14 日分が表示される」シナリオを spec と揃えて
-    「2 週を選ぶと 2 週分が行方向に折り返す」にリネーム / 内容更新
+  - `docs/scenarios/mealplan.feature` — 「2 週を選ぶと 14 日分が表示される」シナリオの本文を
+    新レイアウト前提に更新 (シナリオ名は spec と揃えるため変更しない)
   - `openspec/specs/mealplan/spec.md` — spec 側 (archive 時に sync される delta 反映後) の対応シナリオも
     更新される。本 proposal の delta spec が source of truth
 - **生成物 (再生成のみ)**: なし

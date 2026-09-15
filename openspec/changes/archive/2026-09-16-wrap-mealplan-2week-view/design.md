@@ -55,14 +55,19 @@ proposal でレイアウトを再検討する。
 
 **選択肢:**
 
-- (a) 既存 Scenario「2 週を選ぶと 14 日分が表示される」の名前 + 内容を **RENAMED + MODIFIED** で
-  分けて記述する
-- (b) 「期間切替」Requirement 全体を MODIFIED し、Scenario ブロックをまるごと置き換える ← 採用
+- (a) 既存 Scenario「2 週を選ぶと 14 日分が表示される」の名前は変えず、本文だけ「折り返し /
+  横スクロール無し」に更新する。名前は「14 日分が表示される」という結果として引き続き真である ← 採用
+- (b) Scenario 名を「2 週を選ぶと 2 週分が行方向に折り返す」にリネームし、feature / e2e も揃える。
+  Cons: openspec 1.10 の validator は MODIFIED Requirement 内の Scenario 名を暗黙に drop することを
+  拒否する (`findMissingCurrentScenarios`)。Scenario 単位の RENAMED も openspec には無く、
+  実現するには MODIFIED に旧名 + 新名を並列に列挙するしかなく、archive 後の main spec が冗長になる
 
-**採用: (b)**。理由: 本 proposal は「2 週の Scenario 名」だけでなく「Requirement 本文の説明
-(取得起点日は変わらず、表示される日数だけが 7 / 14 / 28 に広がる)」にも「レイアウトは全期間で
-折り返す」旨を追記したい。RENAMED は Scenario 単体には使えるが Requirement 本文の説明と両立させると
-delta が読みにくい。全体 MODIFIED の方が spec の archive 後の姿と 1:1 で対応し、レビューコストが低い。
+**採用: (a)**。理由: openspec 1.10 の delta モデルは「Requirement 名の RENAMED」しか持たず、
+Scenario 単位の rename を素直に表現できない。無理に (b) を通すと main spec に旧 Scenario と
+新 Scenario が並存する冗長な形になり、レビュー・archive のコストが高い。「14 日分が表示される」
+という Scenario 名は 14 セルを表示するという事実として折り返し後も真なので、本文更新だけで
+「レイアウトが 7 列 × 2 行折り返しで、横スクロールが発生しない」という受け入れ基準は書き切れる。
+feature / e2e の名前も spec と 1:1 で揃えるので、Scenario 名は 3 か所とも従来のまま。
 
 ## Risks / Trade-offs
 
