@@ -22,7 +22,9 @@ type mealPlanRepo interface {
 	MealEntries(ctx context.Context, date, meal string) ([]mealplan.Entry, error)
 	SplitBatch(ctx context.Context, date, meal string, position int) (string, error)
 	MergeBatch(ctx context.Context, date, meal string, position int, targetBatchID string) error
-	ListMealBatches(ctx context.Context, date, meal, recipeID string) ([]mealplan.BatchSummary, error)
+	ListMergeCandidates(ctx context.Context, date, meal, recipeID string) ([]mealplan.BatchSummary, error)
+	CopyToOtherMeal(ctx context.Context, sourceDate, sourceMeal string, sourcePosition int,
+		targetDate, targetMeal string, mode mealplan.CopyMode) error
 }
 
 // MealPlanService は S01 献立カレンダーのデータをフロントに公開する。
@@ -175,8 +177,9 @@ func (s *MealPlanService) SplitBatch(
 }
 
 // MergeBatch は 1 行の BatchID を targetBatchID に付け替え、既存の作り置きに合流させる。
-// targetBatchID を持つ他の行が同じ meal に無ければ ErrBatchTargetNotFound、3 条件 (同 meal /
-// 同一レシピ / ±LeftoverCopyPresets max 日以内) を満たす行が無ければ ErrBatchMergeDenied。
+// targetBatchID を持つ他の行が 1 件も無ければ ErrBatchTargetNotFound、2 条件 (同一レシピ /
+// ±LeftoverCopyPresets max 日以内) を満たす行が無ければ ErrBatchMergeDenied。時間帯の一致は
+// 要件から外れており、別時間帯の作り置きにも合流できる (proposal: add-mealplan-cross-meal-leftover)。
 func (s *MealPlanService) MergeBatch(
 	ctx context.Context, date, meal string, position int, targetBatchID string,
 ) error {
@@ -192,9 +195,11 @@ func (s *MealPlanService) MergeBatch(
 	return s.repo.MergeBatch(ctx, date, meal, position, targetBatchID)
 }
 
-// ListMealBatches は合流候補ダイアログ用に、3 条件 (同 meal / 同一レシピ / ±日以内) を満たす
+// ListMergeCandidates は合流候補ダイアログ用に、2 条件 (同一レシピ / ±日以内) を満たす
 // 他バッチ代表行を返す。recipeID は起点行のレシピ ID (呼び出し側は Entry.RecipeID から渡す)。
-func (s *MealPlanService) ListMealBatches(
+// 候補には別時間帯の作り置きも含まれ、BatchSummary.Meal で識別できる (proposal:
+// add-mealplan-cross-meal-leftover)。
+func (s *MealPlanService) ListMergeCandidates(
 	ctx context.Context, date, meal, recipeID string,
 ) ([]mealplan.BatchSummary, error) {
 	if err := s.validateMealAddress(date, meal); err != nil {
@@ -203,7 +208,32 @@ func (s *MealPlanService) ListMealBatches(
 	if recipeID == "" {
 		return nil, mealplan.ErrUnknownRecipe
 	}
-	return s.repo.ListMealBatches(ctx, date, meal, recipeID)
+	return s.repo.ListMergeCandidates(ctx, date, meal, recipeID)
+}
+
+// CopyToOtherMeal は起点行 (sourceDate, sourceMeal, sourcePosition) の作り置きを、別時間帯 (targetMeal)
+// の targetDate に持ち越す (同一 batch_id + 同一 recipe の新行を挿入する)。
+// mode は CopyLeftover と同じ意味で、既存衝突の解決方針を選ぶ ("append" / "overwrite")。
+// 同一 meal / 日付レンジ外 / 未知の mode はすべて型付きエラーで弾き、DB に到達しない。
+func (s *MealPlanService) CopyToOtherMeal(
+	ctx context.Context,
+	sourceDate, sourceMeal string, sourcePosition int,
+	targetDate, targetMeal, mode string,
+) error {
+	if err := s.validateMealAddress(sourceDate, sourceMeal); err != nil {
+		return err
+	}
+	if err := s.validateMealAddress(targetDate, targetMeal); err != nil {
+		return err
+	}
+	if err := mealplan.ValidatePosition(sourcePosition); err != nil {
+		return err
+	}
+	cm := mealplan.CopyMode(mode)
+	if cm != mealplan.CopyModeAppend && cm != mealplan.CopyModeOverwrite {
+		return mealplan.ErrInvalidCopyMode
+	}
+	return s.repo.CopyToOtherMeal(ctx, sourceDate, sourceMeal, sourcePosition, targetDate, targetMeal, cm)
 }
 
 func (s *MealPlanService) validateMealAddress(date, meal string) error {

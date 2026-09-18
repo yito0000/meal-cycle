@@ -56,7 +56,8 @@
         "view_detail": "View recipe detail",
         "copy_days": "Repeat for {{days}} days",
         "split_batch": "Detach from batch",
-        "merge_batch": "Merge into another batch"
+        "merge_batch": "Merge into another batch",
+        "copy_to_meal": "Add this batch to another meal"
       },
       "meal_menu": {
         "clear": "Clear this meal",
@@ -94,9 +95,17 @@
         },
         "merge_dialog": {
           "title": "Pick a batch to merge into",
-          "empty": "No other batches in this meal to merge into",
-          "item_label": "{{date}} {{recipeName}} ({{count}} items)"
+          "empty": "No other batches to merge into",
+          "item_label": "{{date}} {{meal}} {{recipeName}} ({{count}} items)"
         }
+      },
+      "copy_to_meal": {
+        "title": "Add this batch to another meal",
+        "target_date_label": "Target date",
+        "target_meal_label": "Target meal",
+        "confirm": "Add",
+        "empty_meals": "No other meals available",
+        "cancel": "Cancel"
       },
       "errors": {
         "invalid_date": "Invalid date format",

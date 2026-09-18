@@ -11,9 +11,10 @@ import { BatchMergeDialog } from "./batch-merge-dialog";
 import { CopyConflictDialog, type CopyConflictMode } from "./copy-conflict-dialog";
 import { CopyModeDialog } from "./copy-mode-dialog";
 import { previewCopy } from "./copy-planner";
+import { CopyToMealDialog } from "./copy-to-meal-dialog";
 import { errorI18nKey } from "./error-messages";
 import { type EntryAction, type MealAction, MealPlanCell } from "./meal-plan-cell";
-import { MEAL_RENDER_ORDER, pickCellPreset } from "./mealplan-config";
+import { MEAL_RENDER_ORDER, MEALPLAN_DEFAULTS, pickCellPreset } from "./mealplan-config";
 import type { PeriodWeeks } from "./period-nav";
 import { RecipePickerDialog } from "./recipe-picker-dialog";
 import { formatDate, isSameLocalDate, periodDates } from "./week-utils";
@@ -44,6 +45,22 @@ type MergeDialogState =
   | { kind: "closed" }
   | { kind: "open"; date: string; meal: string; position: number; candidates: BatchSummary[] };
 
+type CopyToMealState =
+  | { kind: "closed" }
+  | { kind: "picking"; sourceDate: string; sourceMeal: string; sourcePosition: number }
+  | {
+      kind: "confirm-conflict";
+      sourceDate: string;
+      sourceMeal: string;
+      sourcePosition: number;
+      targetDate: string;
+      targetMeal: string;
+    };
+
+// mergeDayRange の source of truth は Go 側 config.LeftoverCopyPresets の max。
+// フロントは MEALPLAN_DEFAULTS.leftoverCopyPresets の mirror を使う (S09 で ConfigService 経由に移行)。
+const CROSS_MEAL_DAY_RANGE = Math.max(...MEALPLAN_DEFAULTS.leftoverCopyPresets);
+
 function mealLabelKey(meal: string): string {
   switch (meal) {
     case Meal.MealBreakfast:
@@ -61,6 +78,7 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
   const [picker, setPicker] = useState<PickerState>({ kind: "closed" });
   const [pendingCopy, setPendingCopy] = useState<PendingCopy | null>(null);
   const [mergeDialog, setMergeDialog] = useState<MergeDialogState>({ kind: "closed" });
+  const [copyToMeal, setCopyToMeal] = useState<CopyToMealState>({ kind: "closed" });
   const [errorKey, setErrorKey] = useState<string | null>(null);
 
   // 期間切替と前後ナビの再取得は queryKey ["mealplan", "period", …] を共通 prefix ["mealplan"] で
@@ -115,6 +133,26 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
   const mergeMut = useMutation({
     mutationFn: (v: { date: string; meal: string; position: number; targetBatchID: string }) =>
       withHandlers(MealPlanService.MergeBatch(v.date, v.meal, v.position, v.targetBatchID)),
+  });
+  const copyToMealMut = useMutation({
+    mutationFn: (v: {
+      sourceDate: string;
+      sourceMeal: string;
+      sourcePosition: number;
+      targetDate: string;
+      targetMeal: string;
+      mode: string;
+    }) =>
+      withHandlers(
+        MealPlanService.CopyToOtherMeal(
+          v.sourceDate,
+          v.sourceMeal,
+          v.sourcePosition,
+          v.targetDate,
+          v.targetMeal,
+          v.mode,
+        ),
+      ),
   });
 
   const dates = periodDates(periodStart, periodWeeks * 7);
@@ -184,12 +222,53 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
     recipeID: string,
   ) => {
     try {
-      const candidates = (await MealPlanService.ListMealBatches(date, meal, recipeID)) ?? [];
+      const candidates = (await MealPlanService.ListMergeCandidates(date, meal, recipeID)) ?? [];
       setMergeDialog({ kind: "open", date, meal, position, candidates });
       setErrorKey(null);
     } catch (err) {
       setErrorKey(errorI18nKey(err));
     }
+  };
+
+  const submitCopyToMeal = (
+    sourceDate: string,
+    sourceMeal: string,
+    sourcePosition: number,
+    targetDate: string,
+    targetMeal: string,
+    mode: string,
+  ) => {
+    copyToMealMut.mutate({ sourceDate, sourceMeal, sourcePosition, targetDate, targetMeal, mode });
+  };
+
+  const handleCopyToMealPick = (targetDate: string, targetMeal: string) => {
+    if (copyToMeal.kind !== "picking") return;
+    const { sourceDate, sourceMeal, sourcePosition } = copyToMeal;
+    const hasConflict = entries.some((e) => e.date === targetDate && e.meal === targetMeal);
+    if (!hasConflict) {
+      submitCopyToMeal(sourceDate, sourceMeal, sourcePosition, targetDate, targetMeal, "append");
+      setCopyToMeal({ kind: "closed" });
+      return;
+    }
+    setCopyToMeal({
+      kind: "confirm-conflict",
+      sourceDate,
+      sourceMeal,
+      sourcePosition,
+      targetDate,
+      targetMeal,
+    });
+  };
+
+  const resolveCopyToMealConflict = (mode: CopyConflictMode) => {
+    if (copyToMeal.kind !== "confirm-conflict") return;
+    if (mode === "cancel") {
+      setCopyToMeal({ kind: "closed" });
+      return;
+    }
+    const { sourceDate, sourceMeal, sourcePosition, targetDate, targetMeal } = copyToMeal;
+    submitCopyToMeal(sourceDate, sourceMeal, sourcePosition, targetDate, targetMeal, mode);
+    setCopyToMeal({ kind: "closed" });
   };
 
   const handleEntryAction = (
@@ -218,6 +297,14 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
         break;
       case "merge-batch":
         void openMergeDialog(date, meal, entry.position, entry.recipeId);
+        break;
+      case "copy-to-meal":
+        setCopyToMeal({
+          kind: "picking",
+          sourceDate: date,
+          sourceMeal: meal,
+          sourcePosition: entry.position,
+        });
         break;
     }
   };
@@ -376,6 +463,23 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
           }
           setMergeDialog({ kind: "closed" });
         }}
+      />
+
+      <CopyToMealDialog
+        open={copyToMeal.kind === "picking"}
+        sourceDate={copyToMeal.kind === "picking" ? copyToMeal.sourceDate : ""}
+        sourceMeal={copyToMeal.kind === "picking" ? copyToMeal.sourceMeal : ""}
+        dayRange={CROSS_MEAL_DAY_RANGE}
+        onOpenChange={(next) => {
+          if (!next) setCopyToMeal({ kind: "closed" });
+        }}
+        onSelect={handleCopyToMealPick}
+      />
+
+      <CopyConflictDialog
+        open={copyToMeal.kind === "confirm-conflict"}
+        conflictTargets={copyToMeal.kind === "confirm-conflict" ? [copyToMeal.targetDate] : []}
+        onSelect={resolveCopyToMealConflict}
       />
     </div>
   );

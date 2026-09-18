@@ -56,7 +56,8 @@
         "view_detail": "この品のレシピ詳細を見る",
         "copy_days": "この品を連続 {{days}} 日",
         "split_batch": "作り置きから外す",
-        "merge_batch": "他の作り置きにまとめる"
+        "merge_batch": "他の作り置きにまとめる",
+        "copy_to_meal": "別の時間帯にも作り置きを追加"
       },
       "meal_menu": {
         "clear": "時間帯全体をクリア",
@@ -94,9 +95,17 @@
         },
         "merge_dialog": {
           "title": "まとめ先の作り置きを選ぶ",
-          "empty": "同じ時間帯にまとめられる作り置きはありません",
-          "item_label": "{{date}} {{recipeName}} ({{count}} 品)"
+          "empty": "まとめられる作り置きはありません",
+          "item_label": "{{date}} {{meal}} {{recipeName}} ({{count}} 品)"
         }
+      },
+      "copy_to_meal": {
+        "title": "別の時間帯にも作り置きを追加",
+        "target_date_label": "対象日",
+        "target_meal_label": "対象時間帯",
+        "confirm": "追加",
+        "empty_meals": "選べる時間帯がありません",
+        "cancel": "キャンセル"
       },
       "errors": {
         "invalid_date": "日付の形式が不正です",

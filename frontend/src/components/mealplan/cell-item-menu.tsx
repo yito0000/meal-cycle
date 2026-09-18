@@ -19,13 +19,16 @@ interface Props {
   onCopyDays: (days: number) => void;
   onSplitBatch: () => void;
   onMergeBatch: () => void;
+  onCopyToMeal: () => void;
 }
 
-// 1 品行の `⋯` メニュー: 入替 / 削除 / 詳細 / 連続 N 日 / 作り置きから外す / 他の作り置きにまとめる。
-// メニュー項目の表示条件 (spec:「作り置きの外し / まとめ」Requirement 参照):
+// 1 品行の `⋯` メニュー: 入替 / 削除 / 詳細 / 連続 N 日 / 作り置きから外す / 他の作り置きにまとめる /
+// 別の時間帯にも作り置きを追加。表示条件 (spec:「作り置きの外し / まとめ」Requirement 参照):
 //   isInBatch = batchMemberCount > 1: 複数行の作り置きに属する
 //   - 「作り置きから外す」は isInBatch のときだけ表示 (単独作り置きに外す対象はない)
 //   - 「この品を連続 N 日」は !isInBatch のときだけ表示 (既に作り置きなら更にコピーしない)
+//   - 「別の時間帯にも作り置きを追加」はどの状態でも表示 (単独作り置きなら 1 バッチをまとめ側に、
+//     複数行作り置きなら既存バッチに新行を追加)
 export function CellItemMenu({
   batchMemberCount,
   onReplace,
@@ -34,6 +37,7 @@ export function CellItemMenu({
   onCopyDays,
   onSplitBatch,
   onMergeBatch,
+  onCopyToMeal,
 }: Props) {
   const { t } = useTranslation();
   const isInBatch = batchMemberCount > 1;
@@ -80,6 +84,9 @@ export function CellItemMenu({
         )}
         <DropdownMenuItem onClick={onMergeBatch}>
           {t("pages.meal_plan.item_menu.merge_batch")}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onCopyToMeal}>
+          {t("pages.meal_plan.item_menu.copy_to_meal")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

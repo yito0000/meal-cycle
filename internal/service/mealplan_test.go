@@ -262,22 +262,22 @@ func (r *fakeMealPlanRepo) MergeBatch(
 	if sourceRecipe == "" {
 		return mealplan.ErrEntryNotFound
 	}
-	sameMealAndBatch := 0
+	sameBatch := 0
 	eligible := 0
 	dayRange := r.mergeDayRange()
 	for _, e := range r.entries {
-		if string(e.Meal) != meal || e.BatchID != targetBatchID {
+		if e.BatchID != targetBatchID {
 			continue
 		}
-		if e.Date == date && e.Position == position {
+		if e.Date == date && string(e.Meal) == meal && e.Position == position {
 			continue
 		}
-		sameMealAndBatch++
+		sameBatch++
 		if e.RecipeID == sourceRecipe && absDayGap(e.Date, date) <= dayRange {
 			eligible++
 		}
 	}
-	if sameMealAndBatch == 0 {
+	if sameBatch == 0 {
 		return mealplan.ErrBatchTargetNotFound
 	}
 	if eligible == 0 {
@@ -292,12 +292,12 @@ func (r *fakeMealPlanRepo) MergeBatch(
 	return mealplan.ErrEntryNotFound
 }
 
-func (r *fakeMealPlanRepo) ListMealBatches(
+func (r *fakeMealPlanRepo) ListMergeCandidates(
 	_ context.Context, date, meal, recipeID string,
 ) ([]mealplan.BatchSummary, error) {
 	var ownBatchID string
 	for _, e := range r.entries {
-		if e.Date == date && string(e.Meal) == meal {
+		if e.Date == date && string(e.Meal) == meal && e.RecipeID == recipeID {
 			ownBatchID = e.BatchID
 			break
 		}
@@ -305,6 +305,7 @@ func (r *fakeMealPlanRepo) ListMealBatches(
 	dayRange := r.mergeDayRange()
 	type rep struct {
 		date     string
+		meal     string
 		position int
 		recipe   string
 		name     string
@@ -312,7 +313,7 @@ func (r *fakeMealPlanRepo) ListMealBatches(
 	}
 	byBatch := map[string]*rep{}
 	for _, e := range r.entries {
-		if string(e.Meal) != meal || e.RecipeID != recipeID {
+		if e.RecipeID != recipeID {
 			continue
 		}
 		if e.BatchID == ownBatchID {
@@ -323,12 +324,16 @@ func (r *fakeMealPlanRepo) ListMealBatches(
 		}
 		cur, ok := byBatch[e.BatchID]
 		if !ok {
-			byBatch[e.BatchID] = &rep{date: e.Date, position: e.Position, recipe: e.RecipeID, name: e.RecipeName, count: 1}
+			byBatch[e.BatchID] = &rep{
+				date: e.Date, meal: string(e.Meal), position: e.Position,
+				recipe: e.RecipeID, name: e.RecipeName, count: 1,
+			}
 			continue
 		}
 		cur.count++
 		if e.Date < cur.date || (e.Date == cur.date && e.Position < cur.position) {
 			cur.date = e.Date
+			cur.meal = string(e.Meal)
 			cur.position = e.Position
 			cur.recipe = e.RecipeID
 			cur.name = e.RecipeName
@@ -337,11 +342,69 @@ func (r *fakeMealPlanRepo) ListMealBatches(
 	out := make([]mealplan.BatchSummary, 0, len(byBatch))
 	for bid, r := range byBatch {
 		out = append(out, mealplan.BatchSummary{
-			BatchID: bid, Date: r.date, Meal: mealplan.Meal(meal),
+			BatchID: bid, Date: r.date, Meal: mealplan.Meal(r.meal),
 			RecipeID: r.recipe, RecipeName: r.name, MemberCount: r.count,
 		})
 	}
 	return out, nil
+}
+
+func (r *fakeMealPlanRepo) CopyToOtherMeal(
+	_ context.Context,
+	sourceDate, sourceMeal string, sourcePosition int,
+	targetDate, targetMeal string,
+	mode mealplan.CopyMode,
+) error {
+	if mode != mealplan.CopyModeAppend && mode != mealplan.CopyModeOverwrite {
+		return mealplan.ErrInvalidCopyMode
+	}
+	if sourceMeal == targetMeal {
+		return mealplan.ErrBatchMergeDenied
+	}
+	if absDayGap(sourceDate, targetDate) > r.mergeDayRange() {
+		return mealplan.ErrBatchMergeDenied
+	}
+	var sourceRecipeID, sourceBatchID, sourceRecipeName string
+	found := false
+	for _, e := range r.entries {
+		if e.Date == sourceDate && string(e.Meal) == sourceMeal && e.Position == sourcePosition {
+			sourceRecipeID = e.RecipeID
+			sourceBatchID = e.BatchID
+			sourceRecipeName = e.RecipeName
+			found = true
+			break
+		}
+	}
+	if !found {
+		return mealplan.ErrEntryNotFound
+	}
+	if mode == mealplan.CopyModeOverwrite {
+		kept := r.entries[:0]
+		for _, e := range r.entries {
+			if e.Date == targetDate && string(e.Meal) == targetMeal {
+				continue
+			}
+			kept = append(kept, e)
+		}
+		r.entries = kept
+	} else {
+		for _, e := range r.entries {
+			if e.Date == targetDate && string(e.Meal) == targetMeal && e.RecipeID == sourceRecipeID {
+				return nil
+			}
+		}
+	}
+	pos := 0
+	for _, e := range r.entries {
+		if e.Date == targetDate && string(e.Meal) == targetMeal && e.Position >= pos {
+			pos = e.Position + 1
+		}
+	}
+	r.entries = append(r.entries, mealplan.Entry{
+		Date: targetDate, Meal: mealplan.Meal(targetMeal), Position: pos,
+		RecipeID: sourceRecipeID, RecipeName: sourceRecipeName, BatchID: sourceBatchID,
+	})
+	return nil
 }
 
 func (r *fakeMealPlanRepo) mergeDayRange() int {
@@ -777,27 +840,31 @@ func TestMealPlanService_MergeBatch(t *testing.T) {
 	})
 }
 
-func TestMealPlanService_ListMealBatches(t *testing.T) {
+func TestMealPlanService_ListMergeCandidates(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("should return only same-meal same-recipe within ±4 days batches", func(t *testing.T) {
+	t.Run("should return same-recipe within ±4 days batches from any meal", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが", "r2": "みそ汁"})
 		svc := newMealPlanServiceWithRepo(repo)
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1") // 起点行 (月曜・夕、r1)
 		_, _ = svc.AssignRecipe(ctx, "2026-08-25", "dinner", "r1") // 火曜・夕 (別バッチ、同レシピ)
 		_, _ = svc.AssignRecipe(ctx, "2026-08-25", "dinner", "r2") // 火曜・夕 (別レシピ、除外)
 		_, _ = svc.AssignRecipe(ctx, "2026-09-05", "dinner", "r1") // 12 日後 (レンジ外、除外)
-		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "lunch", "r1")  // 別 meal、除外
+		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "lunch", "r1")  // 別 meal、同レシピ (候補に含める)
 
-		got, err := svc.ListMealBatches(ctx, "2026-08-24", "dinner", "r1")
+		got, err := svc.ListMergeCandidates(ctx, "2026-08-24", "dinner", "r1")
 		if err != nil {
-			t.Fatalf("ListMealBatches: %v", err)
+			t.Fatalf("ListMergeCandidates: %v", err)
 		}
-		if len(got) != 1 {
-			t.Fatalf("want 1 candidate, got %d: %+v", len(got), got)
+		if len(got) != 2 {
+			t.Fatalf("want 2 candidates (火曜・夕 + 月曜・昼食), got %d: %+v", len(got), got)
 		}
-		if got[0].Date != "2026-08-25" || got[0].RecipeID != "r1" {
-			t.Errorf("candidate = %+v, want date=2026-08-25 recipe=r1", got[0])
+		byMeal := map[string]bool{}
+		for _, c := range got {
+			byMeal[string(c.Meal)] = true
+		}
+		if !byMeal["dinner"] || !byMeal["lunch"] {
+			t.Errorf("expected candidates from both dinner and lunch, got %+v", got)
 		}
 	})
 
@@ -805,7 +872,7 @@ func TestMealPlanService_ListMealBatches(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
 		svc := newMealPlanServiceWithRepo(repo)
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
-		_, err := svc.ListMealBatches(ctx, "2026-08-24", "dinner", "")
+		_, err := svc.ListMergeCandidates(ctx, "2026-08-24", "dinner", "")
 		if !errors.Is(err, mealplan.ErrUnknownRecipe) {
 			t.Errorf("err = %v, want ErrUnknownRecipe", err)
 		}
@@ -855,6 +922,141 @@ func TestMealPlanService_MergeBatch_ConstraintChecks(t *testing.T) {
 		}
 		if merged != 3 {
 			t.Errorf("want 3 rows in monEntry batch (mon+tue+fri), got %d", merged)
+		}
+	})
+
+	t.Run("succeeds across different meals (dinner -> lunch, same recipe within ±4 days)", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが"})
+		svc := newMealPlanServiceWithRepo(repo)
+		monDinner, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1") // 月・夕
+		tueLunch, _ := svc.AssignRecipe(ctx, "2026-08-25", "lunch", "r1")   // 火・昼 (別バッチ)
+
+		if err := svc.MergeBatch(ctx, "2026-08-25", "lunch", 0, monDinner.BatchID); err != nil {
+			t.Fatalf("MergeBatch across meals: %v", err)
+		}
+		for _, e := range repo.entries {
+			if e.Date == "2026-08-25" && e.Meal == mealplan.MealLunch && e.BatchID != monDinner.BatchID {
+				t.Errorf("target row not merged: %+v (was %q)", e, tueLunch.BatchID)
+			}
+		}
+	})
+
+	t.Run("returns ErrBatchMergeDenied when target across meals is different recipe", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが", "r2": "みそ汁"})
+		svc := newMealPlanServiceWithRepo(repo)
+		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")         // 月・夕 r1
+		misoLunch, _ := svc.AssignRecipe(ctx, "2026-08-25", "lunch", "r2") // 火・昼 別レシピ
+		err := svc.MergeBatch(ctx, "2026-08-24", "dinner", 0, misoLunch.BatchID)
+		if !errors.Is(err, mealplan.ErrBatchMergeDenied) {
+			t.Errorf("err = %v, want ErrBatchMergeDenied", err)
+		}
+	})
+}
+
+func TestMealPlanService_CopyToOtherMeal(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("copies leftover to another meal on adjacent day sharing the same batch_id", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが"})
+		svc := newMealPlanServiceWithRepo(repo)
+		src, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
+
+		if err := svc.CopyToOtherMeal(ctx, "2026-08-24", "dinner", 0, "2026-08-25", "lunch", "append"); err != nil {
+			t.Fatalf("CopyToOtherMeal: %v", err)
+		}
+		found := false
+		for _, e := range repo.entries {
+			if e.Date == "2026-08-25" && e.Meal == mealplan.MealLunch && e.RecipeID == "r1" {
+				if e.BatchID != src.BatchID {
+					t.Errorf("target batchID = %q, want %q", e.BatchID, src.BatchID)
+				}
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("expected new row at 2026-08-25/lunch, entries=%+v", repo.entries)
+		}
+	})
+
+	t.Run("returns ErrBatchMergeDenied when target date is beyond ±4 days", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが"})
+		svc := newMealPlanServiceWithRepo(repo)
+		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
+		err := svc.CopyToOtherMeal(ctx, "2026-08-24", "dinner", 0, "2026-09-05", "lunch", "append")
+		if !errors.Is(err, mealplan.ErrBatchMergeDenied) {
+			t.Errorf("err = %v, want ErrBatchMergeDenied", err)
+		}
+	})
+
+	t.Run("returns ErrBatchMergeDenied when target meal is the same as source", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが"})
+		svc := newMealPlanServiceWithRepo(repo)
+		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
+		err := svc.CopyToOtherMeal(ctx, "2026-08-24", "dinner", 0, "2026-08-25", "dinner", "append")
+		if !errors.Is(err, mealplan.ErrBatchMergeDenied) {
+			t.Errorf("err = %v, want ErrBatchMergeDenied", err)
+		}
+	})
+
+	t.Run("returns ErrInvalidCopyMode for unknown mode", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが"})
+		svc := newMealPlanServiceWithRepo(repo)
+		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
+		err := svc.CopyToOtherMeal(ctx, "2026-08-24", "dinner", 0, "2026-08-25", "lunch", "unknown")
+		if !errors.Is(err, mealplan.ErrInvalidCopyMode) {
+			t.Errorf("err = %v, want ErrInvalidCopyMode", err)
+		}
+	})
+
+	t.Run("append keeps existing rows and appends the new one at the end", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが", "r2": "みそ汁"})
+		svc := newMealPlanServiceWithRepo(repo)
+		src, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
+		_, _ = svc.AssignRecipe(ctx, "2026-08-25", "lunch", "r2") // 既存 (別レシピ)
+
+		if err := svc.CopyToOtherMeal(ctx, "2026-08-24", "dinner", 0, "2026-08-25", "lunch", "append"); err != nil {
+			t.Fatalf("CopyToOtherMeal: %v", err)
+		}
+		lunch := make([]mealplan.Entry, 0)
+		for _, e := range repo.entries {
+			if e.Date == "2026-08-25" && e.Meal == mealplan.MealLunch {
+				lunch = append(lunch, e)
+			}
+		}
+		if len(lunch) != 2 {
+			t.Fatalf("want 2 rows in 2026-08-25/lunch (existing + copied), got %d: %+v", len(lunch), lunch)
+		}
+		hasCopied := false
+		for _, e := range lunch {
+			if e.RecipeID == "r1" && e.BatchID == src.BatchID {
+				hasCopied = true
+			}
+		}
+		if !hasCopied {
+			t.Errorf("expected copied row with source batchID, got %+v", lunch)
+		}
+	})
+
+	t.Run("overwrite deletes existing rows then appends the new one at position 0", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが", "r2": "みそ汁"})
+		svc := newMealPlanServiceWithRepo(repo)
+		src, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
+		_, _ = svc.AssignRecipe(ctx, "2026-08-25", "lunch", "r2") // 既存 (別レシピ)
+
+		if err := svc.CopyToOtherMeal(ctx, "2026-08-24", "dinner", 0, "2026-08-25", "lunch", "overwrite"); err != nil {
+			t.Fatalf("CopyToOtherMeal: %v", err)
+		}
+		lunch := make([]mealplan.Entry, 0)
+		for _, e := range repo.entries {
+			if e.Date == "2026-08-25" && e.Meal == mealplan.MealLunch {
+				lunch = append(lunch, e)
+			}
+		}
+		if len(lunch) != 1 {
+			t.Fatalf("want 1 row in 2026-08-25/lunch after overwrite, got %d: %+v", len(lunch), lunch)
+		}
+		if lunch[0].RecipeID != "r1" || lunch[0].BatchID != src.BatchID {
+			t.Errorf("overwrite result = %+v, want recipeID=r1 batchID=%q", lunch[0], src.BatchID)
 		}
 	})
 }

@@ -397,9 +397,10 @@ func (r *MealPlanRepo) SplitBatch(ctx context.Context, date, meal string, positi
 }
 
 // MergeBatch は対象行の batch_id を targetBatchID に付け替える。
-// 3 条件 (同 meal / 同一レシピ / 対象行の日付から ±mergeDayRange 日以内) を防御的にチェックし、
-// 違反時は ErrBatchMergeDenied、そもそも targetBatchID の行が同 meal に無ければ
-// ErrBatchTargetNotFound を返す (design.md D4b)。
+// 2 条件 (同一レシピ / 対象行の日付から ±mergeDayRange 日以内) を防御的にチェックし、
+// 違反時は ErrBatchMergeDenied、そもそも targetBatchID の行が他に無ければ
+// ErrBatchTargetNotFound を返す (design.md D4b)。時間帯 (meal) の一致は要件から外れており、
+// 別時間帯の作り置きにも合流できる (proposal: add-mealplan-cross-meal-leftover)。
 func (r *MealPlanRepo) MergeBatch(
 	ctx context.Context, date, meal string, position int, targetBatchID string,
 ) error {
@@ -423,8 +424,8 @@ func (r *MealPlanRepo) MergeBatch(
 	var targetExists int
 	if err := tx.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM meal_plans
-		WHERE meal = ? AND batch_id = ? AND NOT (date = ? AND position = ?)
-	`, meal, targetBatchID, date, position).Scan(&targetExists); err != nil {
+		WHERE batch_id = ? AND NOT (date = ? AND meal = ? AND position = ?)
+	`, targetBatchID, date, meal, position).Scan(&targetExists); err != nil {
 		return fmt.Errorf("check target batch: %w", err)
 	}
 	if targetExists == 0 {
@@ -435,10 +436,10 @@ func (r *MealPlanRepo) MergeBatch(
 	var eligible int
 	if err := tx.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM meal_plans
-		WHERE meal = ? AND batch_id = ? AND recipe_id = ?
-		  AND NOT (date = ? AND position = ?)
+		WHERE batch_id = ? AND recipe_id = ?
+		  AND NOT (date = ? AND meal = ? AND position = ?)
 		  AND ABS(julianday(date) - julianday(?)) <= ?
-	`, meal, targetBatchID, sourceRecipeID, date, position, date, dayRange).Scan(&eligible); err != nil {
+	`, targetBatchID, sourceRecipeID, date, meal, position, date, dayRange).Scan(&eligible); err != nil {
 		return fmt.Errorf("check merge eligibility: %w", err)
 	}
 	if eligible == 0 {
@@ -465,18 +466,21 @@ func (r *MealPlanRepo) MergeBatch(
 	return nil
 }
 
-// ListMealBatches は (date, meal, recipeID) から見た合流可能な作り置きの候補を列挙する。
-// フィルタ条件: 同じ meal / 同一 recipeID / 起点行 (date) から ±mergeDayRange 日以内 /
+// ListMergeCandidates は (date, meal, recipeID) から見た合流可能な作り置きの候補を列挙する。
+// フィルタ条件: 同一 recipeID / 起点行 (date) から ±mergeDayRange 日以内 /
 // 起点行自身が属するバッチは除外 (design.md D4b)。各バッチにつき代表行 1 つを返す。
-func (r *MealPlanRepo) ListMealBatches(
+// meal は起点行の位置を特定するために使うだけで、候補の時間帯は問わない (別時間帯の作り置きも
+// 候補に含める — proposal: add-mealplan-cross-meal-leftover)。BatchSummary の Meal
+// フィールドで候補側の時間帯を返し、UI 側で「月曜・昼食」のように表示分岐できる。
+func (r *MealPlanRepo) ListMergeCandidates(
 	ctx context.Context, date, meal, recipeID string,
 ) ([]mealplan.BatchSummary, error) {
 	var ownBatchID string
 	err := r.db.QueryRowContext(ctx, `
 		SELECT batch_id FROM meal_plans
-		WHERE date = ? AND meal = ?
+		WHERE date = ? AND meal = ? AND recipe_id = ?
 		LIMIT 1
-	`, date, meal).Scan(&ownBatchID)
+	`, date, meal, recipeID).Scan(&ownBatchID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("query own batch: %w", err)
 	}
@@ -488,7 +492,7 @@ func (r *MealPlanRepo) ListMealBatches(
 			SELECT batch_id, MIN(date || printf('%04d', position)) AS pk_key,
 			       COUNT(*) AS cnt
 			FROM meal_plans
-			WHERE meal = ? AND recipe_id = ?
+			WHERE recipe_id = ?
 			  AND ABS(julianday(date) - julianday(?)) <= ?
 			GROUP BY batch_id
 		) g
@@ -498,9 +502,9 @@ func (r *MealPlanRepo) ListMealBatches(
 		JOIN recipes r ON r.id = m.recipe_id
 		WHERE m.batch_id <> ?
 		ORDER BY m.date, m.position
-	`, meal, recipeID, date, dayRange, ownBatchID)
+	`, recipeID, date, dayRange, ownBatchID)
 	if err != nil {
-		return nil, fmt.Errorf("query meal batches: %w", err)
+		return nil, fmt.Errorf("query merge candidates: %w", err)
 	}
 	defer rows.Close()
 
@@ -509,7 +513,7 @@ func (r *MealPlanRepo) ListMealBatches(
 		var s mealplan.BatchSummary
 		var mealStr string
 		if err := rows.Scan(&s.BatchID, &s.Date, &mealStr, &s.RecipeID, &s.RecipeName, &s.MemberCount); err != nil {
-			return nil, fmt.Errorf("scan meal batch: %w", err)
+			return nil, fmt.Errorf("scan merge candidate: %w", err)
 		}
 		s.Meal = mealplan.Meal(mealStr)
 		out = append(out, s)
@@ -520,6 +524,96 @@ func (r *MealPlanRepo) ListMealBatches(
 // MealEntries は特定 (date, meal) の Entry 列を返す。CopyLeftover の domain 呼び出し用ヘルパ。
 func (r *MealPlanRepo) MealEntries(ctx context.Context, date, meal string) ([]mealplan.Entry, error) {
 	return loadMealEntries(ctx, r.db, date, meal)
+}
+
+// CopyToOtherMeal は (sourceDate, sourceMeal, sourcePosition) の作り置き行を、別時間帯 (targetMeal)
+// の targetDate に持ち越す (proposal: add-mealplan-cross-meal-leftover)。同一 batch_id + 同一 recipe_id
+// を共有した新行を挿入するので、視覚識別 (枠色 + 🔗) と買い物リスト計上 (distinct batch_id) が
+// 別時間帯間でもそのまま働く。
+//
+// バリデーション: sourceMeal と targetMeal が同一なら ErrBatchMergeDenied、|targetDate - sourceDate|
+// が mergeDayRange を超えたら ErrBatchMergeDenied。
+//
+// 衝突解決 (mode) は CopyLeftover と同じ意味:
+//   - CopyModeAppend: 既存行は残す。ただし同一 recipe_id が既に存在する場合は挿入しない (dedup)
+//   - CopyModeOverwrite: (targetDate, targetMeal) の全行を消してから position=0 に挿入
+func (r *MealPlanRepo) CopyToOtherMeal(
+	ctx context.Context,
+	sourceDate, sourceMeal string, sourcePosition int,
+	targetDate, targetMeal string,
+	mode mealplan.CopyMode,
+) error {
+	if mode != mealplan.CopyModeAppend && mode != mealplan.CopyModeOverwrite {
+		return mealplan.ErrInvalidCopyMode
+	}
+	if sourceMeal == targetMeal {
+		return mealplan.ErrBatchMergeDenied
+	}
+	if err := mealplan.ValidateDate(targetDate); err != nil {
+		return err
+	}
+	sourceT, err := time.Parse("2006-01-02", sourceDate)
+	if err != nil {
+		return mealplan.ErrInvalidDate
+	}
+	targetT, _ := time.Parse("2006-01-02", targetDate)
+	diff := int(sourceT.Sub(targetT).Hours() / 24)
+	if diff < 0 {
+		diff = -diff
+	}
+	if diff > r.mergeDayRange() {
+		return mealplan.ErrBatchMergeDenied
+	}
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var sourceRecipeID, sourceBatchID string
+	err = tx.QueryRowContext(ctx, `
+		SELECT recipe_id, batch_id FROM meal_plans
+		WHERE date = ? AND meal = ? AND position = ?
+	`, sourceDate, sourceMeal, sourcePosition).Scan(&sourceRecipeID, &sourceBatchID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return mealplan.ErrEntryNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("lookup source row: %w", err)
+	}
+
+	if mode == mealplan.CopyModeOverwrite {
+		if _, err := tx.ExecContext(ctx, `
+			DELETE FROM meal_plans WHERE date = ? AND meal = ?
+		`, targetDate, targetMeal); err != nil {
+			return fmt.Errorf("clear target %s/%s: %w", targetDate, targetMeal, err)
+		}
+	} else {
+		var dup int
+		if err := tx.QueryRowContext(ctx, `
+			SELECT COUNT(*) FROM meal_plans
+			WHERE date = ? AND meal = ? AND recipe_id = ?
+		`, targetDate, targetMeal, sourceRecipeID).Scan(&dup); err != nil {
+			return fmt.Errorf("check target duplicate: %w", err)
+		}
+		if dup > 0 {
+			// 二重追加は静かにスキップする (PlanCopy と同じ挙動)。
+			return tx.Commit()
+		}
+	}
+
+	pos, err := nextPosition(ctx, tx, targetDate, targetMeal)
+	if err != nil {
+		return err
+	}
+	if _, err := insertMealPlan(ctx, tx, targetDate, targetMeal, pos, sourceRecipeID, sourceBatchID); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+	return nil
 }
 
 // --- 内部ヘルパ ------------------------------------------------------------

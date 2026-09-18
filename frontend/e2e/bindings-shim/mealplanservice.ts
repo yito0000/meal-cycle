@@ -53,12 +53,32 @@ export function MergeBatch(date: string, meal: string, position: number, targetB
   return call<void>("MealPlanService", "MergeBatch", date, meal, position, targetBatchID);
 }
 
-export function ListMealBatches(date: string, meal: string, recipeID: string) {
+export function ListMergeCandidates(date: string, meal: string, recipeID: string) {
   return call<mealplan$0.BatchSummary[]>(
     "MealPlanService",
-    "ListMealBatches",
+    "ListMergeCandidates",
     date,
     meal,
     recipeID,
+  );
+}
+
+export function CopyToOtherMeal(
+  sourceDate: string,
+  sourceMeal: string,
+  sourcePosition: number,
+  targetDate: string,
+  targetMeal: string,
+  mode: string,
+) {
+  return call<void>(
+    "MealPlanService",
+    "CopyToOtherMeal",
+    sourceDate,
+    sourceMeal,
+    sourcePosition,
+    targetDate,
+    targetMeal,
+    mode,
   );
 }

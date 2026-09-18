@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import type { BatchSummary } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
+import { Meal } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog";
 
@@ -10,8 +11,20 @@ interface Props {
   onSelect: (batchID: string) => void;
 }
 
-// 「バッチに合流する」を押したときの候補一覧。同じ時間帯の他バッチだけを表示する
-// (spec の合流候補要件、design.md D7)。候補ゼロなら空メッセージを表示。
+function mealLabelKey(meal: string): string {
+  switch (meal) {
+    case Meal.MealBreakfast:
+      return "pages.meal_plan.meal.breakfast";
+    case Meal.MealLunch:
+      return "pages.meal_plan.meal.lunch";
+    default:
+      return "pages.meal_plan.meal.dinner";
+  }
+}
+
+// 「バッチに合流する」を押したときの候補一覧。同一レシピ + ±dayRange 日の候補を表示する
+// (spec の合流候補要件、design.md D7)。時間帯は絞らず、別時間帯の作り置きも候補に含めて
+// item_label に 時間帯名を差し込む (proposal: add-mealplan-cross-meal-leftover)。
 export function BatchMergeDialog({ open, candidates, onOpenChange, onSelect }: Props) {
   const { t } = useTranslation();
   return (
@@ -35,6 +48,7 @@ export function BatchMergeDialog({ open, candidates, onOpenChange, onSelect }: P
                 >
                   {t("pages.meal_plan.batch.merge_dialog.item_label", {
                     date: c.date,
+                    meal: t(mealLabelKey(c.meal)),
                     recipeName: c.recipeName,
                     count: c.memberCount,
                   })}

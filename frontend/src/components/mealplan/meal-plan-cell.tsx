@@ -11,7 +11,8 @@ export type EntryAction =
   | "view-detail"
   | "copy-days"
   | "split-batch"
-  | "merge-batch";
+  | "merge-batch"
+  | "copy-to-meal";
 export type MealAction = "clear" | "copy-days" | "reorder";
 
 interface Props {
@@ -104,6 +105,7 @@ export function MealPlanCell({
               onCopyDays={(days) => onEntryAction("copy-days", entry, days)}
               onSplitBatch={() => onEntryAction("split-batch", entry)}
               onMergeBatch={() => onEntryAction("merge-batch", entry)}
+              onCopyToMeal={() => onEntryAction("copy-to-meal", entry)}
             />
           </div>
         );
