@@ -82,3 +82,21 @@ export function CopyToOtherMeal(
     mode,
   );
 }
+
+export function MoveEntry(
+  sourceDate: string,
+  sourceMeal: string,
+  sourcePosition: number,
+  targetDate: string,
+  targetMeal: string,
+) {
+  return call<void>(
+    "MealPlanService",
+    "MoveEntry",
+    sourceDate,
+    sourceMeal,
+    sourcePosition,
+    targetDate,
+    targetMeal,
+  );
+}

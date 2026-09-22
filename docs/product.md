@@ -156,6 +156,22 @@ graph LR
     (対象日, 対象時間帯) に追加する (proposal: add-mealplan-cross-meal-leftover)。対象日は起点日から
     ±4 日以内、対象時間帯は元と異なる時間帯のみ選択できる。既存割当と衝突すると「追加 / 上書き /
     キャンセル」の 3 択ダイアログが出る (CopyLeftover と同じ挙動)
+- **D&D による 1 行 移動**（1 品単位、proposal: add-mealplan-drag-move）
+  - 品行をドラッグ → 別セルにドロップで「元セルから 1 行削除 → ドロップ先セル末尾に挿入」する
+  - **作り置きに属する行 (batch_member_count > 1) は D&D 対象外**。個別に動かすと作り置きのまとまりが
+    崩れるため、`draggable=false` + `cursor: not-allowed` にする。移動したい場合は
+    `⋯ → 作り置きから外す` で単独行にしてから D&D する 2 段操作で扱う
+  - 単独割当行は cursor が `grab` (drag 中は `grabbing`) に切り替わり、掴めることを示す
+  - ドラッグ開始後、**カーソル追従の ghost** は薄い緑 (`bg-emerald-100 ring-emerald-400`) で描画され、
+    **元の位置に残る source 行**は薄いグレーの placeholder (`bg-neutral-100 opacity-40`) に切り替わる。
+    3 役 (ghost / source / drop target = 青枠) を色で塗り分けることで、視点が自然にカーソル (ghost)
+    側に集まる
+  - ドラッグ中はカレンダー上の全セルに枠強調が付き、drop 可能であることを示す
+  - 同一セル内で他の品行にドロップした場合は既存 `ReorderMeal` に流し、position を差し替える (上下ボタン
+    UI と同じ経路)。セル余白にドロップした場合は no-op
+  - 修飾キー付き D&D (Ctrl キー等でコピー) はサポート外。コピーは既存の「この品を連続 N 日」
+    「別の時間帯にも作り置きを追加」を使う
+  - モバイル / タッチ操作は MVP 対象外 (Windows デスクトップ想定)
 - **作り置きの視覚識別**: 同じ作り置き (内部識別子は `batch_id`) に属する複数行の品には**共通の枠色** (3 色
   ローテーション) と `🔗` アイコンを描画する。1 行だけの作り置き (単独割当) には色を付けない。詳細は proposal
   `add-mealplan-batch-linking`

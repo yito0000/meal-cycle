@@ -407,6 +407,44 @@ func (r *fakeMealPlanRepo) CopyToOtherMeal(
 	return nil
 }
 
+func (r *fakeMealPlanRepo) MoveEntry(
+	_ context.Context,
+	sourceDate, sourceMeal string, sourcePosition int,
+	targetDate, targetMeal string,
+) error {
+	if sourceDate == targetDate && sourceMeal == targetMeal {
+		return mealplan.ErrInvalidPosition
+	}
+	idx := -1
+	for i, e := range r.entries {
+		if e.Date == sourceDate && string(e.Meal) == sourceMeal && e.Position == sourcePosition {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return mealplan.ErrEntryNotFound
+	}
+	moved := r.entries[idx]
+	r.entries = append(r.entries[:idx], r.entries[idx+1:]...)
+	for i, e := range r.entries {
+		if e.Date == sourceDate && string(e.Meal) == sourceMeal && e.Position > sourcePosition {
+			r.entries[i].Position--
+		}
+	}
+	pos := 0
+	for _, e := range r.entries {
+		if e.Date == targetDate && string(e.Meal) == targetMeal && e.Position >= pos {
+			pos = e.Position + 1
+		}
+	}
+	moved.Date = targetDate
+	moved.Meal = mealplan.Meal(targetMeal)
+	moved.Position = pos
+	r.entries = append(r.entries, moved)
+	return nil
+}
+
 func (r *fakeMealPlanRepo) mergeDayRange() int {
 	// service_test 独自の軽量な defaults 参照。config.Defaults() を読むと循環依存に近い形になるため、
 	// 実際のプロジェクト config と同値をハードコードしておく (LeftoverCopyPresets = [2,3,4] の max)。
@@ -1057,6 +1095,82 @@ func TestMealPlanService_CopyToOtherMeal(t *testing.T) {
 		}
 		if lunch[0].RecipeID != "r1" || lunch[0].BatchID != src.BatchID {
 			t.Errorf("overwrite result = %+v, want recipeID=r1 batchID=%q", lunch[0], src.BatchID)
+		}
+	})
+}
+
+func TestMealPlanService_MoveEntry(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("should move a single row from source cell to target cell", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが"})
+		svc := newMealPlanServiceWithRepo(repo)
+		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
+
+		if err := svc.MoveEntry(ctx, "2026-08-24", "dinner", 0, "2026-08-25", "dinner"); err != nil {
+			t.Fatalf("MoveEntry: %v", err)
+		}
+		if len(repo.entries) != 1 {
+			t.Fatalf("want 1 entry after move, got %d", len(repo.entries))
+		}
+		got := repo.entries[0]
+		if got.Date != "2026-08-25" || got.Meal != mealplan.MealDinner || got.Position != 0 {
+			t.Errorf("moved entry = %+v; want date=2026-08-25 meal=dinner pos=0", got)
+		}
+	})
+
+	t.Run("should preserve batch_id when moving across meals", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが"})
+		svc := newMealPlanServiceWithRepo(repo)
+		src, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
+
+		if err := svc.MoveEntry(ctx, "2026-08-24", "dinner", 0, "2026-08-24", "lunch"); err != nil {
+			t.Fatalf("MoveEntry: %v", err)
+		}
+		if repo.entries[0].BatchID != src.BatchID {
+			t.Errorf("batchID after cross-meal move = %q, want %q", repo.entries[0].BatchID, src.BatchID)
+		}
+	})
+
+	t.Run("with malformed source date should return ErrInvalidDate and leave meal_plans untouched", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
+		svc := newMealPlanServiceWithRepo(repo)
+		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
+		err := svc.MoveEntry(ctx, "2026/08/24", "dinner", 0, "2026-08-25", "dinner")
+		if !errors.Is(err, mealplan.ErrInvalidDate) {
+			t.Errorf("err = %v, want ErrInvalidDate", err)
+		}
+		if len(repo.entries) != 1 || repo.entries[0].Date != "2026-08-24" {
+			t.Errorf("meal_plans changed: %+v", repo.entries)
+		}
+	})
+
+	t.Run("with source meal=snack should return ErrInvalidMeal", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
+		svc := newMealPlanServiceWithRepo(repo)
+		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
+		err := svc.MoveEntry(ctx, "2026-08-24", "snack", 0, "2026-08-25", "dinner")
+		if !errors.Is(err, mealplan.ErrInvalidMeal) {
+			t.Errorf("err = %v, want ErrInvalidMeal", err)
+		}
+	})
+
+	t.Run("with negative source position should return ErrInvalidPosition", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
+		svc := newMealPlanServiceWithRepo(repo)
+		err := svc.MoveEntry(ctx, "2026-08-24", "dinner", -1, "2026-08-25", "dinner")
+		if !errors.Is(err, mealplan.ErrInvalidPosition) {
+			t.Errorf("err = %v, want ErrInvalidPosition", err)
+		}
+	})
+
+	t.Run("with source == target cell should return ErrInvalidPosition", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
+		svc := newMealPlanServiceWithRepo(repo)
+		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
+		err := svc.MoveEntry(ctx, "2026-08-24", "dinner", 0, "2026-08-24", "dinner")
+		if !errors.Is(err, mealplan.ErrInvalidPosition) {
+			t.Errorf("err = %v, want ErrInvalidPosition", err)
 		}
 	})
 }

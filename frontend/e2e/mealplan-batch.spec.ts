@@ -71,3 +71,27 @@ test.describe("機能: 作り置き / 別調理の選択と事後編集", () => 
     // 既存割当のある (対象日, 対象時間帯) に対する CopyToMeal → 3 択ダイアログ。同上。
   });
 });
+
+test.describe("機能: D&D による 1 行 移動", () => {
+  test.skip("別セルにドロップすると 1 行だけ移動する", async () => {
+    // Playwright の drag は onDragStart/onDragOver/onDrop を確実には triggering しないため、
+    // 手動 (Windows ネイティブビルド) で担保する。proposal: add-mealplan-drag-move
+  });
+
+  test.skip("作り置みに属する行はドラッグできない", async () => {
+    // batch member 行は draggable=false + cursor-not-allowed。個別移動は禁止 (design.md D1)。
+    // 手動確認で担保。
+  });
+
+  test.skip("別時間帯にドロップしても batch_id は維持される", async () => {
+    // 別 meal 間 (dinner → lunch 等) の 1 行移動。同上。
+  });
+
+  test.skip("同一セル内でドロップすると並び替えとして扱う", async () => {
+    // 同一 (date, meal) で他の entry にドロップ → ReorderMeal 経由で position 差替え。同上。
+  });
+
+  test.skip("既存割当のあるセルにドロップすると末尾に追加される", async () => {
+    // ドロップ先セルに既存行があるとき、末尾 (position = max+1) に挿入。同上。
+  });
+});

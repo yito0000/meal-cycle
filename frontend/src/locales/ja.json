@@ -107,6 +107,11 @@
         "empty_meals": "選べる時間帯がありません",
         "cancel": "キャンセル"
       },
+      "dnd": {
+        "item_grabbable_label": "ドラッグして別セルへ移動",
+        "cell_drop_label": "ここにドロップして品を移動",
+        "moved_announcement": "{{recipeName}} を {{fromDate}} {{fromMeal}} から {{toDate}} {{toMeal}} に移動しました"
+      },
       "errors": {
         "invalid_date": "日付の形式が不正です",
         "invalid_meal": "時間帯の指定が不正です",

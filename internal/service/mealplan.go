@@ -25,6 +25,8 @@ type mealPlanRepo interface {
 	ListMergeCandidates(ctx context.Context, date, meal, recipeID string) ([]mealplan.BatchSummary, error)
 	CopyToOtherMeal(ctx context.Context, sourceDate, sourceMeal string, sourcePosition int,
 		targetDate, targetMeal string, mode mealplan.CopyMode) error
+	MoveEntry(ctx context.Context, sourceDate, sourceMeal string, sourcePosition int,
+		targetDate, targetMeal string) error
 }
 
 // MealPlanService は S01 献立カレンダーのデータをフロントに公開する。
@@ -234,6 +236,27 @@ func (s *MealPlanService) CopyToOtherMeal(
 		return mealplan.ErrInvalidCopyMode
 	}
 	return s.repo.CopyToOtherMeal(ctx, sourceDate, sourceMeal, sourcePosition, targetDate, targetMeal, cm)
+}
+
+// MoveEntry は 1 行を別セル (targetDate, targetMeal) の末尾に移す (D&D による移動)。
+// batch_id / recipe_id は据え置きで、作り置きに属する行を動かしても batch は解体されない。
+// 同一セル (source == target) は責務分離のため repo が ErrInvalidPosition を返し、UI 側で
+// ReorderMeal に流させる (design.md D2)。
+func (s *MealPlanService) MoveEntry(
+	ctx context.Context,
+	sourceDate, sourceMeal string, sourcePosition int,
+	targetDate, targetMeal string,
+) error {
+	if err := s.validateMealAddress(sourceDate, sourceMeal); err != nil {
+		return err
+	}
+	if err := s.validateMealAddress(targetDate, targetMeal); err != nil {
+		return err
+	}
+	if err := mealplan.ValidatePosition(sourcePosition); err != nil {
+		return err
+	}
+	return s.repo.MoveEntry(ctx, sourceDate, sourceMeal, sourcePosition, targetDate, targetMeal)
 }
 
 func (s *MealPlanService) validateMealAddress(date, meal string) error {

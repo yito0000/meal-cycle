@@ -107,6 +107,11 @@
         "empty_meals": "No other meals available",
         "cancel": "Cancel"
       },
+      "dnd": {
+        "item_grabbable_label": "Drag to move to another cell",
+        "cell_drop_label": "Drop here to move the dish",
+        "moved_announcement": "Moved {{recipeName}} from {{fromDate}} {{fromMeal}} to {{toDate}} {{toMeal}}"
+      },
       "errors": {
         "invalid_date": "Invalid date format",
         "invalid_meal": "Invalid meal",

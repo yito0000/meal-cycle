@@ -204,6 +204,110 @@ func TestMealPlanRepo_Remove(t *testing.T) {
 	})
 }
 
+func TestMealPlanRepo_MoveEntry(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("MoveEntry should move a single row to target cell (source becomes empty, target gets 1 row)", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが")
+		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+
+		if err := repo.MoveEntry(ctx, "2026-08-24", "dinner", 0, "2026-08-25", "dinner"); err != nil {
+			t.Fatalf("MoveEntry: %v", err)
+		}
+		src, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
+		if len(src) != 0 {
+			t.Errorf("source cell should be empty, got %d rows: %+v", len(src), src)
+		}
+		dst, _ := repo.MealEntries(ctx, "2026-08-25", "dinner")
+		if len(dst) != 1 || dst[0].Position != 0 || dst[0].RecipeID != rs[0].ID {
+			t.Errorf("target cell = %+v; want 1 row at pos 0 with recipe %s", dst, rs[0].ID)
+		}
+	})
+
+	t.Run("MoveEntry should renumber remaining source positions to be contiguous", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "A", "B", "C")
+		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[1].ID)
+		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[2].ID)
+
+		if err := repo.MoveEntry(ctx, "2026-08-24", "dinner", 1, "2026-08-25", "dinner"); err != nil {
+			t.Fatalf("MoveEntry: %v", err)
+		}
+		src, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
+		if len(src) != 2 {
+			t.Fatalf("want 2 rows remaining in source, got %d", len(src))
+		}
+		if src[0].Position != 0 || src[1].Position != 1 {
+			t.Errorf("positions = %d, %d; want 0, 1", src[0].Position, src[1].Position)
+		}
+		if src[0].RecipeID != rs[0].ID || src[1].RecipeID != rs[2].ID {
+			t.Errorf("recipeIDs = %s, %s; want %s, %s", src[0].RecipeID, src[1].RecipeID, rs[0].ID, rs[2].ID)
+		}
+	})
+
+	t.Run("MoveEntry should preserve batch_id when moving a row from a leftover batch", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが")
+		src, _ := repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+		source, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
+		_ = repo.CopyLeftover(ctx, "dinner",
+			[]string{"2026-08-25", "2026-08-26"}, source,
+			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover)
+
+		if err := repo.MoveEntry(ctx, "2026-08-26", "dinner", 0, "2026-08-27", "dinner"); err != nil {
+			t.Fatalf("MoveEntry: %v", err)
+		}
+		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
+		bids := map[string]int{}
+		for _, e := range got {
+			bids[e.BatchID]++
+		}
+		if len(bids) != 1 {
+			t.Fatalf("want 1 shared batchID after move, got %d: %+v", len(bids), bids)
+		}
+		if _, ok := bids[src.BatchID]; !ok {
+			t.Errorf("shared batchID %+v does not include source %q", bids, src.BatchID)
+		}
+	})
+
+	t.Run("MoveEntry should preserve batch_id when moving across meals", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが")
+		src, _ := repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+
+		if err := repo.MoveEntry(ctx, "2026-08-24", "dinner", 0, "2026-08-24", "lunch"); err != nil {
+			t.Fatalf("MoveEntry: %v", err)
+		}
+		lunch, _ := repo.MealEntries(ctx, "2026-08-24", "lunch")
+		if len(lunch) != 1 {
+			t.Fatalf("want 1 row in lunch, got %d: %+v", len(lunch), lunch)
+		}
+		if lunch[0].BatchID != src.BatchID {
+			t.Errorf("batchID = %q, want %q (preserved across meals)", lunch[0].BatchID, src.BatchID)
+		}
+	})
+
+	t.Run("MoveEntry returns ErrEntryNotFound when source row is missing", func(t *testing.T) {
+		repo, _ := newMealPlanRepoForTest(t)
+		err := repo.MoveEntry(ctx, "2026-08-24", "dinner", 0, "2026-08-25", "dinner")
+		if !errors.Is(err, mealplan.ErrEntryNotFound) {
+			t.Errorf("err = %v, want ErrEntryNotFound", err)
+		}
+	})
+
+	t.Run("MoveEntry returns ErrInvalidPosition when source == target cell", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが")
+		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+		err := repo.MoveEntry(ctx, "2026-08-24", "dinner", 0, "2026-08-24", "dinner")
+		if !errors.Is(err, mealplan.ErrInvalidPosition) {
+			t.Errorf("err = %v, want ErrInvalidPosition", err)
+		}
+	})
+}
+
 func TestMealPlanRepo_ClearMeal(t *testing.T) {
 	ctx := context.Background()
 

@@ -129,6 +129,65 @@ func (r *MealPlanRepo) Remove(ctx context.Context, date, meal string, position i
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	if err := removeRowTx(ctx, tx, date, meal, position); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+	return nil
+}
+
+// MoveEntry は 1 行を別セル (targetDate, targetMeal) の末尾 (position = max+1) に移す。
+// batch_id / recipe_id は据え置き。作り置きに属する行を動かしても batch は解体されない
+// (spec: 「1 行 移動」)。同一セル (source == target) は責務分離のため ErrInvalidPosition を返し、
+// UI 側で既存 ReorderMeal に流させる (design.md D2)。
+func (r *MealPlanRepo) MoveEntry(
+	ctx context.Context,
+	sourceDate, sourceMeal string, sourcePosition int,
+	targetDate, targetMeal string,
+) error {
+	if sourceDate == targetDate && sourceMeal == targetMeal {
+		return mealplan.ErrInvalidPosition
+	}
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var recipeID, batchID string
+	err = tx.QueryRowContext(ctx, `
+		SELECT recipe_id, batch_id FROM meal_plans
+		WHERE date = ? AND meal = ? AND position = ?
+	`, sourceDate, sourceMeal, sourcePosition).Scan(&recipeID, &batchID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return mealplan.ErrEntryNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("lookup source row: %w", err)
+	}
+
+	if err := removeRowTx(ctx, tx, sourceDate, sourceMeal, sourcePosition); err != nil {
+		return err
+	}
+	pos, err := nextPosition(ctx, tx, targetDate, targetMeal)
+	if err != nil {
+		return err
+	}
+	if _, err := insertMealPlan(ctx, tx, targetDate, targetMeal, pos, recipeID, batchID); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+	return nil
+}
+
+// removeRowTx は Remove / MoveEntry で共有する内部ヘルパ。tx 内で 1 行削除 + 後続 position の詰め直し
+// を行う (自身では commit しない)。呼び出し側で tx を張って commit / rollback を管理する。
+func removeRowTx(ctx context.Context, tx *sql.Tx, date, meal string, position int) error {
 	res, err := tx.ExecContext(ctx, `
 		DELETE FROM meal_plans WHERE date = ? AND meal = ? AND position = ?
 	`, date, meal, position)
@@ -147,9 +206,6 @@ func (r *MealPlanRepo) Remove(ctx context.Context, date, meal string, position i
 		WHERE date = ? AND meal = ? AND position > ?
 	`, date, meal, position); err != nil {
 		return fmt.Errorf("renumber positions: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit tx: %w", err)
 	}
 	return nil
 }

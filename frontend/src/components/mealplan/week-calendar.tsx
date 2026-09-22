@@ -13,7 +13,13 @@ import { CopyModeDialog } from "./copy-mode-dialog";
 import { previewCopy } from "./copy-planner";
 import { CopyToMealDialog } from "./copy-to-meal-dialog";
 import { errorI18nKey } from "./error-messages";
-import { type EntryAction, type MealAction, MealPlanCell } from "./meal-plan-cell";
+import {
+  type DragSource,
+  type DropTarget,
+  type EntryAction,
+  type MealAction,
+  MealPlanCell,
+} from "./meal-plan-cell";
 import { MEAL_RENDER_ORDER, MEALPLAN_DEFAULTS, pickCellPreset } from "./mealplan-config";
 import type { PeriodWeeks } from "./period-nav";
 import { RecipePickerDialog } from "./recipe-picker-dialog";
@@ -80,6 +86,7 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
   const [mergeDialog, setMergeDialog] = useState<MergeDialogState>({ kind: "closed" });
   const [copyToMeal, setCopyToMeal] = useState<CopyToMealState>({ kind: "closed" });
   const [errorKey, setErrorKey] = useState<string | null>(null);
+  const [dragSource, setDragSource] = useState<DragSource | null>(null);
 
   // 期間切替と前後ナビの再取得は queryKey ["mealplan", "period", …] を共通 prefix ["mealplan"] で
   // 全部落とすように統一する (design.md D4)。
@@ -133,6 +140,28 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
   const mergeMut = useMutation({
     mutationFn: (v: { date: string; meal: string; position: number; targetBatchID: string }) =>
       withHandlers(MealPlanService.MergeBatch(v.date, v.meal, v.position, v.targetBatchID)),
+  });
+  const reorderMut = useMutation({
+    mutationFn: (v: { date: string; meal: string; orderedRecipeIDs: string[] }) =>
+      withHandlers(MealPlanService.ReorderMeal(v.date, v.meal, v.orderedRecipeIDs)),
+  });
+  const moveMut = useMutation({
+    mutationFn: (v: {
+      sourceDate: string;
+      sourceMeal: string;
+      sourcePosition: number;
+      targetDate: string;
+      targetMeal: string;
+    }) =>
+      withHandlers(
+        MealPlanService.MoveEntry(
+          v.sourceDate,
+          v.sourceMeal,
+          v.sourcePosition,
+          v.targetDate,
+          v.targetMeal,
+        ),
+      ),
   });
   const copyToMealMut = useMutation({
     mutationFn: (v: {
@@ -309,6 +338,60 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
     }
   };
 
+  // 同一セル内 D&D は既存 ReorderMeal に流す (design.md D2)。drop 対象 entry の位置に source を差し込み、
+  // 他の entry は相対順を維持して詰め直す。drop 対象 entry が無い (セル余白へのドロップ) は no-op。
+  const reorderWithinCell = (
+    date: string,
+    meal: string,
+    sourcePosition: number,
+    targetPosition: number,
+  ) => {
+    if (sourcePosition === targetPosition) return;
+    const cellEntries = entries
+      .filter((e) => e.date === date && e.meal === meal)
+      .sort((a, b) => a.position - b.position);
+    if (cellEntries.length === 0) return;
+    const withoutSource = cellEntries.filter((e) => e.position !== sourcePosition);
+    const source = cellEntries.find((e) => e.position === sourcePosition);
+    if (!source) return;
+    // targetPosition の元の index に source を挿入する。target が source より後ろだった場合、
+    // source を先に抜くことで index が 1 つ前にずれる点はそのまま利用する。
+    const targetIdx = withoutSource.findIndex((e) => e.position === targetPosition);
+    const insertAt = targetIdx < 0 ? withoutSource.length : targetIdx;
+    const reordered = [
+      ...withoutSource.slice(0, insertAt),
+      source,
+      ...withoutSource.slice(insertAt),
+    ];
+    reorderMut.mutate({
+      date,
+      meal,
+      orderedRecipeIDs: reordered.map((e) => e.recipeId),
+    });
+  };
+
+  const handleDropEntry = (target: DropTarget, sourceJson: string) => {
+    let source: DragSource;
+    try {
+      source = JSON.parse(sourceJson) as DragSource;
+    } catch {
+      return;
+    }
+    setDragSource(null);
+    if (source.date === target.date && source.meal === target.meal) {
+      if (target.position === undefined) return;
+      reorderWithinCell(source.date, source.meal, source.position, target.position);
+      return;
+    }
+    moveMut.mutate({
+      sourceDate: source.date,
+      sourceMeal: source.meal,
+      sourcePosition: source.position,
+      targetDate: target.date,
+      targetMeal: target.meal,
+    });
+  };
+
   const handleMealAction = (date: string, meal: string, action: MealAction, days?: number) => {
     switch (action) {
       case "clear":
@@ -400,6 +483,11 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
                         onAddMore={() => setPicker({ kind: "add", date, meal })}
                         onEntryAction={(a, e, days) => handleEntryAction(date, meal, a, e, days)}
                         onMealAction={(a, days) => handleMealAction(date, meal, a, days)}
+                        isAnyDragging={dragSource !== null}
+                        dragSource={dragSource}
+                        onEntryDragStart={(source) => setDragSource(source)}
+                        onEntryDragEnd={() => setDragSource(null)}
+                        onCellDrop={handleDropEntry}
                       />
                     );
                   })}
