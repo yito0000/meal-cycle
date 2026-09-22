@@ -51,6 +51,37 @@ tasks:
       - npm run type-check
       - npm run test:e2e
 
+  build:win:
+    summary: WSL→Windows 手動確認用ビルド (CLAUDE.md 動作確認 2 階建て構成)
+    desc: |
+      frontend build → wails3 generate bindings → Windows amd64 cross-compile。
+      repo root に meal-cycle.exe (.gitignore 対象) を出力する。
+      WIN_DEST を渡すとビルド後にコピーする
+      (例: task build:win WIN_DEST=/mnt/c/Users/yourname/Desktop/)。
+    vars:
+      WIN_DEST: '{{.WIN_DEST | default ""}}'
+    cmds:
+      - task: build:win:frontend
+      - wails3 generate bindings
+      - GOOS=windows GOARCH=amd64 go build -tags production -trimpath -ldflags="-w -s" -o meal-cycle.exe ./
+      - task: build:win:copy
+        vars:
+          WIN_DEST: '{{.WIN_DEST}}'
+
+  build:win:frontend:
+    internal: true
+    dir: frontend
+    cmds:
+      - npm run build
+
+  build:win:copy:
+    internal: true
+    # WIN_DEST が空なら up-to-date 判定でスキップする (コピー先未指定時の no-op)
+    status:
+      - test -z "{{.WIN_DEST}}"
+    cmds:
+      - cp meal-cycle.exe "{{.WIN_DEST}}"
+
   lint:
     summary: Runs linters for both Go (golangci-lint) and frontend (Biome)
     cmds:

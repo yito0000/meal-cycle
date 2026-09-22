@@ -185,16 +185,19 @@ Windows ビルドはビルド時間と `.exe` サイズのコストがあるの�
 
 ### Windows ビルド手順
 
-WSL2 側で実行:
+WSL2 側で `task build:win` を実行する。内部で以下を順に走らせる:
+
+1. `cd frontend && npm run build`
+2. `wails3 generate bindings`
+3. `GOOS=windows GOARCH=amd64 go build -tags production -trimpath -ldflags="-w -s" -o meal-cycle.exe ./`
+
+`WIN_DEST` を指定すると Windows 側のパスへ自動コピーする:
 
 ```bash
-cd frontend && npm run build && cd ..
-wails3 generate bindings
-GOOS=windows GOARCH=amd64 go build -tags production -trimpath -ldflags="-w -s" -o meal-cycle.exe ./
-cp meal-cycle.exe /mnt/c/Users/<Windows のユーザー名>/Desktop/
+task build:win WIN_DEST=/mnt/c/Users/<Windows のユーザー名>/Desktop/
 ```
 
-Windows 側の PowerShell またはエクスプローラーからデスクトップの `meal-cycle.exe` を起動する。`modernc.org/sqlite` は Pure Go で CGO 不要のためクロスコンパイルが素直に通る。
+`WIN_DEST` 未指定なら repo root に `meal-cycle.exe` (`.gitignore` 対象) が出力されるので手動で Windows 側へコピーする。Windows 側の PowerShell またはエクスプローラーからデスクトップの `meal-cycle.exe` を起動する。`modernc.org/sqlite` は Pure Go で CGO 不要のためクロスコンパイルが素直に通る。
 
 ### データベースが 2 系統になる点に注意
 
