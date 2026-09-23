@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Button } from "@/components/ui/button";
 import { Meal } from "../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
 import { MealPlanService } from "../../bindings/github.com/yito0000/meal-cycle/internal/service";
 import { MealVisibilityCheckboxes } from "../components/mealplan/meal-visibility-checkboxes";
@@ -56,6 +58,7 @@ export function MealPlanPage() {
   );
 
   const periodStartKey = useMemo(() => formatDate(periodStart), [periodStart]);
+  const navigate = useNavigate();
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["mealplan", "period", periodStartKey, periodWeeks],
@@ -92,6 +95,23 @@ export function MealPlanPage() {
           visibleMeals={visibleMeals}
         />
       )}
+
+      <div>
+        <Button
+          type="button"
+          variant="outline"
+          data-testid="shopping-cta"
+          onClick={() =>
+            // 表示中の時間帯は渡さない。買い物リストは期間内の全時間帯を対象にする (mealplan spec)。
+            navigate({
+              to: "/shopping",
+              search: { from: periodStartKey, days: periodWeeks * 7 },
+            })
+          }
+        >
+          {t("pages.meal_plan.shopping_cta")}
+        </Button>
+      </div>
     </div>
   );
 }

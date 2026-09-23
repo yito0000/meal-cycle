@@ -20,6 +20,7 @@ func TestDefaults(t *testing.T) {
 		{"WeeklyPresetRecipeCount", c.WeeklyPresetRecipeCount, [2]int{2, 3}},
 		{"ExpiryAlertRedDays", c.ExpiryAlertRedDays, 3},
 		{"ExpiryAlertYellowDays", c.ExpiryAlertYellowDays, 7},
+		{"ShoppingDefaultPeriodDays", c.ShoppingDefaultPeriodDays, 7},
 	}
 	for _, tc := range cases {
 		if tc.got != tc.want {
@@ -29,6 +30,20 @@ func TestDefaults(t *testing.T) {
 
 	if got, want := c.LeftoverCopyPresets, []int{2, 3, 4}; !equalInts(got, want) {
 		t.Errorf("LeftoverCopyPresets: got %v, want %v", got, want)
+	}
+
+	if got, want := c.ShoppingPeriodDayPresets, []int{3, 4, 7, 14, 28}; !equalInts(got, want) {
+		t.Errorf("ShoppingPeriodDayPresets: got %v, want %v", got, want)
+	}
+	if !containsInt(c.ShoppingPeriodDayPresets, c.ShoppingDefaultPeriodDays) {
+		t.Errorf("ShoppingDefaultPeriodDays (%d) must be one of ShoppingPeriodDayPresets %v",
+			c.ShoppingDefaultPeriodDays, c.ShoppingPeriodDayPresets)
+	}
+	// S01 の 1 / 2 / 4 週表示から期間を引き継ぐため (add-shopping-list design.md D9)。
+	for _, days := range []int{7, 14, 28} {
+		if !containsInt(c.ShoppingPeriodDayPresets, days) {
+			t.Errorf("ShoppingPeriodDayPresets %v must contain %d", c.ShoppingPeriodDayPresets, days)
+		}
 	}
 
 	if got, want := c.DefaultVisibleMeals, []string{"dinner"}; !equalStrings(got, want) {
@@ -133,4 +148,13 @@ func equalStrings(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+func containsInt(xs []int, v int) bool {
+	for _, x := range xs {
+		if x == v {
+			return true
+		}
+	}
+	return false
 }

@@ -132,7 +132,8 @@
         "batch_merge_denied": "Cannot merge into that batch",
         "invalid_period_weeks": "Unsupported period length",
         "unknown": "Something went wrong"
-      }
+      },
+      "shopping_cta": "View shopping list for this period"
     },
     "recipes": {
       "title": "Recipes",
@@ -276,7 +277,42 @@
     },
     "shopping": {
       "title": "Shopping list",
-      "placeholder": "S07 shopping list — see proposal add-shopping-list"
+      "description": "A rough list of ingredients used by the meals in this period",
+      "period": "Period: {{start}} – {{end}}",
+      "picker": {
+        "start": "Start date",
+        "days": "Days",
+        "day_option": "{{count}} days"
+      },
+      "column": {
+        "name": "Ingredient",
+        "amount": "Amount",
+        "stock": "Stock",
+        "usage": "Used in"
+      },
+      "amount_unspecified": "—",
+      "stock_status": {
+        "none": "Not in stock",
+        "partial": "Partly in stock",
+        "covered": "In stock"
+      },
+      "dishes": {
+        "title": "Meals in this period",
+        "batch": "Batch cooking",
+        "started_before": "From earlier",
+        "date_range": "{{start}}–{{end}}",
+        "meal": {
+          "breakfast": "B",
+          "lunch": "L",
+          "dinner": "D"
+        }
+      },
+      "empty": {
+        "no_plans": "No meals are planned in this period. Assign recipes in the meal calendar to see ingredients here",
+        "no_ingredients": "The planned recipes have no ingredients"
+      },
+      "loading": "Loading...",
+      "load_error": "Failed to load the shopping list"
     }
   },
   "health": {

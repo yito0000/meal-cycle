@@ -81,3 +81,67 @@ export async function addStockItem(
     throw new Error(`add stock ${item.name} failed: ${res.status()} ${await res.text()}`);
   }
 }
+
+const ts = ja.pages.shopping;
+
+// サイドバーから S07 に入る。search 無しのリンクなので対象期間は既定 (今日から 7 日間) になる。
+export async function openShoppingList(page: Page) {
+  if (!page.url().startsWith("http")) {
+    await page.goto("/");
+  }
+  await page.getByRole("link", { name: ja.nav.shopping }).click();
+  await page.getByRole("heading", { name: ts.title }).waitFor();
+}
+
+// createRecipeWithIngredients は材料を指定してレシピを 1 件作り、ID を返す。
+export async function createRecipeWithIngredients(
+  page: Page,
+  name: string,
+  ingredients: { name: string; amount: number; unit: string }[],
+): Promise<string> {
+  const res = await page.request.post("/api/RecipeService/Create", {
+    data: [
+      {
+        id: "",
+        name,
+        servings: 2,
+        tags: [],
+        ingredients,
+        ingredientCount: ingredients.length,
+        steps: "",
+        notes: "",
+        createdAt: "",
+        updatedAt: "",
+      },
+    ],
+  });
+  if (!res.ok()) {
+    throw new Error(`create ${name} failed: ${res.status()} ${await res.text()}`);
+  }
+  return (await res.json()).id as string;
+}
+
+export async function assignRecipe(page: Page, date: string, meal: string, recipeId: string) {
+  const res = await page.request.post("/api/MealPlanService/AssignRecipe", {
+    data: [date, meal, recipeId],
+  });
+  if (!res.ok()) {
+    throw new Error(`assign ${date} ${meal} failed: ${res.status()} ${await res.text()}`);
+  }
+}
+
+// copyLeftover は (date, meal) の 1 品目を days 日分に広げる。shareBatch=true で作り置き、false で別調理。
+export async function copyLeftover(
+  page: Page,
+  date: string,
+  meal: string,
+  days: number,
+  shareBatch: boolean,
+) {
+  const res = await page.request.post("/api/MealPlanService/CopyLeftover", {
+    data: [date, meal, days, 0, "append", shareBatch],
+  });
+  if (!res.ok()) {
+    throw new Error(`copy leftover ${date} failed: ${res.status()} ${await res.text()}`);
+  }
+}

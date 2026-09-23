@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-router";
 import { z } from "zod";
 import { RootLayout } from "@/components/layout/root-layout";
+import { shoppingSearchSchema } from "@/components/shopping/shopping-period";
 import { FridgePage } from "@/routes/fridge";
 import { MealPlanPage } from "@/routes/meal-plan";
 import { RecipesPage } from "@/routes/recipes";
@@ -55,6 +56,8 @@ const shoppingRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/shopping",
   component: ShoppingPage,
+  // S01 の CTA と S07 上の期間切替が from / days を渡す。サイドバー (search 無し) は既定期間になる (design.md D8)。
+  validateSearch: shoppingSearchSchema,
 });
 
 const routeTree = rootRoute.addChildren([

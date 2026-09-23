@@ -84,8 +84,3 @@ export function toStockInput(values: StockFormValues): StockItem {
 export function isImeComposing(e: React.KeyboardEvent): boolean {
   return e.nativeEvent.isComposing || e.keyCode === 229;
 }
-
-// 量の表示。整数なら小数点を出さない。
-export function formatAmount(amount: number): string {
-  return Number.isInteger(amount) ? String(amount) : String(Number(amount.toFixed(2)));
-}

@@ -40,6 +40,7 @@ func main() {
 			application.NewService(service.NewMealPlanService(sqlite.NewMealPlanRepo(db))),
 			application.NewService(service.NewRecipeService(db)),
 			application.NewService(service.NewFridgeService(db)),
+			application.NewService(service.NewShoppingService(db)),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),

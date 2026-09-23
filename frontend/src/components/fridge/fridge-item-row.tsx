@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { TableCell, TableRow } from "@/components/ui/table";
+import { formatAmount } from "@/lib/format-amount";
 import { cn } from "@/lib/utils";
 import {
   ExpiryStatus,
@@ -8,7 +9,6 @@ import {
 } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/fridge/models";
 import { formatDaysLeft } from "./days-left";
 import { ExpiryDot } from "./expiry-dot";
-import { formatAmount } from "./stock-form";
 
 type Props = {
   item: StockItem;

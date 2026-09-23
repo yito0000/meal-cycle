@@ -1,0 +1,244 @@
+import type { Page } from "@playwright/test";
+import ja from "../src/locales/ja.json" with { type: "json" };
+import { expect, test } from "./fixtures.js";
+import {
+  addStockItem,
+  assignRecipe,
+  copyLeftover,
+  createRecipeWithIngredients,
+  dateAfter,
+  openShoppingList,
+} from "./helpers.js";
+
+// テスト名は docs/scenarios/shopping.feature の シナリオ: 行と一字一句揃える。
+// 対象期間はサイドバーから開いたときの「今日から 7 日間」を基準にし、日付は今日からの相対で組み立てる。
+const t = ja.pages.shopping;
+const tm = ja.pages.meal_plan;
+
+// 対象期間は yyyy/mm/dd で表示される (design.md D15)。引数は YYYY-MM-DD。
+function periodText(start: string, end: string): string {
+  const slash = (d: string) => d.replaceAll("-", "/");
+  return t.period.replace("{{start}}", slash(start)).replace("{{end}}", slash(end));
+}
+
+// 開始日のカレンダーを開いて date (YYYY-MM-DD) を選ぶ。表示中の月に無ければ翌月へ送る。
+async function pickStartDate(page: Page, date: string) {
+  await page.getByLabel(t.picker.start).click();
+  const cell = page.locator(`[data-day="${date}"]:not([data-outside])`);
+  if ((await cell.count()) === 0) {
+    // nav 内のボタンは [前月, 翌月] の順。
+    await page.getByRole("dialog").locator("nav button").last().click();
+  }
+  await cell.getByRole("button").click();
+}
+
+// 今日を含む週の月曜 (S01 の既定の開始日) からの相対日付。
+function mondayAfter(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + days);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function monthDay(date: string): string {
+  const [, m, d] = date.split("-").map(Number);
+  return `${m}/${d}`;
+}
+
+function itemRow(page: Page, name: string) {
+  return page.locator("tbody tr").filter({ has: page.getByRole("cell", { name, exact: true }) });
+}
+
+function dish(page: Page, recipeName: string) {
+  return page.getByTestId("shopping-dish").filter({ hasText: recipeName });
+}
+
+async function ingredientNames(page: Page): Promise<string[]> {
+  return page.locator("tbody tr td:first-child").allInnerTexts();
+}
+
+test.describe("機能: 献立から買い物リストを集計する", () => {
+  test("S01 の期間切替が S07 に引き継がれる", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: tm.title })).toBeVisible();
+    await page.getByTestId("period-weeks-2").click();
+    await page.getByRole("button", { name: tm.shopping_cta }).click();
+
+    await expect(page.getByRole("heading", { name: t.title })).toBeVisible();
+    await expect(page.getByTestId("shopping-period")).toHaveText(
+      periodText(mondayAfter(0), mondayAfter(13)),
+    );
+    await expect(page.getByTestId("shopping-days-14")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("サイドバーから直接開いた場合の既定期間", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTestId("period-weeks-4").click();
+    await openShoppingList(page);
+
+    await expect(page.getByTestId("shopping-period")).toHaveText(
+      periodText(dateAfter(0), dateAfter(6)),
+    );
+    await expect(page.getByTestId("shopping-days-7")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("S07 で開始日と日数を切り替える", async ({ page }) => {
+    await openShoppingList(page);
+
+    await page.getByTestId("shopping-days-3").click();
+    await expect(page.getByTestId("shopping-period")).toHaveText(
+      periodText(dateAfter(0), dateAfter(2)),
+    );
+
+    await pickStartDate(page, dateAfter(1));
+    await expect(page.getByTestId("shopping-period")).toHaveText(
+      periodText(dateAfter(1), dateAfter(3)),
+    );
+  });
+
+  test("在庫で一部を賄える食材は一部在庫ありと表示される", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "肉じゃが", [
+      { name: "玉ねぎ", amount: 2, unit: "個" },
+    ]);
+    await assignRecipe(page, dateAfter(1), "dinner", id);
+    await addStockItem(page, { name: "玉ねぎ", amount: 1, unit: "個" });
+    await openShoppingList(page);
+
+    const row = itemRow(page, "玉ねぎ");
+    await expect(row).toContainText("2 個");
+    await expect(row).toHaveAttribute("data-stock-status", "partial");
+    await expect(row).toContainText(t.stock_status.partial);
+  });
+
+  test("在庫で足りる食材は在庫ありとして末尾に表示される", async ({ page }) => {
+    const tamagoyaki = await createRecipeWithIngredients(page, "卵焼き", [
+      { name: "卵", amount: 2, unit: "個" },
+    ]);
+    const curry = await createRecipeWithIngredients(page, "カレー", [
+      { name: "じゃがいも", amount: 2, unit: "個" },
+    ]);
+    await assignRecipe(page, dateAfter(0), "dinner", tamagoyaki);
+    await assignRecipe(page, dateAfter(2), "dinner", curry);
+    await addStockItem(page, { name: "卵", amount: 5, unit: "個" });
+    await openShoppingList(page);
+
+    await expect(itemRow(page, "卵")).toHaveAttribute("data-stock-status", "covered");
+    await expect(itemRow(page, "卵")).toContainText(t.stock_status.covered);
+    expect(await ingredientNames(page)).toEqual(["じゃがいも", "卵"]);
+  });
+
+  test("複数レシピで必要な同一食材は 1 行に合算される", async ({ page }) => {
+    const nikujaga = await createRecipeWithIngredients(page, "肉じゃが", [
+      { name: "玉ねぎ", amount: 2, unit: "個" },
+    ]);
+    const curry = await createRecipeWithIngredients(page, "カレー", [
+      { name: "玉ねぎ", amount: 3, unit: "個" },
+    ]);
+    await assignRecipe(page, dateAfter(0), "dinner", nikujaga);
+    await assignRecipe(page, dateAfter(2), "dinner", curry);
+    await openShoppingList(page);
+
+    await expect(itemRow(page, "玉ねぎ")).toHaveCount(1);
+    await expect(itemRow(page, "玉ねぎ")).toContainText("5 個");
+    await expect(itemRow(page, "玉ねぎ")).toContainText("肉じゃが, カレー");
+  });
+
+  test("同一時間帯内の複数品も合算対象になる", async ({ page }) => {
+    const nikujaga = await createRecipeWithIngredients(page, "肉じゃが", [
+      { name: "玉ねぎ", amount: 1, unit: "個" },
+    ]);
+    const misoshiru = await createRecipeWithIngredients(page, "みそ汁", [
+      { name: "玉ねぎ", amount: 0.5, unit: "個" },
+    ]);
+    await assignRecipe(page, dateAfter(1), "dinner", nikujaga);
+    await assignRecipe(page, dateAfter(1), "dinner", misoshiru);
+    await openShoppingList(page);
+
+    await expect(itemRow(page, "玉ねぎ")).toHaveCount(1);
+    await expect(itemRow(page, "玉ねぎ")).toContainText("1.5 個");
+    await expect(itemRow(page, "玉ねぎ")).toContainText("肉じゃが, みそ汁");
+  });
+
+  test("作り置きは何日分でも材料を 1 回分だけ計上する", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "肉じゃが", [
+      { name: "玉ねぎ", amount: 2, unit: "個" },
+    ]);
+    await assignRecipe(page, dateAfter(0), "dinner", id);
+    await copyLeftover(page, dateAfter(0), "dinner", 3, true);
+    await openShoppingList(page);
+
+    await expect(itemRow(page, "玉ねぎ")).toHaveCount(1);
+    await expect(itemRow(page, "玉ねぎ")).toContainText("2 個");
+  });
+
+  test("期限切れの在庫は在庫として扱わない", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "ホットミルク", [
+      { name: "牛乳", amount: 1, unit: "本" },
+    ]);
+    await assignRecipe(page, dateAfter(0), "dinner", id);
+    await addStockItem(page, { name: "牛乳", amount: 1, unit: "本", expiresInDays: -2 });
+    await openShoppingList(page);
+
+    await expect(itemRow(page, "牛乳")).toHaveAttribute("data-stock-status", "none");
+    await expect(itemRow(page, "牛乳")).toContainText(t.stock_status.none);
+  });
+
+  test("期間に献立が無いと空状態になる", async ({ page }) => {
+    await openShoppingList(page);
+
+    await expect(page.getByText(t.empty.no_plans)).toBeVisible();
+    await expect(page.getByRole("heading", { name: t.dishes.title })).toHaveCount(0);
+  });
+
+  test("献立のレシピに材料が無いと空状態になる", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "ご飯", []);
+    await assignRecipe(page, dateAfter(0), "dinner", id);
+    await openShoppingList(page);
+
+    await expect(page.getByText(t.empty.no_ingredients)).toBeVisible();
+    await expect(page.getByRole("heading", { name: t.dishes.title })).toBeVisible();
+    await expect(dish(page, "ご飯")).toHaveCount(1);
+  });
+
+  test("作り置きは献立の一覧で 1 行にまとまる", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "肉じゃが", [
+      { name: "玉ねぎ", amount: 2, unit: "個" },
+    ]);
+    await assignRecipe(page, dateAfter(0), "dinner", id);
+    await copyLeftover(page, dateAfter(0), "dinner", 3, true);
+    await openShoppingList(page);
+
+    const row = dish(page, "肉じゃが");
+    await expect(row).toHaveCount(1);
+    const [startMonth] = dateAfter(0).split("-").slice(1).map(Number);
+    const [endMonth, endDay] = dateAfter(2).split("-").slice(1).map(Number);
+    const end = endMonth === startMonth ? String(endDay) : monthDay(dateAfter(2));
+    await expect(row.getByTestId("shopping-dish-dates")).toHaveText(
+      t.dishes.date_range.replace("{{start}}", monthDay(dateAfter(0))).replace("{{end}}", end),
+    );
+    await expect(row.getByTestId("shopping-dish-meals")).toHaveText(t.dishes.meal.dinner);
+    await expect(row.getByRole("img", { name: t.dishes.batch })).toBeVisible();
+  });
+
+  test("期間より前から続く作り置きには印が付く", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "カレー", [
+      { name: "玉ねぎ", amount: 3, unit: "個" },
+    ]);
+    await assignRecipe(page, dateAfter(-1), "dinner", id);
+    await copyLeftover(page, dateAfter(-1), "dinner", 2, true);
+    await openShoppingList(page);
+
+    const row = dish(page, "カレー");
+    await expect(row.getByTestId("shopping-dish-started-before")).toHaveText(
+      t.dishes.started_before,
+    );
+    await expect(row.getByTestId("shopping-dish-dates")).toHaveText(monthDay(dateAfter(0)));
+  });
+});
+
+test.describe("機能: 購入済チェックと在庫への一括登録", () => {
+  // add-shopping-purchase で有効化する。
+  test.skip("購入済チェックしても在庫は増えない", async () => {});
+  test.skip("チェック済みを一括で冷蔵庫に登録する", async () => {});
+  test.skip("中間ステップを取り消せる", async () => {});
+});

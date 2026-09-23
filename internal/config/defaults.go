@@ -56,6 +56,14 @@ type Config struct {
 
 	// 🟡 閾値 (N 日以内、🔴 を超える範囲)。
 	ExpiryAlertYellowDays int `json:"expiryAlertYellowDays"`
+
+	// 買い物リスト -----------------------------------------------------
+
+	// S07 で選べる対象期間の日数。S01 の 1 / 2 / 4 週 (7 / 14 / 28 日) から引き継げるよう、それらを必ず含める。
+	ShoppingPeriodDayPresets []int `json:"shoppingPeriodDayPresets"`
+
+	// S07 をサイドバーから開いたときの対象期間の日数 (今日から N 日間)。
+	ShoppingDefaultPeriodDays int `json:"shoppingDefaultPeriodDays"`
 }
 
 // CellSizePreset は S01 献立カレンダーの (date, meal) セル描画パラメータ。
@@ -74,17 +82,19 @@ type CellSizePreset struct {
 // された既定値を返す (docs/product.md §1)。
 func Defaults() Config {
 	return Config{
-		DefaultVisibleMeals:      []string{"dinner"},
-		WeeklyFillPattern:        "mon-fri-dinner",
-		ItemsPerMealHint:         [2]int{1, 3},
-		MealPlanCellVisibleItems: 4,
-		RecipeListHighlightMs:    2000,
-		RecencyThresholdDays:     10,
-		LeftoverCopyPresets:      []int{2, 3, 4},
-		WeeklyPresetRecipeCount:  [2]int{2, 3},
-		ExpiryAlertRedDays:       3,
-		ExpiryAlertYellowDays:    7,
-		MealPlanCellSizePresets:  defaultCellSizePresets(),
+		DefaultVisibleMeals:       []string{"dinner"},
+		WeeklyFillPattern:         "mon-fri-dinner",
+		ItemsPerMealHint:          [2]int{1, 3},
+		MealPlanCellVisibleItems:  4,
+		RecipeListHighlightMs:     2000,
+		RecencyThresholdDays:      10,
+		LeftoverCopyPresets:       []int{2, 3, 4},
+		WeeklyPresetRecipeCount:   [2]int{2, 3},
+		ExpiryAlertRedDays:        3,
+		ExpiryAlertYellowDays:     7,
+		MealPlanCellSizePresets:   defaultCellSizePresets(),
+		ShoppingPeriodDayPresets:  []int{3, 4, 7, 14, 28},
+		ShoppingDefaultPeriodDays: 7,
 	}
 }
 

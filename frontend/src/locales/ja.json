@@ -132,7 +132,8 @@
         "batch_merge_denied": "その作り置きにはまとめられません",
         "invalid_period_weeks": "選択できない期間長です",
         "unknown": "処理に失敗しました"
-      }
+      },
+      "shopping_cta": "この期間の買い物リストを見る"
     },
     "recipes": {
       "title": "レシピ",
@@ -276,7 +277,42 @@
     },
     "shopping": {
       "title": "買い物リスト",
-      "placeholder": "S07 買い物リストの実装は proposal add-shopping-list で着手予定"
+      "description": "この期間の献立で使う材料の目安です",
+      "period": "対象期間: {{start}} 〜 {{end}}",
+      "picker": {
+        "start": "開始日",
+        "days": "日数",
+        "day_option": "{{count}} 日"
+      },
+      "column": {
+        "name": "食材",
+        "amount": "必要量",
+        "stock": "在庫",
+        "usage": "用途"
+      },
+      "amount_unspecified": "—",
+      "stock_status": {
+        "none": "在庫なし",
+        "partial": "一部在庫あり",
+        "covered": "在庫あり"
+      },
+      "dishes": {
+        "title": "この期間の献立",
+        "batch": "作り置き",
+        "started_before": "期間前から",
+        "date_range": "{{start}}〜{{end}}",
+        "meal": {
+          "breakfast": "朝",
+          "lunch": "昼",
+          "dinner": "夕"
+        }
+      },
+      "empty": {
+        "no_plans": "この期間に献立がありません。S01 でレシピを割り当てると、ここに材料が並びます",
+        "no_ingredients": "献立のレシピに材料が登録されていません"
+      },
+      "loading": "読み込み中...",
+      "load_error": "買い物リストの読み込みに失敗しました"
     }
   },
   "health": {
