@@ -54,10 +54,9 @@
         "replace": "Replace",
         "remove": "Remove this dish",
         "view_detail": "View recipe detail",
-        "copy_days": "Repeat for {{days}} days",
+        "spread": "Spread this batch",
         "split_batch": "Detach from batch",
-        "merge_batch": "Merge into another batch",
-        "copy_to_meal": "Add this batch to another meal"
+        "merge_batch": "Merge into another batch"
       },
       "meal_menu": {
         "clear": "Clear this meal",
@@ -99,13 +98,22 @@
           "item_label": "{{date}} {{meal}} {{recipeName}} ({{count}} items)"
         }
       },
-      "copy_to_meal": {
-        "title": "Add this batch to another meal",
-        "target_date_label": "Target date",
-        "target_meal_label": "Target meal",
-        "confirm": "Add",
-        "empty_meals": "No other meals available",
-        "cancel": "Cancel"
+      "spread": {
+        "title": "Spread this batch",
+        "origin_hint": "Source: {{date}} {{meal}} {{recipeName}}",
+        "date_header": "Date",
+        "source_cell_label": "Source cell (not selectable)",
+        "cell_checkbox_label": "Target {{date}} {{meal}}",
+        "mode_legend": "How to apply",
+        "share_batch_label": "Share batch",
+        "distinct_label": "Distinct",
+        "conflict_legend": "When target cell has existing dishes",
+        "conflict_append_label": "Append",
+        "conflict_overwrite_label": "Overwrite",
+        "confirm": "Apply",
+        "cancel": "Cancel",
+        "show_more": "Show {{count}} more day(s)",
+        "partial_failure": "Failed to apply {{count}} cell(s)"
       },
       "dnd": {
         "item_grabbable_label": "Drag to move to another cell",

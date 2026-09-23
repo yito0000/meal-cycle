@@ -9,10 +9,9 @@ export type EntryAction =
   | "replace"
   | "remove"
   | "view-detail"
-  | "copy-days"
+  | "spread"
   | "split-batch"
-  | "merge-batch"
-  | "copy-to-meal";
+  | "merge-batch";
 export type MealAction = "clear" | "copy-days" | "reorder";
 
 export type DragSource = { date: string; meal: string; position: number };
@@ -25,7 +24,7 @@ interface Props {
   preset: CellSizePreset;
   onAddFirst: () => void;
   onAddMore: () => void;
-  onEntryAction: (action: EntryAction, entry: Entry, days?: number) => void;
+  onEntryAction: (action: EntryAction, entry: Entry) => void;
   onMealAction: (action: MealAction, days?: number) => void;
   isAnyDragging: boolean;
   dragSource: DragSource | null;
@@ -198,10 +197,9 @@ export function MealPlanCell({
               onReplace={() => onEntryAction("replace", entry)}
               onRemove={() => onEntryAction("remove", entry)}
               onViewDetail={() => onEntryAction("view-detail", entry)}
-              onCopyDays={(days) => onEntryAction("copy-days", entry, days)}
+              onSpread={() => onEntryAction("spread", entry)}
               onSplitBatch={() => onEntryAction("split-batch", entry)}
               onMergeBatch={() => onEntryAction("merge-batch", entry)}
-              onCopyToMeal={() => onEntryAction("copy-to-meal", entry)}
             />
           </div>
         );

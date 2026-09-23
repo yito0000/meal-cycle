@@ -54,10 +54,9 @@
         "replace": "入れ替え",
         "remove": "この品を削除",
         "view_detail": "この品のレシピ詳細を見る",
-        "copy_days": "この品を連続 {{days}} 日",
+        "spread": "作り置きを広げる",
         "split_batch": "作り置きから外す",
-        "merge_batch": "他の作り置きにまとめる",
-        "copy_to_meal": "別の時間帯にも作り置きを追加"
+        "merge_batch": "他の作り置きにまとめる"
       },
       "meal_menu": {
         "clear": "時間帯全体をクリア",
@@ -99,13 +98,22 @@
           "item_label": "{{date}} {{meal}} {{recipeName}} ({{count}} 品)"
         }
       },
-      "copy_to_meal": {
-        "title": "別の時間帯にも作り置きを追加",
-        "target_date_label": "対象日",
-        "target_meal_label": "対象時間帯",
-        "confirm": "追加",
-        "empty_meals": "選べる時間帯がありません",
-        "cancel": "キャンセル"
+      "spread": {
+        "title": "作り置きを広げる",
+        "origin_hint": "起点: {{date}} {{meal}} {{recipeName}}",
+        "date_header": "日付",
+        "source_cell_label": "起点セル (選択不可)",
+        "cell_checkbox_label": "{{date}} {{meal}} を対象にする",
+        "mode_legend": "反映方法",
+        "share_batch_label": "作り置き",
+        "distinct_label": "別調理",
+        "conflict_legend": "既存割当がある場合",
+        "conflict_append_label": "追加",
+        "conflict_overwrite_label": "上書き",
+        "confirm": "反映",
+        "cancel": "キャンセル",
+        "show_more": "さらに {{count}} 日表示",
+        "partial_failure": "{{count}} 件の反映に失敗しました"
       },
       "dnd": {
         "item_grabbable_label": "ドラッグして別セルへ移動",

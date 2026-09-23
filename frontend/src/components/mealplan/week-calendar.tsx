@@ -7,11 +7,11 @@ import type {
 } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
 import { Meal } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
 import { MealPlanService } from "../../../bindings/github.com/yito0000/meal-cycle/internal/service";
+import { planSpread, type SpreadSelection } from "../../lib/spread-batch-selection";
 import { BatchMergeDialog } from "./batch-merge-dialog";
 import { CopyConflictDialog, type CopyConflictMode } from "./copy-conflict-dialog";
 import { CopyModeDialog } from "./copy-mode-dialog";
 import { previewCopy } from "./copy-planner";
-import { CopyToMealDialog } from "./copy-to-meal-dialog";
 import { errorI18nKey } from "./error-messages";
 import {
   type DragSource,
@@ -23,6 +23,7 @@ import {
 import { MEAL_RENDER_ORDER, MEALPLAN_DEFAULTS, pickCellPreset } from "./mealplan-config";
 import type { PeriodWeeks } from "./period-nav";
 import { RecipePickerDialog } from "./recipe-picker-dialog";
+import { SpreadBatchDialog } from "./spread-batch-dialog";
 import { formatDate, isSameLocalDate, periodDates } from "./week-utils";
 
 type Props = {
@@ -41,7 +42,7 @@ type PendingCopy = {
   date: string;
   meal: string;
   days: number;
-  position: number; // -1 = 時間帯全体
+  position: number;
   targets: string[];
   conflicts: string[];
   shareBatch?: boolean;
@@ -51,21 +52,24 @@ type MergeDialogState =
   | { kind: "closed" }
   | { kind: "open"; date: string; meal: string; position: number; candidates: BatchSummary[] };
 
-type CopyToMealState =
+type SpreadState =
   | { kind: "closed" }
-  | { kind: "picking"; sourceDate: string; sourceMeal: string; sourcePosition: number }
   | {
-      kind: "confirm-conflict";
+      kind: "open";
       sourceDate: string;
       sourceMeal: string;
       sourcePosition: number;
-      targetDate: string;
-      targetMeal: string;
+      sourceRecipeName: string;
     };
 
-// mergeDayRange の source of truth は Go 側 config.LeftoverCopyPresets の max。
-// フロントは MEALPLAN_DEFAULTS.leftoverCopyPresets の mirror を使う (S09 で ConfigService 経由に移行)。
-const CROSS_MEAL_DAY_RANGE = Math.max(...MEALPLAN_DEFAULTS.leftoverCopyPresets);
+// 統合ダイアログの対象日は起点日 + 未来 (max(LeftoverCopyPresets) - 1) 日 = 4 行 (実装時点)。
+// 上限が max(presets)-1 なのは、CopyLeftover の days が LeftoverCopyPresets の要素のみ受け付ける
+// ため (最大オフセット = max(presets) - 1 = 3)。過去方向は「作り置きは翌日以降に伸ばす」意図に
+// 反するため対象外。expandStep=0 は「展開ボタンを出さない」意味 (backend 側 presets を拡張する
+// 別 proposal で対応する予定)。
+const SPREAD_INITIAL_FUTURE_DAYS = Math.max(...MEALPLAN_DEFAULTS.leftoverCopyPresets) - 1;
+const SPREAD_EXPAND_STEP = 0;
+const SPREAD_PRESET_DAYS = Math.min(...MEALPLAN_DEFAULTS.leftoverCopyPresets);
 
 function mealLabelKey(meal: string): string {
   switch (meal) {
@@ -78,15 +82,42 @@ function mealLabelKey(meal: string): string {
   }
 }
 
+// 「連続 N 日」の N (起点日を含む合計日数) を、CopyLeftover の呼び出し形式に合わせて算出する。
+// spread 選択の同 meal 対象日群は起点日 +1..+K の連続 K 日ではなく、任意のとびとびの可能性がある。
+// CopyLeftover は「起点日を含む合計 N 日」の連続日を仮定するので、選択日群の最大オフセット + 1 を N に採る。
+// 選択されなかった中間日は今回追加されないため、UI 側でとびとび選択されても「起点 +max オフセットまで
+// 連続に追加された」ことになる (中間空セルは自動的に埋まる)。ここは統合ダイアログの D1 リスクを踏まえた
+// 意図的挙動: 「連続 N 日」相当のセマンティクスに揃える (design.md D2)。
+function computeCopyDays(sourceDate: string, sameMealDates: string[]): number {
+  let maxOffset = 0;
+  for (const d of sameMealDates) {
+    const [sy, sm, sd] = sourceDate.split("-").map(Number);
+    const [dy, dm, dd] = d.split("-").map(Number);
+    const gap = Math.round(
+      (new Date(dy, dm - 1, dd).getTime() - new Date(sy, sm - 1, sd).getTime()) / 86_400_000,
+    );
+    if (gap > maxOffset) maxOffset = gap;
+  }
+  return maxOffset + 1;
+}
+
 export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }: Props) {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const [picker, setPicker] = useState<PickerState>({ kind: "closed" });
   const [pendingCopy, setPendingCopy] = useState<PendingCopy | null>(null);
   const [mergeDialog, setMergeDialog] = useState<MergeDialogState>({ kind: "closed" });
-  const [copyToMeal, setCopyToMeal] = useState<CopyToMealState>({ kind: "closed" });
-  const [errorKey, setErrorKey] = useState<string | null>(null);
+  const [spreadState, setSpreadState] = useState<SpreadState>({ kind: "closed" });
+  const [errorState, setErrorState] = useState<{
+    key: string;
+    params?: Record<string, unknown>;
+  } | null>(null);
   const [dragSource, setDragSource] = useState<DragSource | null>(null);
+
+  const setErrorKey = (key: string | null) => {
+    if (key === null) setErrorState(null);
+    else setErrorState({ key });
+  };
 
   // 期間切替と前後ナビの再取得は queryKey ["mealplan", "period", …] を共通 prefix ["mealplan"] で
   // 全部落とすように統一する (design.md D4)。
@@ -160,26 +191,6 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
           v.sourcePosition,
           v.targetDate,
           v.targetMeal,
-        ),
-      ),
-  });
-  const copyToMealMut = useMutation({
-    mutationFn: (v: {
-      sourceDate: string;
-      sourceMeal: string;
-      sourcePosition: number;
-      targetDate: string;
-      targetMeal: string;
-      mode: string;
-    }) =>
-      withHandlers(
-        MealPlanService.CopyToOtherMeal(
-          v.sourceDate,
-          v.sourceMeal,
-          v.sourcePosition,
-          v.targetDate,
-          v.targetMeal,
-          v.mode,
         ),
       ),
   });
@@ -259,54 +270,76 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
     }
   };
 
-  const submitCopyToMeal = (
-    sourceDate: string,
-    sourceMeal: string,
-    sourcePosition: number,
-    targetDate: string,
-    targetMeal: string,
-    mode: string,
-  ) => {
-    copyToMealMut.mutate({ sourceDate, sourceMeal, sourcePosition, targetDate, targetMeal, mode });
-  };
+  // 統合ダイアログの OK 押下: 選択セル群を「同 meal (CopyLeftover)」と「別 meal (CopyToOtherMeal)」に
+  // 分けて逐次反映する。SQLite への同時書き込みは modernc.org ドライバの busy_timeout に頼れば
+  // 通ることが多いが、Wails IPC 経由で並列に投げると片方が確定前に他方の invalidate と競って
+  // 起点行が見えなくなるケースがある。今は件数が少ない (最大 3 * 4 = 12) ので逐次で十分。
+  const submitSpread = async (selection: SpreadSelection) => {
+    if (spreadState.kind !== "open") return;
+    const source = {
+      date: spreadState.sourceDate,
+      meal: spreadState.sourceMeal,
+      position: spreadState.sourcePosition,
+    };
+    const { sameMealDates, crossMeal } = planSpread(source, selection);
+    setSpreadState({ kind: "closed" });
 
-  const handleCopyToMealPick = (targetDate: string, targetMeal: string) => {
-    if (copyToMeal.kind !== "picking") return;
-    const { sourceDate, sourceMeal, sourcePosition } = copyToMeal;
-    const hasConflict = entries.some((e) => e.date === targetDate && e.meal === targetMeal);
-    if (!hasConflict) {
-      submitCopyToMeal(sourceDate, sourceMeal, sourcePosition, targetDate, targetMeal, "append");
-      setCopyToMeal({ kind: "closed" });
-      return;
+    const conflictMode = selection.conflictMode;
+    const shareBatch = selection.shareBatch;
+    const tasks: (() => Promise<void>)[] = [];
+    if (sameMealDates.length > 0) {
+      const days = computeCopyDays(source.date, sameMealDates);
+      tasks.push(async () => {
+        await MealPlanService.CopyLeftover(
+          source.date,
+          source.meal,
+          days,
+          source.position,
+          conflictMode,
+          shareBatch,
+        );
+      });
     }
-    setCopyToMeal({
-      kind: "confirm-conflict",
-      sourceDate,
-      sourceMeal,
-      sourcePosition,
-      targetDate,
-      targetMeal,
-    });
-  };
-
-  const resolveCopyToMealConflict = (mode: CopyConflictMode) => {
-    if (copyToMeal.kind !== "confirm-conflict") return;
-    if (mode === "cancel") {
-      setCopyToMeal({ kind: "closed" });
-      return;
+    for (const target of crossMeal) {
+      tasks.push(async () => {
+        await MealPlanService.CopyToOtherMeal(
+          source.date,
+          source.meal,
+          source.position,
+          target.date,
+          target.meal,
+          conflictMode,
+        );
+      });
     }
-    const { sourceDate, sourceMeal, sourcePosition, targetDate, targetMeal } = copyToMeal;
-    submitCopyToMeal(sourceDate, sourceMeal, sourcePosition, targetDate, targetMeal, mode);
-    setCopyToMeal({ kind: "closed" });
+
+    let failed = 0;
+    let firstErrKey: string | null = null;
+    for (const run of tasks) {
+      try {
+        await run();
+      } catch (err) {
+        failed++;
+        if (firstErrKey === null) firstErrKey = errorI18nKey(err);
+        // 統合ダイアログの失敗は分類が難しい (source/target 組み合わせが混ざる) ので、
+        // devtools console に生 error を残して個別に追えるようにする。
+        console.error("spread submit: task failed", err);
+      }
+    }
+    invalidate();
+    if (failed > 0) {
+      // 全部同じ理由で失敗した場合はその key を、混在するときは partial_failure に集約する。
+      setErrorState(
+        failed === tasks.length && firstErrKey !== null
+          ? { key: firstErrKey }
+          : { key: "pages.meal_plan.spread.partial_failure", params: { count: failed } },
+      );
+    } else {
+      setErrorState(null);
+    }
   };
 
-  const handleEntryAction = (
-    date: string,
-    meal: string,
-    action: EntryAction,
-    entry: Entry,
-    days?: number,
-  ) => {
+  const handleEntryAction = (date: string, meal: string, action: EntryAction, entry: Entry) => {
     switch (action) {
       case "replace":
         setPicker({ kind: "replace", date, meal, position: entry.position });
@@ -318,22 +351,20 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
         // S03 レシピ詳細ドロワーは別 proposal で実装。現状はエラー表示に留める。
         setErrorKey("pages.meal_plan.errors.unknown");
         break;
-      case "copy-days":
-        if (days) startCopy(date, meal, days, entry.position);
+      case "spread":
+        setSpreadState({
+          kind: "open",
+          sourceDate: date,
+          sourceMeal: meal,
+          sourcePosition: entry.position,
+          sourceRecipeName: entry.recipeName,
+        });
         break;
       case "split-batch":
         splitMut.mutate({ date, meal, position: entry.position });
         break;
       case "merge-batch":
         void openMergeDialog(date, meal, entry.position, entry.recipeId);
-        break;
-      case "copy-to-meal":
-        setCopyToMeal({
-          kind: "picking",
-          sourceDate: date,
-          sourceMeal: meal,
-          sourcePosition: entry.position,
-        });
         break;
     }
   };
@@ -421,9 +452,9 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
 
   return (
     <div className="flex flex-col gap-2">
-      {errorKey && (
+      {errorState && (
         <p className="rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">
-          {t(errorKey)}
+          {t(errorState.key, errorState.params)}
         </p>
       )}
       <div
@@ -481,7 +512,7 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
                         preset={preset}
                         onAddFirst={() => setPicker({ kind: "add", date, meal })}
                         onAddMore={() => setPicker({ kind: "add", date, meal })}
-                        onEntryAction={(a, e, days) => handleEntryAction(date, meal, a, e, days)}
+                        onEntryAction={(a, e) => handleEntryAction(date, meal, a, e)}
                         onMealAction={(a, days) => handleMealAction(date, meal, a, days)}
                         isAnyDragging={dragSource !== null}
                         dragSource={dragSource}
@@ -520,6 +551,8 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
         }}
       />
 
+      {/* 時間帯全体の連続 N 日コピーは統合ダイアログの対象外 (proposal Non-goal)。CopyModeDialog は
+          そちらの経路で使い続ける (design.md 追記の判断)。 */}
       <CopyModeDialog
         open={showModeDialog}
         onOpenChange={(next) => {
@@ -553,22 +586,27 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
         }}
       />
 
-      <CopyToMealDialog
-        open={copyToMeal.kind === "picking"}
-        sourceDate={copyToMeal.kind === "picking" ? copyToMeal.sourceDate : ""}
-        sourceMeal={copyToMeal.kind === "picking" ? copyToMeal.sourceMeal : ""}
-        dayRange={CROSS_MEAL_DAY_RANGE}
-        onOpenChange={(next) => {
-          if (!next) setCopyToMeal({ kind: "closed" });
-        }}
-        onSelect={handleCopyToMealPick}
-      />
-
-      <CopyConflictDialog
-        open={copyToMeal.kind === "confirm-conflict"}
-        conflictTargets={copyToMeal.kind === "confirm-conflict" ? [copyToMeal.targetDate] : []}
-        onSelect={resolveCopyToMealConflict}
-      />
+      {spreadState.kind === "open" && (
+        <SpreadBatchDialog
+          open
+          source={{
+            date: spreadState.sourceDate,
+            meal: spreadState.sourceMeal,
+            position: spreadState.sourcePosition,
+          }}
+          sourceRecipeName={spreadState.sourceRecipeName}
+          existingEntries={entries}
+          initialFutureDays={SPREAD_INITIAL_FUTURE_DAYS}
+          expandStepDays={SPREAD_EXPAND_STEP}
+          presetDays={SPREAD_PRESET_DAYS}
+          onOpenChange={(next) => {
+            if (!next) setSpreadState({ kind: "closed" });
+          }}
+          onConfirm={(selection) => {
+            void submitSpread(selection);
+          }}
+        />
+      )}
     </div>
   );
 }
