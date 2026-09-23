@@ -71,13 +71,14 @@ func main() {
 	}
 }
 
-// newRegistry は main.go の application.Options.Services と同じ 3 サービスを返す。
+// newRegistry は main.go の application.Options.Services と同じ 4 サービスを返す。
 // 片方だけ増えると E2E が本番と食い違うので、dispatch_test.go で件数を突き合わせる。
 func newRegistry(db *sql.DB, recipeSvc *service.RecipeService) serviceRegistry {
 	return serviceRegistry{
 		"HealthService":   service.NewHealthService(db),
 		"MealPlanService": service.NewMealPlanService(sqlite.NewMealPlanRepo(db)),
 		"RecipeService":   recipeSvc,
+		"FridgeService":   service.NewFridgeService(db),
 	}
 }
 

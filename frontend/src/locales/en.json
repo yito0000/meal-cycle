@@ -204,7 +204,75 @@
     },
     "fridge": {
       "title": "Fridge",
-      "placeholder": "S05 fridge inventory — see proposal add-fridge-listing"
+      "loading": "Loading...",
+      "load_error": "Failed to load stock",
+      "search": {
+        "placeholder": "Search by ingredient"
+      },
+      "sort": {
+        "label": "Sort",
+        "expiry_asc": "Expiring soonest",
+        "name_asc": "Name",
+        "added_desc": "Recently added"
+      },
+      "column": {
+        "name": "Ingredient",
+        "amount": "Amount",
+        "expires_at": "Best before",
+        "days_left": "Days left",
+        "actions": "Actions"
+      },
+      "add": {
+        "label": "Add:",
+        "name_placeholder": "Ingredient",
+        "amount_placeholder": "Amount",
+        "unit_placeholder": "Unit",
+        "expires_placeholder": "Best before (optional)",
+        "submit": "Add",
+        "suggestions_label": "Ingredient suggestions"
+      },
+      "field": {
+        "name": "Ingredient",
+        "amount": "Amount",
+        "unit": "Unit",
+        "expires_at": "Best before"
+      },
+      "row": {
+        "edit": "Edit",
+        "delete": "Delete",
+        "save": "Save",
+        "cancel": "Cancel"
+      },
+      "days_left": {
+        "remaining": "{{count}} days left",
+        "today": "Today",
+        "overdue": "{{count}} days over",
+        "none": "—"
+      },
+      "expiry_status": {
+        "urgent": "Expiring soon",
+        "soon": "Expiring this week",
+        "fresh": "Plenty of time",
+        "expired": "Expired"
+      },
+      "empty": {
+        "no_items": "The fridge is empty. Use the row above to add items",
+        "no_match": "No matching items"
+      },
+      "toast": {
+        "deleted": "Deleted \"{{name}}\"",
+        "undo": "Undo",
+        "restore_failed": "Could not undo"
+      },
+      "errors": {
+        "name_empty": "Enter an ingredient name",
+        "name_too_long": "Ingredient name must be 100 characters or fewer",
+        "amount_out_of_range": "Amount must be greater than 0 and at most 99999",
+        "unit_too_long": "Unit must be 20 characters or fewer",
+        "invalid_expiry": "Enter a valid date",
+        "not_found": "This item has already been deleted",
+        "unknown": "Failed to save"
+      }
     },
     "shopping": {
       "title": "Shopping list",

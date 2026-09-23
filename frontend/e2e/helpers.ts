@@ -36,3 +36,48 @@ export async function createRecipe(page: Page, name: string, tags: string[] = []
     throw new Error(`create ${name} failed: ${res.status()} ${await res.text()}`);
   }
 }
+
+const tf = ja.pages.fridge;
+
+// サイドバーから S05 に入る。
+export async function openFridge(page: Page) {
+  if (!page.url().startsWith("http")) {
+    await page.goto("/");
+  }
+  await page.getByRole("link", { name: ja.nav.fridge }).click();
+  await page.getByRole("heading", { name: tf.title }).waitFor();
+}
+
+// dateAfter はローカル日付で n 日後の YYYY-MM-DD を返す。e2e-server も同じマシンの
+// ローカル日付で残り日数を数えるので、ここで UTC を使うと深夜帯に 1 日ずれる。
+export function dateAfter(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+// addStockItem は UI を経由せず 1 行作る (createRecipe と同じ理由)。
+export async function addStockItem(
+  page: Page,
+  item: { name: string; amount: number; unit: string; expiresInDays?: number },
+) {
+  const res = await page.request.post("/api/FridgeService/Add", {
+    data: [
+      {
+        id: "",
+        name: item.name,
+        amount: item.amount,
+        unit: item.unit,
+        expiresAt: item.expiresInDays === undefined ? "" : dateAfter(item.expiresInDays),
+        addedAt: "",
+        updatedAt: "",
+        expiryStatus: "",
+        daysLeft: null,
+      },
+    ],
+  });
+  if (!res.ok()) {
+    throw new Error(`add stock ${item.name} failed: ${res.status()} ${await res.text()}`);
+  }
+}

@@ -15,7 +15,7 @@ import (
 const apiPrefix = "/api/"
 
 // serviceRegistry はサービス名から Wails 登録済みインスタンスを引く。
-// main.go の application.Options.Services と同じ 3 つを保つこと。
+// main.go の application.Options.Services と同じ 4 つを保つこと。
 type serviceRegistry map[string]any
 
 // dispatchHandler は POST /api/{Service}/{Method} を reflect でサービスに転送する。

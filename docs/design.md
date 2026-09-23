@@ -116,12 +116,15 @@ category     : string           // "野菜", "肉" など
 
 ```
 id           : string
-ingredientId : string
+name         : string           // 食材名 (自由テキスト。実装済みの recipe_ingredients.name と同じく食材マスタは未導入)
 amount       : number
 unit         : string
 expiresAt    : date | null      // 賞味期限
 addedAt      : timestamp
+updatedAt    : timestamp
 ```
+
+- 食材マスタへの移行は `add-ingredient-master` で `recipe_ingredients.name` と同時に行う
 
 ### MealPlan（献立エントリ）
 
@@ -316,9 +319,7 @@ add-recipe-listing        ← model + repo + service + 一覧 + 最小登録
 add-recipe-details        ← 詳細ドロワー + 手順・メモ等の追加項目
 add-recipe-editing
 add-recipe-deletion
-add-fridge-listing        ← 在庫一覧
-add-fridge-add-item       ← 食材追加
-add-fridge-expiry-sort    ← 賞味期限順
+add-fridge-inventory      ← 在庫一覧 + 賞味期限順 + インライン追加 / 編集 / 削除 (当初の 3 分割を 1 本化)
 add-mealplan-week-view    ← 1週間カレンダー表示
 add-mealplan-assign-recipe ← 日付にレシピを割り当て
 add-mealplan-multi-week   ← 2週/4週表示切替
