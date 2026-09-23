@@ -34,7 +34,7 @@ task lint:frontend          # Frontend 側だけ
 task format                 # Go + Frontend を自動整形（Biome fix + golangci-lint fmt）
 ```
 
-`frontend/bindings/` は `.gitignore` 対象、`task dev` / `task build` で再生成される。Wails v3 beta.12 は **`.ts` ではなく `.js`＋JSDoc** を出力するので、`tsconfig.json` で `allowJs` + `checkJs` を有効化している。
+`frontend/bindings/` は `.gitignore` 対象、`task dev` / `task build` で再生成される。生成形式は呼び方で変わる: `task dev` / `task build` は `-ts -i` 付きで **`.ts`**、素の `wails3 generate bindings`（`task build:win` 含む）は **`.js`＋JSDoc** を出す。どちらでも型チェックが通るよう `tsconfig.json` で `allowJs` + `checkJs` を有効化している。
 
 ## アーキテクチャ
 
@@ -43,9 +43,9 @@ Go 側 4 レイヤ + フロントエンドを、Wails 自動生成のバイン�
 ```
 Frontend (React + Vite)  ──┐
                            │  Wails IPC (bindings/)
-Service (internal/service/) ─┤  ← 単一 package service に 1 capability = 1 ファイル (recipe.go / mealplan.go / health.go)
+Service (internal/service/) ─┤  ← 単一 package service に 1 capability = 1 ファイル (recipe.go / mealplan.go / fridge.go / health.go)
                            │
-Domain (internal/domain/)  │  ← capability 単位: recipe/, mealplan/, fridge/, stock/
+Domain (internal/domain/)  │  ← capability 単位: recipe/, mealplan/, fridge/
                            │
 Repository (internal/storage/sqlite/)  ← Open / Migrate + capability ごとに 1 repo
 ```
@@ -105,6 +105,7 @@ func TestRecipeService_List(t *testing.T) {
 **E2E（`frontend/e2e/`）**: Playwright + headless Chromium。Wails の IPC 層だけを HTTP に差し替え、React / Go サービス / SQLite は本物のまま通す。`task test:e2e` で実行する。
 
 - 生成 bindings への import は、`--mode e2e` のときだけ `frontend/e2e/bindings-shim/` に差し替わる（`vite-plugin-e2e-bindings.ts`）。`task dev` / `task build` には影響しない
+- shim の戻り値型は生成物より狭く書く（例: `StockItem[] | null` ではなく `StockItem[]`）。`.ts` 生成と `.js` 生成で nullable の付き方が違い、狭い型なら両方に代入できる
 - サーバは `cmd/e2e-server`。`frontend/dist` を配信し、`POST /api/{Service}/{Method}` を reflect で `internal/service` に転送する。DB はテストごとに一時ディレクトリへ作り直す
 - **テスト名は [docs/scenarios/](docs/scenarios/) の `シナリオ:` 行と一字一句揃える**。`describe` 名は `機能:` 行に揃える。未実装のシナリオは `test.skip` で名前だけ置く
 - ルータは memory history なので `page.goto("/recipes")` では遷移しない。サイドバーをクリックする
@@ -144,7 +145,7 @@ if now == existing.UpdatedAt { ... }
 ## ドキュメントは load-bearing
 
 - `docs/wireframes/*.drawio.svg` — **ワイヤーは視覚レイアウトの正**。[product.md §4](docs/product.md) は絵から読めない相互作用・遷移だけを言葉で書く。`.drawio.svg` は **可視 SVG と drawio 用の編集 XML の二重構造**（`content=` 属性内）— 片方だけ触ると乖離する。詳細は [docs/wireframes/README.md](docs/wireframes/README.md)
-- `docs/scenarios/*.feature` — capability ごとの Gherkin シナリオ（日本語 Gherkin、`# language: ja`）。**現状はドキュメント扱い、実行はしていない** — E2E が実際に必要になったタイミングで godog 導入を検討する。proposal を切るとき対応する `.feature` にシナリオを追加する
+- `docs/scenarios/*.feature` — capability ごとの Gherkin シナリオ（日本語 Gherkin、`# language: ja`）。`.feature` 自体は実行しない（godog は入れない）が、Playwright E2E のテスト名が `シナリオ:` 行と一字一句対応している（上記「テスト方針」の E2E 節）。proposal を切るとき対応する `.feature` にシナリオを追加する
 - ワイヤーと product.md は節番号で相互参照している。画面の挙動を変えたら両方を更新する必要が大抵ある
 
 ## OpenSpec ワークフロー
@@ -159,12 +160,12 @@ if now == existing.UpdatedAt { ... }
 - `openspec-sync-specs` — archive せずに delta を `openspec/specs/` に反映
 - `openspec-archive-change` — 実装完了後の確定処理
 
-proposal は `openspec/changes/<name>/`、アーカイブは `openspec/changes/archive/`、現行仕様スナップショットは `openspec/specs/<capability>/`。proposal の順序案は [design.md §8](docs/design.md)、最初にやるのは `add-recipe-listing` の想定。
+proposal は `openspec/changes/<name>/`、アーカイブは `openspec/changes/archive/`、現行仕様スナップショットは `openspec/specs/<capability>/`。proposal の順序案は [design.md §8](docs/design.md)。
 
 **運用フロー（重要）**: `/opsx:propose`（または `openspec-propose`）で planning artifacts（proposal.md / specs/…/spec.md / design.md / tasks.md）を生成した**あとは、そのまま tasks.md に沿って実装を開始しない**。必ず**人間のレビューを挟み、明示的な指示（例: 「apply して」「実装始めて」「/opsx:apply」）を受けてから** `openspec-apply-change` に進む。propose は planning のみで停止するのが既定 — 続けて実装したくなっても、レビュー承認を待つこと。
 
 **artifact 記述ルール**（詳細は [openspec/config.yaml](openspec/config.yaml) `rules` セクションが正）:
-- proposal.md / design.md / spec.md / tasks.md はすべて **1 行あたり 120 文字以内**（超えたら改行）
+- proposal.md / design.md / spec.md は **1 行あたり 200 文字以内**（超えたら改行）
 - design.md で複数実現方法がある場合は **選択肢を列挙し、各案の Pros/Cons と選定理由を書く**
 - tasks.md は **1 行 = 1 指示**。複数作業を含む場合は箇条書きで分割
 - tasks.md のテスト作成タスクは **各テストケースをネストした箇条書き**で列挙する
@@ -207,8 +208,9 @@ WSL 側で `task dev` を叩いた DB は `~/.local/share/meal-cycle/meal-cycle.
 
 機能追加・改善・不具合修正のいずれでも、**実装の最後に必ずテストを走らせて全て pass することを確認**してから完了報告する。テストが落ちたまま「完了」と報告しない。
 
-- Go: `go test ./internal/...`（`./...` は build/ios に main が無く落ちるので避ける）
+- Go: `go test ./internal/... ./cmd/...`（`./...` は build/ios に main が無く落ちるので避ける。`./cmd/...` は E2E サーバの dispatch / サービス登録数のテストを含む）
 - Frontend: test runner がまだ入っていない（Vitest 導入は別 proposal）。代替として `cd frontend && npm run type-check` と `cd frontend && npm run build:dev` を実行する。runner が入ったらそちらを追加する
+- 画面の挙動に触れた変更では `task test:e2e` も走らせる
 - OpenSpec 経由の実装では [openspec/config.yaml](openspec/config.yaml) の `operations.apply.guidance` にも同ルールを載せてある
 
 ## lint / format
@@ -224,13 +226,13 @@ Go とフロントの両方で lint/format を有効化している。実装後�
 
 ## コミット規約
 
-- Conventional Commits: `docs:` / `chore:` / `feat:` / `fix:`
+- Conventional Commits: `docs:` / `chore:` / `feat:` / `fix:`。capability に閉じる変更は scope を付ける（例: `feat(fridge):` / `chore(openspec):`）
 - スキャフォールドは `chore:`、ユーザー価値のあるスライスは `feat:`（通常 proposal 内）
 - **メッセージは 1 行程度で簡潔に**。長い説明が要るときだけ空行を挟んで本文を続ける
-- **AI 支援コミットには `Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>` trailer を付ける**（既存履歴に揃えるため、および将来 OSS 公開したときに AI 関与を後から特定できるようにするため）
+- **AI 支援コミットには `Co-Authored-By: <実際に使ったモデル名> <noreply@anthropic.com>` trailer を付ける**（例: `Claude Opus 4.7` / `Claude Opus 5.5`）。モデルはセッションごとに変わるので固定しない。将来 OSS 公開したときに AI 関与と使ったモデルを後から特定できるようにするため
 
 ## Wails 固有の注意点
 
 - `main.go` の初期ウィンドウサイズは `app.Screen.GetPrimary().WorkArea` の 85% (幅 2400 / 高さ 1500 で cap、失敗時は 1440×900) を使い、OS の DPI 設定にそのまま合わせる。`Zoom: 1.5` は高 DPI (4K 等) 向けの内容拡大で、CSS の `font-size` は意図的に触っていない — Wails の WebView zoom で拡大することで dev / preview / packaged の見た目を揃える
 - `build/ios` と `build/android` は Wails 標準のモバイル雛形、**MVP 対象外**。`go build ./...` はここで `main undeclared` で落ちるので、Go コマンドは `./internal/...` か `./` に絞ること
-- Wails サービスにメソッドを足したら、`internal/service/<capability>.go` の struct にメソッドを定義 → `wails3 generate bindings` → TS 側は `frontend/bindings/github.com/yito0000/meal-cycle/internal/service` から import (`import { RecipeService } from "…/internal/service"`)
+- Wails サービスにメソッドを足したら、`internal/service/<capability>.go` の struct にメソッドを定義 → `wails3 generate bindings -clean=true -ts -i`（`task dev` と同じ形式）→ TS 側は `frontend/bindings/github.com/yito0000/meal-cycle/internal/service` から import (`import { RecipeService } from "…/internal/service"`)
