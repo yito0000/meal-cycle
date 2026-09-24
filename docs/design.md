@@ -381,3 +381,6 @@ add-mealplan-suggest-week-preset ← 週プリセット: 5コマ分を貪欲生�
 - [x] `go.mod` の module 名を `changeme` から変更する（実装開始前に）→ `github.com/yito0000/meal-cycle` に確定済み
 
 現時点で未決の項目なし。新しく発生したら追記する。
+
+設計と UI/UX の見直しで挙がった指摘（未対応を含む）は [reviews/](reviews/) に日付ごとに残している。
+最新は [2026-09-25 のレビュー](reviews/2026-09-25-design-ux-review.md)。
