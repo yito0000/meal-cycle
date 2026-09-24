@@ -1,7 +1,8 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { RecipeEditForm } from "@/components/recipe/recipe-edit-form";
+import { useRecipeDetail } from "@/components/recipe/use-recipe-detail";
 import { router } from "@/router";
 import type { Recipe } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/recipe/models";
 import { RecipeService } from "../../../bindings/github.com/yito0000/meal-cycle/internal/service";
@@ -11,10 +12,7 @@ export function RecipeEditPage() {
   const queryClient = useQueryClient();
   const { recipeId } = useParams({ from: "/recipes/$recipeId/edit" });
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["recipes", "detail", recipeId],
-    queryFn: () => RecipeService.GetByID(recipeId),
-  });
+  const { data, isLoading, isError } = useRecipeDetail(recipeId);
 
   if (isLoading) {
     return <p className="p-6 text-sm text-neutral-500">{t("pages.recipes.edit.loading")}</p>;
@@ -59,7 +57,7 @@ export function RecipeEditPage() {
         router.navigate({ to: "/recipes", search: { highlight: updated.id } });
         return updated;
       }}
-      onCancel={() => router.navigate({ to: "/recipes", search: {} })}
+      onCancel={() => router.navigate({ to: "/recipes", search: { detail: recipeId } })}
     />
   );
 }

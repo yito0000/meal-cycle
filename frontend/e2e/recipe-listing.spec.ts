@@ -81,10 +81,37 @@ test.describe("ソート切替", () => {
 });
 
 test.describe("S02 一覧から S03 を開く", () => {
-  // S03 詳細ドロワーは add-recipe-details で実装する。
-  test.skip("行を押すと S03 詳細ドロワーが開く", () => {});
-});
+  test("行を押すと S03 詳細ドロワーが開く", async ({ page }) => {
+    await createRecipe(page, "肉じゃが");
+    await openRecipeList(page);
 
-test.describe("S03 の開閉", () => {
-  test.skip("背景クリックで閉じる", () => {});
+    await page.getByRole("cell", { name: "肉じゃが" }).click();
+
+    await expect(page.getByRole("dialog")).toContainText("肉じゃが");
+    // ドロワーが開いている間、背後の一覧は Radix が aria-hidden にするので role では引けない。
+    await expect(page.locator("table td:first-child")).toHaveText(["肉じゃが"]);
+    await expect(page.locator("#recipe-name")).toHaveCount(0);
+  });
+
+  test("閉じると検索語と並び順が保たれている", async ({ page }) => {
+    await createRecipe(page, "肉じゃが");
+    await createRecipe(page, "じゃがバター");
+    await createRecipe(page, "豚汁");
+    await openRecipeList(page);
+
+    const search = page.getByRole("searchbox", { name: t.search.placeholder });
+    const sort = page.getByRole("combobox", { name: t.sort.label });
+    await search.fill("じゃが");
+    await sort.click();
+    await page.getByRole("option", { name: t.sort.name_asc }).click();
+
+    await page.getByRole("cell", { name: "肉じゃが" }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.getByRole("button", { name: t.detail.close }).click();
+
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(search).toHaveValue("じゃが");
+    await expect(sort).toHaveText(t.sort.name_asc);
+    await expect(nameCells(page)).toHaveCount(2);
+  });
 });

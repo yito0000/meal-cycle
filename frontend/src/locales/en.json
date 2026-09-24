@@ -201,6 +201,20 @@
         "validation": {
           "name_required": "Recipe name is required"
         }
+      },
+      "detail": {
+        "close": "Close",
+        "loading": "Loading...",
+        "load_error": "Could not load the recipe",
+        "servings": "Serves {{count}}",
+        "updated_at": "Updated: {{date}}",
+        "section": {
+          "ingredients": "Ingredients",
+          "steps": "Steps",
+          "notes": "Notes"
+        },
+        "empty": "Not set",
+        "edit": "Edit"
       }
     },
     "fridge": {

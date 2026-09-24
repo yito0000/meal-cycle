@@ -201,6 +201,20 @@
         "validation": {
           "name_required": "レシピ名は必須です"
         }
+      },
+      "detail": {
+        "close": "閉じる",
+        "loading": "読み込み中...",
+        "load_error": "レシピを読み込めませんでした",
+        "servings": "{{count}} 人分",
+        "updated_at": "最終更新: {{date}}",
+        "section": {
+          "ingredients": "材料",
+          "steps": "手順",
+          "notes": "メモ"
+        },
+        "empty": "未登録",
+        "edit": "編集"
       }
     },
     "fridge": {

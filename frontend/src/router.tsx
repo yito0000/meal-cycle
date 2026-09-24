@@ -23,8 +23,10 @@ const mealPlanRoute = createRoute({
 });
 
 // S02 は保存直後のハイライト対象を search param で受け取る (design.md D6)。
+// detail は開いている S03 のレシピ ID。S04 のキャンセルで同じドロワーに戻すため URL に載せる (add-recipe-details D2)。
 const recipesSearchSchema = z.object({
   highlight: z.string().optional(),
+  detail: z.string().optional(),
 });
 
 const recipesRoute = createRoute({

@@ -145,3 +145,59 @@ export async function copyLeftover(
     throw new Error(`copy leftover ${date} failed: ${res.status()} ${await res.text()}`);
   }
 }
+
+// createRecipeDetailed は S03 の表示を確かめるために、各項目を指定してレシピを 1 件作り ID を返す。
+// 省略した項目は createRecipe と同じ既定値にする。材料 0 件は ingredients: [] を明示する。
+export async function createRecipeDetailed(
+  page: Page,
+  input: {
+    name: string;
+    tags?: string[];
+    servings?: number;
+    ingredients?: { name: string; amount: number; unit: string }[];
+    steps?: string;
+    notes?: string;
+  },
+): Promise<string> {
+  const ingredients = input.ingredients ?? [{ name: "玉ねぎ", amount: 1, unit: "個" }];
+  const res = await page.request.post("/api/RecipeService/Create", {
+    data: [
+      {
+        id: "",
+        name: input.name,
+        servings: input.servings ?? 2,
+        tags: input.tags ?? [],
+        ingredients,
+        ingredientCount: ingredients.length,
+        steps: input.steps ?? "",
+        notes: input.notes ?? "",
+        createdAt: "",
+        updatedAt: "",
+      },
+    ],
+  });
+  if (!res.ok()) {
+    throw new Error(`create ${input.name} failed: ${res.status()} ${await res.text()}`);
+  }
+  return (await res.json()).id as string;
+}
+
+// S02 を開き、name の行を押して S03 ドロワーが見えるまで待つ。
+export async function openRecipeDetail(page: Page, name: string) {
+  await openRecipeList(page);
+  await page.getByRole("cell", { name, exact: true }).click();
+  await page.getByRole("dialog").waitFor();
+}
+
+// S01 の品行の `⋯` を押してメニューを開く。DropdownMenu の中身は body 直下の Portal に出るが、
+// page 起点で getByRole("menuitem") を探せば DOM の親子関係に縛られずに届く (add-recipe-details D9)。
+export async function openItemMenu(page: Page, recipeName: string) {
+  const trigger = page.getByRole("button", { name: ja.pages.meal_plan.cell_actions.item_menu });
+  const row = page
+    .locator("div")
+    .filter({ has: page.getByText(recipeName, { exact: true }) })
+    .filter({ has: trigger })
+    .last();
+  await row.getByRole("button", { name: ja.pages.meal_plan.cell_actions.item_menu }).click();
+  await page.getByRole("menu").waitFor();
+}

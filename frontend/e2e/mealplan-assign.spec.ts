@@ -1,6 +1,12 @@
 import ja from "../src/locales/ja.json" with { type: "json" };
 import { expect, test } from "./fixtures.js";
-import { createRecipe } from "./helpers.js";
+import {
+  assignRecipe,
+  createRecipe,
+  createRecipeWithIngredients,
+  dateAfter,
+  openItemMenu,
+} from "./helpers.js";
 
 const t = ja.pages.meal_plan;
 
@@ -121,8 +127,22 @@ test.describe("1 品の入替 / 削除 / 詳細表示", () => {
     // 同上。
   });
 
-  test.skip("詳細を開くと S02 を経由せずに S01 に戻れる", async () => {
-    // S03 レシピ詳細ドロワー自体が別 proposal (add-recipe-detail-drawer) で未実装。
+  test("詳細を開くと S02 を経由せずに S01 に戻れる", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "肉じゃが", []);
+    await assignRecipe(page, dateAfter(0), "dinner", id);
+    await openMealCalendar(page);
+
+    await openItemMenu(page, "肉じゃが");
+    await page.getByRole("menuitem", { name: t.item_menu.view_detail }).click();
+
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("heading", { name: "肉じゃが" })).toBeVisible();
+
+    await page.keyboard.press("Escape");
+
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: t.title })).toBeVisible();
+    await expect(page.getByText("肉じゃが", { exact: true })).toBeVisible();
   });
 });
 

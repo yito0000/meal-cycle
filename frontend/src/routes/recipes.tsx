@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { router } from "@/router";
 import { RecipeService } from "../../bindings/github.com/yito0000/meal-cycle/internal/service";
+import { RecipeDetailDrawer } from "../components/recipe/recipe-detail-drawer";
 import { RecipeSearchInput } from "../components/recipe/recipe-search-input";
 import {
   compareRecipes,
@@ -22,7 +23,7 @@ export function RecipesPage() {
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<RecipeSortKey>(DEFAULT_RECIPE_SORT);
-  const { highlight } = useSearch({ from: "/recipes" });
+  const { highlight, detail } = useSearch({ from: "/recipes" });
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["recipes", "list"],
@@ -36,11 +37,11 @@ export function RecipesPage() {
     return [...filtered].sort((a, b) => compareRecipes(a, b, sortKey));
   }, [data, search, sortKey]);
 
-  // ハイライト値は一定時間後に URL search から自動クリアする。
+  // ハイライト値は一定時間後に URL search から自動クリアする。detail まで消すと開いたドロワーが閉じる (design.md D3)。
   useEffect(() => {
     if (!highlight) return;
     const timer = window.setTimeout(() => {
-      router.navigate({ to: "/recipes", search: {} });
+      router.navigate({ to: "/recipes", search: (prev) => ({ ...prev, highlight: undefined }) });
     }, HIGHLIGHT_MS);
     return () => window.clearTimeout(timer);
   }, [highlight]);
@@ -72,10 +73,20 @@ export function RecipesPage() {
           recipes={filteredSorted}
           highlightId={highlight}
           onRowClick={(id) =>
-            router.navigate({ to: "/recipes/$recipeId/edit", params: { recipeId: id } })
+            router.navigate({ to: "/recipes", search: (prev) => ({ ...prev, detail: id }) })
           }
         />
       )}
+
+      <RecipeDetailDrawer
+        recipeId={detail ?? null}
+        onClose={() =>
+          router.navigate({ to: "/recipes", search: (prev) => ({ ...prev, detail: undefined }) })
+        }
+        onEdit={(id) =>
+          router.navigate({ to: "/recipes/$recipeId/edit", params: { recipeId: id } })
+        }
+      />
     </div>
   );
 }

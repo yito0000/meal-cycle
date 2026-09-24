@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import ja from "../src/locales/ja.json" with { type: "json" };
 import { expect, test } from "./fixtures.js";
-import { createRecipe, openRecipeList } from "./helpers.js";
+import { createRecipe, openRecipeDetail, openRecipeList } from "./helpers.js";
 
 const t = ja.pages.recipes;
 const e = t.edit;
@@ -22,6 +22,15 @@ async function fillFirstIngredient(page: Page, name: string, amount: string, uni
   await page.getByRole("textbox", { name: e.label.unit }).fill(unit);
 }
 
+// S03 のドロワーから「編集」で S04 に入る。
+async function openEditFromDetail(page: Page, name: string) {
+  await openRecipeDetail(page, name);
+  await page.getByRole("dialog").getByRole("button", { name: t.detail.edit }).click();
+  await expect(page.locator("#recipe-name")).toHaveValue(name);
+}
+
+const servingsText = (n: number) => t.detail.servings.replace("{{count}}", String(n));
+
 test.describe("レシピ一覧の初期表示", () => {
   test("1 レシピに複数タグがある場合はまとめて表示される", async ({ page }) => {
     await openNewRecipeForm(page);
@@ -33,21 +42,6 @@ test.describe("レシピ一覧の初期表示", () => {
     await page.getByRole("button", { name: e.save }).click();
 
     await expect(page.getByRole("row").locator("td:nth-child(2)")).toHaveText(["和食"]);
-  });
-});
-
-test.describe("S02 一覧からのレシピ編集導線 (暫定)", () => {
-  test("行を押下すると当該レシピの編集画面に遷移する", async ({ page }) => {
-    await createRecipe(page, "肉じゃが");
-    await openRecipeList(page);
-
-    await page.getByRole("cell", { name: "肉じゃが" }).click();
-    await expect(page.locator("#recipe-name")).toHaveValue("肉じゃが");
-
-    await page.locator("#recipe-name").fill("肉じゃが（改）");
-    await page.getByRole("button", { name: e.save }).click();
-
-    await expect(page.getByRole("row").locator("td:first-child")).toHaveText(["肉じゃが（改）"]);
   });
 });
 
@@ -88,8 +82,64 @@ test.describe("未保存変更のキャンセル確認", () => {
     await expect(page.getByRole("heading", { name: t.title })).toBeVisible();
     await expect(page.getByText(t.empty.no_recipes)).toBeVisible();
   });
+  test("編集モードで変更を破棄すると S03 に戻る", async ({ page }) => {
+    await createRecipe(page, "肉じゃが");
+    await openEditFromDetail(page, "肉じゃが");
+
+    await page.locator("#recipe-servings").fill("3");
+    await page.getByRole("button", { name: e.cancel }).click();
+    await page.getByRole("button", { name: e.unsaved_confirm.discard }).click();
+
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("heading", { name: "肉じゃが" })).toBeVisible();
+    await expect(dialog).toContainText(servingsText(2));
+  });
 });
 
 test.describe("S03 から S04 編集画面への遷移", () => {
-  test.skip("保存すると S02 に戻り行が強調される", () => {});
+  test("編集を押すと既存値がロードされた S04 に遷移する", async ({ page }) => {
+    await createRecipe(page, "肉じゃが");
+
+    await openEditFromDetail(page, "肉じゃが");
+
+    await expect(
+      page.getByRole("heading", { name: e.title_edit.replace("{{name}}", "肉じゃが") }),
+    ).toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
+
+  test("保存すると S02 に戻り行が強調される", async ({ page }) => {
+    await createRecipe(page, "肉じゃが");
+    await openEditFromDetail(page, "肉じゃが");
+
+    await page.locator("#recipe-servings").fill("3");
+    await page.getByRole("button", { name: e.save }).click();
+
+    await expect(page.getByRole("heading", { name: t.title })).toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByRole("row").filter({ hasText: "肉じゃが" })).toHaveClass(/bg-accent/);
+  });
+
+  test("キャンセルすると S03 に戻る", async ({ page }) => {
+    await createRecipe(page, "肉じゃが");
+    await openEditFromDetail(page, "肉じゃが");
+
+    await page.getByRole("button", { name: e.cancel }).click();
+
+    // ドロワーが開いている間、背後の S02 は Radix が aria-hidden にするので role では引けない。
+    await expect(page.locator("h1", { hasText: t.title })).toBeVisible();
+    await expect(page.getByRole("dialog").getByRole("heading", { name: "肉じゃが" })).toBeVisible();
+  });
+
+  test("保存した内容が S03 に反映される", async ({ page }) => {
+    await createRecipe(page, "肉じゃが");
+    await openEditFromDetail(page, "肉じゃが");
+
+    await page.locator("#recipe-servings").fill("3");
+    await page.getByRole("button", { name: e.save }).click();
+    await expect(page.getByRole("heading", { name: t.title })).toBeVisible();
+
+    await page.getByRole("cell", { name: "肉じゃが" }).click();
+    await expect(page.getByRole("dialog")).toContainText(servingsText(3));
+  });
 });

@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type {
@@ -8,6 +9,7 @@ import type {
 import { Meal } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
 import { MealPlanService } from "../../../bindings/github.com/yito0000/meal-cycle/internal/service";
 import { planSpread, type SpreadSelection } from "../../lib/spread-batch-selection";
+import { RecipeDetailDrawer } from "../recipe/recipe-detail-drawer";
 import { BatchMergeDialog } from "./batch-merge-dialog";
 import { CopyConflictDialog, type CopyConflictMode } from "./copy-conflict-dialog";
 import { CopyModeDialog } from "./copy-mode-dialog";
@@ -113,6 +115,9 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
     params?: Record<string, unknown>;
   } | null>(null);
   const [dragSource, setDragSource] = useState<DragSource | null>(null);
+  // S01 から開いた S03 は閉じたら S01 に留まるだけなので、URL には載せない (add-recipe-details D2 / D8)。
+  const [detailRecipeId, setDetailRecipeId] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   const setErrorKey = (key: string | null) => {
     if (key === null) setErrorState(null);
@@ -348,8 +353,7 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
         removeMut.mutate({ date, meal, position: entry.position });
         break;
       case "view-detail":
-        // S03 レシピ詳細ドロワーは別 proposal で実装。現状はエラー表示に留める。
-        setErrorKey("pages.meal_plan.errors.unknown");
+        setDetailRecipeId(entry.recipeId);
         break;
       case "spread":
         setSpreadState({
@@ -607,6 +611,11 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
           }}
         />
       )}
+      <RecipeDetailDrawer
+        recipeId={detailRecipeId}
+        onClose={() => setDetailRecipeId(null)}
+        onEdit={(id) => navigate({ to: "/recipes/$recipeId/edit", params: { recipeId: id } })}
+      />
     </div>
   );
 }
