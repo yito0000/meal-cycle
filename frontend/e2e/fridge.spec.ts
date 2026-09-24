@@ -3,7 +3,6 @@ import ja from "../src/locales/ja.json" with { type: "json" };
 import { expect, test } from "./fixtures.js";
 import { addStockItem, dateAfter, openFridge } from "./helpers.js";
 
-// テスト名は docs/scenarios/fridge.feature の シナリオ: 行と一字一句揃える。
 const t = ja.pages.fridge;
 
 function nameCells(page: Page) {
@@ -38,7 +37,40 @@ function dotOf(page: Page, name: string) {
   return row(page, name).locator("[data-expiry-status]");
 }
 
-test.describe("機能: 冷蔵庫在庫の一覧と並び替え", () => {
+test.describe("賞味期限の状態表示", () => {
+  test("当日期限は赤で表示される", async ({ page }) => {
+    await page.goto("/");
+    await addStockItem(page, { name: "ヨーグルト", amount: 1, unit: "個", expiresInDays: 0 });
+
+    await openFridge(page);
+
+    await expect(dotOf(page, "ヨーグルト")).toHaveAttribute("data-expiry-status", "urgent");
+    await expect(row(page, "ヨーグルト")).toContainText(t.days_left.today);
+    await expect(row(page, "ヨーグルト")).not.toHaveAttribute("data-expired");
+  });
+
+  test("期限切れは色ドットではなく期限切れバッジで表示される", async ({ page }) => {
+    await page.goto("/");
+    await addStockItem(page, { name: "豆腐", amount: 1, unit: "丁", expiresInDays: -2 });
+    await addStockItem(page, { name: "牛乳", amount: 1, unit: "本", expiresInDays: 2 });
+
+    await openFridge(page);
+
+    const tofu = row(page, "豆腐");
+    await expect(tofu.getByRole("img")).toHaveCount(0);
+    await expect(tofu.getByText(t.expiry_status.expired, { exact: true })).toBeVisible();
+    await expect(dotOf(page, "豆腐")).toHaveAttribute("data-expiry-status", "expired");
+    await expect(tofu).toHaveAttribute("data-expired", "true");
+    // 背景の具体色ではなく「期限内の行と区別できる」ことを検証する。
+    const bg = (name: string) =>
+      row(page, name).evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(await bg("豆腐")).not.toBe(await bg("牛乳"));
+    await expect(tofu).toContainText(t.days_left.overdue.replace("{{count}}", "2"));
+    await expect(row(page, "牛乳")).not.toHaveAttribute("data-expired");
+  });
+});
+
+test.describe("在庫の並び替え", () => {
   test("デフォルトで賞味期限の近い順に並ぶ", async ({ page }) => {
     await page.goto("/");
     await addStockItem(page, { name: "牛乳", amount: 1, unit: "本", expiresInDays: 2 });
@@ -82,8 +114,10 @@ test.describe("機能: 冷蔵庫在庫の一覧と並び替え", () => {
 
     await expect(nameCells(page)).toHaveText(["三番目", "二番目", "一番目"]);
   });
+});
 
-  test("食材名で検索する", async ({ page }) => {
+test.describe("食材名検索", () => {
+  test("検索語が食材名に部分一致する", async ({ page }) => {
     await page.goto("/");
     for (const name of ["豚ひき肉", "豚バラ肉", "玉ねぎ"]) {
       await addStockItem(page, { name, amount: 1, unit: "" });
@@ -98,40 +132,9 @@ test.describe("機能: 冷蔵庫在庫の一覧と並び替え", () => {
       ["豚ひき肉", "豚バラ肉"].sort(),
     );
   });
-
-  test("当日期限は赤で表示される", async ({ page }) => {
-    await page.goto("/");
-    await addStockItem(page, { name: "ヨーグルト", amount: 1, unit: "個", expiresInDays: 0 });
-
-    await openFridge(page);
-
-    await expect(dotOf(page, "ヨーグルト")).toHaveAttribute("data-expiry-status", "urgent");
-    await expect(row(page, "ヨーグルト")).toContainText(t.days_left.today);
-    await expect(row(page, "ヨーグルト")).not.toHaveAttribute("data-expired");
-  });
-
-  test("期限切れは色ドットではなく期限切れバッジで表示される", async ({ page }) => {
-    await page.goto("/");
-    await addStockItem(page, { name: "豆腐", amount: 1, unit: "丁", expiresInDays: -2 });
-    await addStockItem(page, { name: "牛乳", amount: 1, unit: "本", expiresInDays: 2 });
-
-    await openFridge(page);
-
-    const tofu = row(page, "豆腐");
-    await expect(tofu.getByRole("img")).toHaveCount(0);
-    await expect(tofu.getByText(t.expiry_status.expired, { exact: true })).toBeVisible();
-    await expect(dotOf(page, "豆腐")).toHaveAttribute("data-expiry-status", "expired");
-    await expect(tofu).toHaveAttribute("data-expired", "true");
-    // 背景の具体色ではなく「期限内の行と区別できる」ことを検証する。
-    const bg = (name: string) =>
-      row(page, name).evaluate((el) => getComputedStyle(el).backgroundColor);
-    expect(await bg("豆腐")).not.toBe(await bg("牛乳"));
-    await expect(tofu).toContainText(t.days_left.overdue.replace("{{count}}", "2"));
-    await expect(row(page, "牛乳")).not.toHaveAttribute("data-expired");
-  });
 });
 
-test.describe("機能: 食材の追加（インライン追加行）", () => {
+test.describe("インライン追加行", () => {
   test("賞味期限つきで在庫を追加する", async ({ page }) => {
     await openFridge(page);
 
@@ -157,8 +160,10 @@ test.describe("機能: 食材の追加（インライン追加行）", () => {
     await expect(row(page, "玉ねぎ")).toContainText("1 個");
     await expect(dotOf(page, "玉ねぎ")).toHaveCount(0);
   });
+});
 
-  test("候補から食材名を選ぶと単位が埋まる", async ({ page }) => {
+test.describe("食材名の候補補完", () => {
+  test("候補を選ぶと単位が埋まる", async ({ page }) => {
     await page.goto("/");
     const res = await page.request.post("/api/RecipeService/Create", {
       data: [
@@ -192,7 +197,7 @@ test.describe("機能: 食材の追加（インライン追加行）", () => {
     await expect(page.locator("tbody tr")).toHaveCount(0);
   });
 
-  test("候補にない食材名で追加する", async ({ page }) => {
+  test("候補にない名前で追加する", async ({ page }) => {
     await openFridge(page);
 
     await fillAddRow(page, { name: "ズッキーニ", amount: "1", unit: "本" });
@@ -202,7 +207,9 @@ test.describe("機能: 食材の追加（インライン追加行）", () => {
     await addRow(page).getByRole("combobox", { name: t.field.name }).fill("ズッキ");
     await expect(page.getByRole("option", { name: /ズッキーニ/ })).toBeVisible();
   });
+});
 
+test.describe("在庫の入力検証", () => {
   test("食材名が空だと追加できない", async ({ page }) => {
     await openFridge(page);
 
@@ -214,7 +221,7 @@ test.describe("機能: 食材の追加（インライン追加行）", () => {
   });
 });
 
-test.describe("機能: 食材の編集と削除", () => {
+test.describe("行内編集", () => {
   test("行内編集で在庫量を修正する", async ({ page }) => {
     await page.goto("/");
     await addStockItem(page, { name: "玉ねぎ", amount: 3, unit: "個" });
@@ -255,7 +262,9 @@ test.describe("機能: 食材の編集と削除", () => {
     await expect(row(page, "牛乳").getByRole("button", { name: t.row.edit })).toBeDisabled();
     await expect(row(page, "牛乳").getByRole("button", { name: t.row.delete })).toBeDisabled();
   });
+});
 
+test.describe("在庫の削除と元に戻す", () => {
   test("削除は即実行され、トーストの「元に戻す」で復元できる", async ({ page }) => {
     await page.goto("/");
     await addStockItem(page, { name: "玉ねぎ", amount: 3, unit: "個", expiresInDays: 7 });

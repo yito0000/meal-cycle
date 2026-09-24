@@ -22,29 +22,22 @@ async function fillFirstIngredient(page: Page, name: string, amount: string, uni
   await page.getByRole("textbox", { name: e.label.unit }).fill(unit);
 }
 
-test.describe("機能: レシピの登録と編集", () => {
-  test("材料を自由テキストで入力してレシピを登録する", async ({ page }) => {
+test.describe("レシピ一覧の初期表示", () => {
+  test("1 レシピに複数タグがある場合はまとめて表示される", async ({ page }) => {
     await openNewRecipeForm(page);
 
-    await page.locator("#recipe-name").fill("肉じゃが");
-    await page.locator("#recipe-servings").fill("2");
-    await fillFirstIngredient(page, "じゃがいも", "2", "個");
+    await page.locator("#recipe-name").fill("豚汁");
+    await fillFirstIngredient(page, "大根", "100", "g");
+    await page.getByRole("textbox", { name: e.label.tags }).fill("和食");
+    await page.getByRole("button", { name: e.add_tag }).click();
     await page.getByRole("button", { name: e.save }).click();
 
-    await expect(page.getByRole("heading", { name: t.title })).toBeVisible();
-    await expect(page.getByRole("row").locator("td:first-child")).toHaveText(["肉じゃが"]);
+    await expect(page.getByRole("row").locator("td:nth-child(2)")).toHaveText(["和食"]);
   });
+});
 
-  test("レシピ名を空のまま保存するとエラーが表示される", async ({ page }) => {
-    await openNewRecipeForm(page);
-
-    await page.getByRole("button", { name: e.save }).click();
-
-    await expect(page.getByText(e.validation.name_required)).toBeVisible();
-    await expect(page.getByRole("heading", { name: e.title_new })).toBeVisible();
-  });
-
-  test("既存レシピを編集して保存すると一覧に反映される", async ({ page }) => {
+test.describe("S02 一覧からのレシピ編集導線 (暫定)", () => {
+  test("行を押下すると当該レシピの編集画面に遷移する", async ({ page }) => {
     await createRecipe(page, "肉じゃが");
     await openRecipeList(page);
 
@@ -56,20 +49,33 @@ test.describe("機能: レシピの登録と編集", () => {
 
     await expect(page.getByRole("row").locator("td:first-child")).toHaveText(["肉じゃが（改）"]);
   });
+});
 
-  test("タグを追加して保存すると一覧のタグ列に反映される", async ({ page }) => {
+test.describe("レシピの新規登録", () => {
+  test("材料に自由テキストを入れてレシピを登録する", async ({ page }) => {
     await openNewRecipeForm(page);
 
-    await page.locator("#recipe-name").fill("豚汁");
-    await fillFirstIngredient(page, "大根", "100", "g");
-    await page.getByRole("textbox", { name: e.label.tags }).fill("和食");
-    await page.getByRole("button", { name: e.add_tag }).click();
+    await page.locator("#recipe-name").fill("肉じゃが");
+    await page.locator("#recipe-servings").fill("2");
+    await fillFirstIngredient(page, "じゃがいも", "2", "個");
     await page.getByRole("button", { name: e.save }).click();
 
-    await expect(page.getByRole("row").locator("td:nth-child(2)")).toHaveText(["和食"]);
+    await expect(page.getByRole("heading", { name: t.title })).toBeVisible();
+    await expect(page.getByRole("row").locator("td:first-child")).toHaveText(["肉じゃが"]);
   });
 
-  test("未保存でキャンセルすると確認される", async ({ page }) => {
+  test("名前が空のままでは保存できない", async ({ page }) => {
+    await openNewRecipeForm(page);
+
+    await page.getByRole("button", { name: e.save }).click();
+
+    await expect(page.getByText(e.validation.name_required)).toBeVisible();
+    await expect(page.getByRole("heading", { name: e.title_new })).toBeVisible();
+  });
+});
+
+test.describe("未保存変更のキャンセル確認", () => {
+  test("dirty 状態でキャンセルを押すと確認される", async ({ page }) => {
     await openNewRecipeForm(page);
 
     await page.locator("#recipe-name").fill("肉じゃが");
@@ -82,10 +88,8 @@ test.describe("機能: レシピの登録と編集", () => {
     await expect(page.getByRole("heading", { name: t.title })).toBeVisible();
     await expect(page.getByText(t.empty.no_recipes)).toBeVisible();
   });
+});
 
-  // 食材マスタは add-ingredient-master、S03 詳細ドロワーは
-  // add-recipe-detail-drawer で実装する。
-  test.skip("既存 Ingredient を材料にしてレシピを登録する", () => {});
-  test.skip("新規 Ingredient を作りながらレシピを登録する", () => {});
-  test.skip("詳細ドロワーから編集画面へ遷移し、保存後に一覧に戻る", () => {});
+test.describe("S03 から S04 編集画面への遷移", () => {
+  test.skip("保存すると S02 に戻り行が強調される", () => {});
 });

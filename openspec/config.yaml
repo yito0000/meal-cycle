@@ -69,6 +69,11 @@ rules:
       タスクグループ末尾（または最終グループ）で テストの実行と成功確認 を必ず入れる。
       - Go: `go test ./internal/... ./cmd/...`
       - Frontend: `npm run type-check` と `npm run build:dev` (test runner 未導入のため)。画面の挙動に触れる proposal は `task test:e2e` も入れる
+    - |
+      画面の挙動に触れる proposal では、E2E で確かめる Scenario を tasks.md のテスト作成タスクに列挙する。
+      E2E のテスト名は spec.md の `#### Scenario:` と、最外の describe 名は `### Requirement:` と一字一句揃える
+      (`npm run check:scenarios` が検査する。詳細は frontend/e2e/README.md)。
+      サービス層のテストで確かめる Scenario は E2E に含めなくてよい。
 
   specs:
     - "1 行あたり最大 200 文字 (character 数)。超える場合は改行して書く"

@@ -2,8 +2,6 @@ import ja from "../src/locales/ja.json" with { type: "json" };
 import { expect, test } from "./fixtures.js";
 import { createRecipe } from "./helpers.js";
 
-// テスト名は docs/scenarios/mealplan.feature の シナリオ: 行と一字一句揃える。
-// 現状は「空セルに 1 品目を割り当てる」のみ実装済み。残りは実装追随後に skip を外す。
 const t = ja.pages.meal_plan;
 
 async function openMealCalendar(page: import("@playwright/test").Page) {
@@ -14,26 +12,29 @@ async function openMealCalendar(page: import("@playwright/test").Page) {
   await expect(page.getByRole("heading", { name: t.title })).toBeVisible();
 }
 
-test.describe("機能: 献立カレンダーの表示", () => {
+// shiftIsoDate は "YYYY-MM-DD" を days 日ぶんシフトする。UTC ではなくローカル日付として扱う。
+function shiftIsoDate(iso: string, days: number): string {
+  const [y, m, d] = iso.split("-").map((s) => Number.parseInt(s, 10));
+  const dt = new Date(y, m - 1, d + days);
+  const yy = dt.getFullYear();
+  const mm = String(dt.getMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
+
+test.describe("セル内の品表示", () => {
+  test.skip("品数超過は省略表示になる", async () => {
+    // MealPlanCell は overflow 表示済み。E2E は Group 10 の次イテレーションで有効化する。
+  });
+});
+
+test.describe("期間切替", () => {
   test("期間切替の既定は 1 週", async ({ page }) => {
     await openMealCalendar(page);
     const oneWeek = page.getByTestId("period-weeks-1");
     await expect(oneWeek).toHaveAttribute("aria-pressed", "true");
     const calendar = page.getByTestId("period-calendar");
     await expect(calendar).toHaveAttribute("data-period-weeks", "1");
-  });
-
-  test("`＞` を押すと表示中の期間長ぶん未来にシフトする", async ({ page }) => {
-    await openMealCalendar(page);
-    const todayBtn = page.getByTestId("period-today");
-    const before = await todayBtn.getAttribute("data-period-start");
-    if (!before) throw new Error("initial data-period-start missing");
-
-    await page.getByTestId("period-next").click();
-
-    // periodStart が 7 日進んでいることを確認する。
-    const expected = shiftIsoDate(before, 7);
-    await expect(todayBtn).toHaveAttribute("data-period-start", expected);
   });
 
   test("2 週を選ぶと 14 日分が表示される", async ({ page }) => {
@@ -51,6 +52,21 @@ test.describe("機能: 献立カレンダーの表示", () => {
     const calendar = page.getByTestId("period-calendar");
     await expect(calendar).toHaveAttribute("data-period-weeks", "4");
   });
+});
+
+test.describe("前後ナビゲーション", () => {
+  test("`＞` を押すと表示中の期間長ぶん未来にシフトする", async ({ page }) => {
+    await openMealCalendar(page);
+    const todayBtn = page.getByTestId("period-today");
+    const before = await todayBtn.getAttribute("data-period-start");
+    if (!before) throw new Error("initial data-period-start missing");
+
+    await page.getByTestId("period-next").click();
+
+    // periodStart が 7 日進んでいることを確認する。
+    const expected = shiftIsoDate(before, 7);
+    await expect(todayBtn).toHaveAttribute("data-period-start", expected);
+  });
 
   test("「今週」ボタンで現在の週に戻る", async ({ page }) => {
     await openMealCalendar(page);
@@ -67,18 +83,8 @@ test.describe("機能: 献立カレンダーの表示", () => {
   });
 });
 
-// shiftIsoDate は "YYYY-MM-DD" を days 日ぶんシフトする。UTC ではなくローカル日付として扱う。
-function shiftIsoDate(iso: string, days: number): string {
-  const [y, m, d] = iso.split("-").map((s) => Number.parseInt(s, 10));
-  const dt = new Date(y, m - 1, d + days);
-  const yy = dt.getFullYear();
-  const mm = String(dt.getMonth() + 1).padStart(2, "0");
-  const dd = String(dt.getDate()).padStart(2, "0");
-  return `${yy}-${mm}-${dd}`;
-}
-
-test.describe("機能: 献立へのレシピ割当（1 時間帯に 0..N 品）", () => {
-  test("空セルに 1 品目を割り当てる", async ({ page }) => {
+test.describe("空セルへの 1 品目割当", () => {
+  test("空セルの `＋` からレシピを選んで割当する", async ({ page }) => {
     await createRecipe(page, "肉じゃが");
     await openMealCalendar(page);
 
@@ -98,15 +104,15 @@ test.describe("機能: 献立へのレシピ割当（1 時間帯に 0..N 品）"
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page.getByText("肉じゃが").first()).toBeVisible();
   });
+});
 
-  test.skip("既に 1 品ある時間帯にもう 1 品追加する", async () => {
+test.describe("割当済セルへの品追加", () => {
+  test.skip("1 品ある時間帯にもう 1 品追加すると 2 品目が下に並ぶ", async () => {
     // 実装は Group 7 で通した右上 `＋` 経路。E2E は次イテレーションで有効化する。
   });
+});
 
-  test.skip("品数が 3 を超えたら「他 N 件」で省略される", async () => {
-    // MealPlanCell は overflow 表示済み。E2E は Group 10 の次イテレーションで有効化する。
-  });
-
+test.describe("1 品の入替 / 削除 / 詳細表示", () => {
   test.skip("1 品だけ入れ替える", async () => {
     // CellItemMenu → replace は実装済み。Radix DropdownMenu の Portal を選ぶ手順を整えたら有効化する。
   });
@@ -115,25 +121,25 @@ test.describe("機能: 献立へのレシピ割当（1 時間帯に 0..N 品）"
     // 同上。
   });
 
-  test.skip("時間帯全体をクリアする", async () => {
-    // MealMenu → clear は実装済み。
-  });
-
-  test.skip("割当済みの 1 品から S03 詳細を開き、S01 に戻る", async () => {
+  test.skip("詳細を開くと S02 を経由せずに S01 に戻れる", async () => {
     // S03 レシピ詳細ドロワー自体が別 proposal (add-recipe-detail-drawer) で未実装。
   });
 });
 
-test.describe("機能: 作り置きコピー（同一レシピの連続割当）", () => {
-  test.skip("1 品を連続 3 日に作り置きコピー", async () => {
-    // CellItemMenu の「連続 N 日」→ CopyLeftover。実装済みだが E2E は次イテレーションで。
+test.describe("時間帯全体のクリア", () => {
+  test.skip("時間帯右下 `⋯ → 時間帯全体をクリア` で全削除", async () => {
+    // MealMenu → clear は実装済み。
   });
+});
 
-  test.skip("時間帯全体（複数品）を連続 N 日コピー", async () => {
+test.describe("作り置きコピー (時間帯全体)", () => {
+  test.skip("2 品構成を 3 日分コピーする", async () => {
     // MealMenu の「時間帯全体を連続 N 日」→ CopyLeftover。
   });
+});
 
-  test.skip("コピー先に既存の割当があると追加 or 上書きを確認する", async () => {
+test.describe("作り置きコピー先の衝突解決", () => {
+  test.skip("追加を選ぶと元の品と併存する", async () => {
     // CopyConflictDialog は実装済み。
   });
 });

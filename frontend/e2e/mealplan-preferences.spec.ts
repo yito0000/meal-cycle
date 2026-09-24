@@ -1,7 +1,6 @@
 import ja from "../src/locales/ja.json" with { type: "json" };
 import { expect, test } from "./fixtures.js";
 
-// テスト名は docs/scenarios/mealplan.feature の シナリオ: 行と一字一句揃える。
 const t = ja.pages.meal_plan;
 
 async function openMealCalendar(page: import("@playwright/test").Page) {
@@ -11,7 +10,7 @@ async function openMealCalendar(page: import("@playwright/test").Page) {
   await expect(page.getByRole("heading", { name: t.title })).toBeVisible();
 }
 
-test.describe("機能: 献立カレンダーの表示", () => {
+test.describe("S01 表示設定の永続化", () => {
   test("時間帯切替が再起動後も保持される", async ({ page }) => {
     await openMealCalendar(page);
 

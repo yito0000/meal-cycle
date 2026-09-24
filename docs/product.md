@@ -320,6 +320,7 @@ graph LR
 
 - 各候補には「なぜ選ばれたか」の 1 行根拠を UI に添える → ブラックボックス化を避ける
 - 複数軸に該当するレシピは両方のセクションに表示する（バッジで示す想定）
+- 条件を満たすレシピが無い軸は、セクションを消さずに「該当なし」と表示する。下部の全レシピ一覧は常に通常どおり出す
 - **各軸の閾値はすべて可変**（#1 の可変値一覧）。デフォルトは作り置きペルソナ向けに調整（消費期間 10 日、期限アラート 3 日 / 7 日、週プリセット品数 2〜3 品）。毎日別レシピ・毎食埋める運用のユーザーは S09（MVP 後）で下げられる
 
 ### 提示先（2 種類）
@@ -328,7 +329,7 @@ graph LR
 - **週単位**: S01 の「✨ 翌週の候補を出す」CTA → **1 週間 = 2〜3 品を連日に割り当てた**プリセット案を 2〜3 個提示（例: 「使い切り優先: 肉じゃが 3 日 → 麻婆豆腐 2 日」）。ペルソナが作り置きで回すため、5 日 = 5 レシピではなく**少数を連続配置**する形で生成する
   - 生成ロジック: 各軸のスコアで候補上位を選び、1 品あたり 2〜3 日連続に置く。1 プリセット内で同一レシピの重複は避ける
   - 1 時間帯あたりの品数プリセット（#1 の可変値）が 2 以上なら、主菜候補に副菜候補（時短軸のトップ）を添える形で生成
-  - ユーザーはプリセットを選んでから個別セルの `⋯ → クリア / 入れ替え / 連続 N 日` で調整
+  - ユーザーはプリセットを選んで「この案を適用」を押すと S01 の該当セルに割り当たる。以後は個別セルの `⋯ → クリア / 入れ替え / 連続 N 日` で調整
   - ワイヤーは proposal 着手時に drawio で追加
 
 ### 前提となる proposal
@@ -339,26 +340,20 @@ graph LR
 
 ---
 
-## 6. Gherkin シナリオ
+## 6. 受け入れシナリオ
 
-capability 単位でファイルを分けて [scenarios/](scenarios/) 配下に置く。ファイル形式は `.feature`（Cucumber 系ツール標準）、日本語 Gherkin（`# language: ja`）で記述。
+受け入れシナリオは capability ごとに `openspec/specs/<capability>/spec.md` の `#### Scenario:` として書き、そこだけを正とする。
+proposal を切るときに delta spec として書き、archive で `openspec/specs/` に合成される。
+Playwright E2E のテスト名はこのシナリオ名と一字一句対応させる（[../frontend/e2e/README.md](../frontend/e2e/README.md)）。
 
-| ファイル                                                       | 対応 capability | 備考                     |
-| -------------------------------------------------------------- | --------------- | ------------------------ |
-| [scenarios/recipe.feature](scenarios/recipe.feature)           | recipe          | MVP                      |
-| [scenarios/fridge.feature](scenarios/fridge.feature)           | fridge          | MVP                      |
-| [scenarios/mealplan.feature](scenarios/mealplan.feature)       | mealplan        | 候補提示（#5）は `@planned` タグ付き |
-| [scenarios/shopping.feature](scenarios/shopping.feature)       | shopping        | MVP                      |
-
-- 運用ルール・記法は [scenarios/README.md](scenarios/README.md) 参照
-- ここに書いてあるのは**受け入れ観点の骨子**。実装時は proposal 側 `openspec/changes/<name>/specs/<capability>/spec.md` に、事前条件・データ例つきで転記する
+- proposal になる前の構想（#5 の献立候補、S07 の購入済チェック、S03 の削除など）は、この product.md に文章で置く。シナリオへの落とし込みは proposal 側で行う
 - ワイヤーで表現済みの見た目（列順、色ドット等）はシナリオでは再記述しない。[wireframes/](wireframes/) を正とする
 
 ---
 
 ## 7. 未決事項
 
-- （現時点で未決の項目なし。次は proposal 単位で `openspec/changes/<name>/specs/<capability>/spec.md` に [scenarios/](scenarios/) のシナリオを転記していく）
+- （現時点で未決の項目なし）
 
 ### 決定事項
 
@@ -371,7 +366,7 @@ capability 単位でファイルを分けて [scenarios/](scenarios/) 配下に�
 - **買い物リストの購入済チェック**: チェック時は在庫に加えず、下部ボタンで一括登録（誤タップで在庫が汚れるのを避ける）
 - **S05 の削除は確認ダイアログなし**、トーストの `元に戻す` で救済
 - **献立提案の方針**: **全自動は採らず、根拠つきの候補提示に倒す**（#5）。理由は AI を使わない前提だと品質の主観判断（味／飽き／バランス）を機械化しにくく、入力メタデータへの依存も大きくなるため。ユーザーが最終選択することで、AI 抜きでも実用範囲に収まる
-- **Gherkin シナリオはファイル分割**: capability 単位で [scenarios/](scenarios/) に `.feature` として置く。product.md 本文には概要と索引のみ残す
+- **受け入れシナリオは openspec の spec.md に一本化**: 当初は `docs/scenarios/*.feature` に Gherkin で置いていたが、spec.md と二重管理になり、OpenSpec の archive の流れに乗らない `.feature` 側だけが古くなったため廃止した（#6）
 - **献立の埋め方は「作り置き前提のデフォルト + 可変」**: デフォルト値（夕食のみ / 週 2〜3 品 / 消費期間 10 日 等）は作り置きペルソナに合わせるが、**他利用者に切り替え可能な設計**にする。MVP 期は定数として 1 箇所に集約、S09 追加時にそこを設定ストアへ差し替える（可変項目一覧は #1）
 - **設定 UI (S09) は MVP 後**: MVP 期に画面としては生やさない。ただし可変値の参照箇所は最初から 1 箇所に寄せておく（後付けで散在した参照を集約するのは高コスト）
 - **1 時間帯 = 0..N 品を許容**: MealPlan を「1 行 = 1 品」に定義変更し、`(date, meal)` の一意制約を外す。主菜＋副菜＋汁物のような複数品構成を素直に表現するため。詳細は [design.md #4](design.md#4-データモデル初期案) の MealPlan

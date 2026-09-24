@@ -1,54 +1,12 @@
-import ja from "../src/locales/ja.json" with { type: "json" };
-import { expect, test } from "./fixtures.js";
-import { createRecipe } from "./helpers.js";
+import { test } from "./fixtures.js";
 
-// テスト名は docs/scenarios/mealplan.feature の シナリオ: 行と一字一句揃える。
 // Radix DropdownMenu の Portal 操作は E2E で扱いづらいため、そこに依存するシナリオは
 // test.skip で名前だけ残し、次イテレーションで有効化する (design.md D6)。
-const t = ja.pages.meal_plan;
 
-async function openMealCalendar(page: import("@playwright/test").Page) {
-  if (!page.url().startsWith("http")) {
-    await page.goto("/");
-  }
-  await expect(page.getByRole("heading", { name: t.title })).toBeVisible();
-}
-
-test.describe("機能: 作り置き / 別調理の選択と事後編集", () => {
-  test("作り置きを選ぶと全日程が同じ作り置きになる", async ({ page }) => {
-    await createRecipe(page, "肉じゃが");
-    await openMealCalendar(page);
-
-    // 凡例 (「同色 = 同じ作り置き / 材料は 1 セット」) が描画されていることは、
-    // 少なくとも UI に「作り置きの視覚識別」の説明が入っていることの担保。
-    // 実際の統合ダイアログ動作 (DropdownMenu → 作り置きを広げる → 格子操作) の E2E 検証は
-    // Radix Portal を扱う次イテレーションで有効化する。
-    await expect(page.getByText(t.batch.legend.leftover)).toBeVisible();
-  });
-
-  test.skip("起点日 + 2 日ぶん同時間帯が既定でチェックされる", async () => {
-    // CellItemMenu → 作り置きを広げる → 統合ダイアログ格子。DropdownMenu Portal 対応時に有効化。
-  });
-
-  test.skip("対象日 × 時間帯を自由に組み合わせて広げる", async () => {
-    // 統合ダイアログで対象日 × 時間帯を任意にチェックして反映。DropdownMenu Portal 対応時に有効化。
-  });
-
-  test.skip("別調理を選ぶと各セルが独立した作り置きになる", async () => {
-    // 統合ダイアログのモードセグメント「別調理」経路。同上。
-  });
-
-  test.skip("衝突セルは追加 / 上書きの指定に従って反映される", async () => {
-    // 統合ダイアログの衝突挙動セグメント「追加」経路。同上。
-  });
-
-  test.skip("キャンセルすると割当は変わらない", async () => {
-    // 統合ダイアログをキャンセルで閉じて no-op を検証。同上。
-  });
-
+test.describe("事後編集による作り置きの外し / まとめ", () => {
   test.skip("作り置きから外すと起点日だけが残る", async () => {
     // CellItemMenu → 「作り置きから外す」経路。作り置きの逆演算として、
-    // 起点日以外の行が削除される。同上。
+    // 起点日以外の行が削除される。DropdownMenu Portal 対応時に有効化。
   });
 
   test.skip("単独作り置きの行に対して外す操作は何もしない", async () => {
@@ -71,16 +29,40 @@ test.describe("機能: 作り置き / 別調理の選択と事後編集", () => 
     // ±4 日以内なら連続でなくてもまとめ可能。同上。
   });
 
-  test.skip("2 つの作り置きが同時に存在すると別の色になる", async () => {
-    // 2 つの作り置きのセットアップに統合ダイアログの実行が要る。上記シナリオと同時に有効化。
-  });
-
   test.skip("別時間帯の同一レシピ作り置きにもまとめられる", async () => {
     // CellItemMenu → 「他の作り置きにまとめる」→ 別 meal 候補選択。DropdownMenu Portal 対応時に有効化。
   });
 });
 
-test.describe("機能: D&D による 1 行 移動", () => {
+test.describe("作り置きを広げる (統合ダイアログ)", () => {
+  test.skip("起点日 + 2 日ぶん同時間帯が既定でチェックされる", async () => {
+    // CellItemMenu → 作り置きを広げる → 統合ダイアログ格子。DropdownMenu Portal 対応時に有効化。
+  });
+
+  test.skip("対象日 × 時間帯を自由に組み合わせて広げる", async () => {
+    // 統合ダイアログで対象日 × 時間帯を任意にチェックして反映。DropdownMenu Portal 対応時に有効化。
+  });
+
+  test.skip("別調理を選ぶと各セルが独立した作り置きになる", async () => {
+    // 統合ダイアログのモードセグメント「別調理」経路。同上。
+  });
+
+  test.skip("衝突セルは追加 / 上書きの指定に従って反映される", async () => {
+    // 統合ダイアログの衝突挙動セグメント「追加」経路。同上。
+  });
+
+  test.skip("キャンセルすると割当は変わらない", async () => {
+    // 統合ダイアログをキャンセルで閉じて no-op を検証。同上。
+  });
+});
+
+test.describe("作り置きの視覚識別", () => {
+  test.skip("2 つの作り置きが同時に存在すると別の色になる", async () => {
+    // 2 つの作り置きのセットアップに統合ダイアログの実行が要る。上記シナリオと同時に有効化。
+  });
+});
+
+test.describe("1 行 移動 (ドラッグ&ドロップ)", () => {
   test.skip("別セルにドロップすると 1 行だけ移動する", async () => {
     // Playwright の drag は onDragStart/onDragOver/onDrop を確実には triggering しないため、
     // 手動 (Windows ネイティブビルド) で担保する。proposal: add-mealplan-drag-move

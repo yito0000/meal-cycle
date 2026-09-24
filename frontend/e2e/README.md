@@ -59,22 +59,37 @@ internal/service → internal/storage/sqlite → 一時ディレクトリの SQL
 
 ## シナリオとの対応
 
-テスト名は `docs/scenarios/recipe.feature` の `シナリオ:` 行と一字一句同じにする。
-`describe` 名は `機能:` 行に揃える。
-未実装のシナリオは `test.skip` で名前だけ置く。
+E2E が確かめる振る舞いの正は `openspec/specs/<capability>/spec.md` にある。
+対応はテスト名で取り、次の 3 つを一字一句揃える。
 
-対応が取れているかは次で確認できる。
+- ファイル名の先頭語: capability 名（`fridge.spec.ts`、`mealplan-batch.spec.ts` など `<capability>[-<topic>].spec.ts`）
+- 最外の `describe` 名: `### Requirement:` の名前
+- `test` 名: その Requirement 配下の `#### Scenario:` の名前
+
+内側に `describe` を挟むのは構わない（`test.use({ seed: true })` を一部のテストにだけ効かせたいときなど）。
+まだ E2E を書いていないシナリオは、`test.skip` で名前だけ置いてもよい。
+
+spec.md の全シナリオに E2E を求めはしない。
+サービス層のテストで確かめるシナリオ（「再起動後も在庫が残る」など）も spec.md に並ぶためである。
+どのシナリオを E2E で確かめるかは、proposal の tasks.md で決める。
+
+対応は `npm run check:scenarios` が検査し、`task test:e2e` の最初にも走る。
+検査するのは「E2E のテスト名が spec.md に実在するか」の向きだけで、実装中の change の delta spec（`openspec/changes/<name>/specs/`）も照合先に含める。
+最後に capability ごとの E2E 件数と Scenario 件数を表示する。
 
 ```bash
-python3 - <<'PY'
-import pathlib, re
-feature = pathlib.Path("docs/scenarios/recipe.feature").read_text()
-scenarios = [l.split("シナリオ:", 1)[1].strip() for l in feature.split("\n") if l.strip().startswith("シナリオ:")]
-specs = "".join(p.read_text() for p in pathlib.Path("frontend/e2e").glob("*.spec.ts"))
-names = set(re.findall(r'test(?:\.skip)?\(\s*"([^"]+)"', specs))
-print("未対応シナリオ:", [s for s in scenarios if s not in names])
-PY
+cd frontend && npm run check:scenarios
 ```
+
+### Gherkin の実行系を入れない理由
+
+当初は `docs/scenarios/*.feature` に Gherkin でシナリオを置き、[cucumber/godog](https://github.com/cucumber/godog) で直接実行する案を検討したが見送った。
+Go のステップからは React の画面を操作できず、画面側の検索やソートを Go で書き直した検証になってしまうためである。
+判断の詳細は [../../openspec/changes/archive/2026-09-07-add-e2e-harness/proposal.md](../../openspec/changes/archive/2026-09-07-add-e2e-harness/proposal.md) の Non-goals にある。
+
+Playwright から `.feature` を実行する playwright-bdd も見送った。
+シナリオのステップが自由記述のためステップ定義を使い回せず、文面をステップ定義に合わせて型にはめる必要が出るためである。
+`.feature` 自体も、spec.md との二重管理で古くなったため廃止し、シナリオは spec.md に一本化した（[../../docs/product.md](../../docs/product.md) §6）。
 
 ## 新しいサービスを足したとき
 

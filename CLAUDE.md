@@ -107,9 +107,10 @@ func TestRecipeService_List(t *testing.T) {
 - 生成 bindings への import は、`--mode e2e` のときだけ `frontend/e2e/bindings-shim/` に差し替わる（`vite-plugin-e2e-bindings.ts`）。`task dev` / `task build` には影響しない
 - shim の戻り値型は生成物より狭く書く（例: `StockItem[] | null` ではなく `StockItem[]`）。`.ts` 生成と `.js` 生成で nullable の付き方が違い、狭い型なら両方に代入できる
 - サーバは `cmd/e2e-server`。`frontend/dist` を配信し、`POST /api/{Service}/{Method}` を reflect で `internal/service` に転送する。DB はテストごとに一時ディレクトリへ作り直す
-- **テスト名は [docs/scenarios/](docs/scenarios/) の `シナリオ:` 行と一字一句揃える**。`describe` 名は `機能:` 行に揃える。未実装のシナリオは `test.skip` で名前だけ置く
+- **テスト名は `openspec/specs/<capability>/spec.md` の `#### Scenario:` と一字一句揃える**。最外の `describe` 名は `### Requirement:` に揃え、ファイル名は `<capability>[-<topic>].spec.ts` にする。`task test:e2e` の最初に走る `check:scenarios` が、spec.md（と進行中 change の delta）に実在しない名前を落とす
+- spec.md の全シナリオに E2E は要らない（サービス層で確かめるシナリオもある）。どのシナリオを E2E で確かめるかは proposal の tasks.md で決める
 - ルータは memory history なので `page.goto("/recipes")` では遷移しない。サイドバーをクリックする
-- godog は入れない（判断の理由は [docs/scenarios/README.md](docs/scenarios/README.md)）
+- godog / playwright-bdd などの Gherkin 実行系は入れない（判断の理由は [frontend/e2e/README.md](frontend/e2e/README.md)）
 - 詳細は [frontend/e2e/README.md](frontend/e2e/README.md)
 
 ## コメント方針
@@ -145,7 +146,7 @@ if now == existing.UpdatedAt { ... }
 ## ドキュメントは load-bearing
 
 - `docs/wireframes/*.drawio.svg` — **ワイヤーは視覚レイアウトの正**。[product.md §4](docs/product.md) は絵から読めない相互作用・遷移だけを言葉で書く。`.drawio.svg` は **可視 SVG と drawio 用の編集 XML の二重構造**（`content=` 属性内）— 片方だけ触ると乖離する。詳細は [docs/wireframes/README.md](docs/wireframes/README.md)
-- `docs/scenarios/*.feature` — capability ごとの Gherkin シナリオ（日本語 Gherkin、`# language: ja`）。`.feature` 自体は実行しない（godog は入れない）が、Playwright E2E のテスト名が `シナリオ:` 行と一字一句対応している（上記「テスト方針」の E2E 節）。proposal を切るとき対応する `.feature` にシナリオを追加する
+- `openspec/specs/<capability>/spec.md` — 振る舞いの正。受け入れシナリオもここにだけ書き、Playwright E2E のテスト名と一字一句対応させる（上記「テスト方針」の E2E 節）。proposal 前の構想段階の観点は product.md に文章で置く
 - ワイヤーと product.md は節番号で相互参照している。画面の挙動を変えたら両方を更新する必要が大抵ある
 
 ## OpenSpec ワークフロー
@@ -161,6 +162,8 @@ if now == existing.UpdatedAt { ... }
 - `openspec-archive-change` — 実装完了後の確定処理
 
 proposal は `openspec/changes/<name>/`、アーカイブは `openspec/changes/archive/`、現行仕様スナップショットは `openspec/specs/<capability>/`。proposal の順序案は [design.md §8](docs/design.md)。
+
+**OpenSpec を通さずに実装を変えるとき**（不具合修正、小さな改善、リファクタなど）は、変更が `openspec/specs/` の Requirement / Scenario に書かれた振る舞いを変えるかを必ず判断する。変えるなら同じコミットで spec.md も直す（E2E のテスト名を変えたらシナリオ名も合わせる）。変えないなら spec.md は触らない。archive の流れを通らない変更は spec.md に反映される経路が無く、放置すると仕様と実装がずれるため。
 
 **運用フロー（重要）**: `/opsx:propose`（または `openspec-propose`）で planning artifacts（proposal.md / specs/…/spec.md / design.md / tasks.md）を生成した**あとは、そのまま tasks.md に沿って実装を開始しない**。必ず**人間のレビューを挟み、明示的な指示（例: 「apply して」「実装始めて」「/opsx:apply」）を受けてから** `openspec-apply-change` に進む。propose は planning のみで停止するのが既定 — 続けて実装したくなっても、レビュー承認を待つこと。
 
