@@ -91,11 +91,7 @@ export function ShoppingTable({ items, checked, onCheckedChange }: Props) {
                 />
               </TableCell>
               <TableCell>{item.name}</TableCell>
-              <TableCell>
-                {item.amount === 0
-                  ? t("pages.shopping.amount_unspecified")
-                  : formatQuantity(item.amount, item.unit)}
-              </TableCell>
+              <TableCell>{formatQuantity(item.amount, item.unit)}</TableCell>
               <TableCell>
                 <StockStatusBadge status={item.stockStatus} />
               </TableCell>

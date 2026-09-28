@@ -9,6 +9,7 @@ import {
   dateAfter,
   openFridge,
   openShoppingList,
+  shoppingPantryItem,
 } from "./helpers.js";
 
 const tp = ja.pages.shopping.purchase;
@@ -172,5 +173,20 @@ test.describe("在庫の状態での絞り込み", () => {
     await expect(itemRow(page, "じゃがいも")).toHaveCount(0);
     await filterButton(page, "covered").click();
     await expect(itemRow(page, "じゃがいも")).toBeVisible();
+  });
+
+  test("量を持たない材料は件数に含めない", async ({ page }) => {
+    await planDinner(page, "肉じゃが", [
+      { name: "じゃがいも", amount: 2, unit: "個" },
+      { name: "醤油", amount: 2, unit: "大さじ" },
+    ]);
+    await openShoppingList(page);
+
+    await expect(filterButton(page, "all")).toHaveText(tfl.all.replace("{{count}}", "1"));
+    await expect(filterButton(page, "needed")).toHaveText(tfl.needed.replace("{{count}}", "1"));
+    await expect(filterButton(page, "covered")).toHaveText(tfl.covered.replace("{{count}}", "0"));
+
+    await filterButton(page, "covered").click();
+    await expect(shoppingPantryItem(page, "醤油")).toBeVisible();
   });
 });

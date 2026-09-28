@@ -4,9 +4,11 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { formatDisplayDate } from "@/lib/format-date";
+import { isPantryItem } from "../components/shopping/pantry";
 import { PurchaseDialog } from "../components/shopping/purchase-dialog";
 import { itemKey } from "../components/shopping/purchase-form";
 import { ShoppingDishList } from "../components/shopping/shopping-dish-list";
+import { ShoppingPantryList } from "../components/shopping/shopping-pantry-list";
 import {
   periodEndOf,
   resolveShoppingPeriod,
@@ -43,9 +45,11 @@ export function ShoppingPage() {
   // 絞り込みは期間の切替では戻さない。見たい行の種類は期間を変えても同じため (add-shopping-stock-filter D2)。
   const [stockFilter, setStockFilter] = useState<StockFilter>(DEFAULT_STOCK_FILTER);
   const allItems = data?.items ?? [];
-  const visibleItems = allItems.filter((it) => matchesStockFilter(it, stockFilter));
+  const tableItems = allItems.filter((it) => !isPantryItem(it));
+  const pantryItems = allItems.filter(isPantryItem);
+  const visibleItems = tableItems.filter((it) => matchesStockFilter(it, stockFilter));
   // 件数とダイアログは隠れた行のチェックも含めるため、絞る前の全行から数える。
-  const checkedItems = allItems.filter((it) => checked.has(itemKey(it)));
+  const checkedItems = tableItems.filter((it) => checked.has(itemKey(it)));
 
   const onRegistered = (count: number) => {
     setDialogOpen(false);
@@ -88,31 +92,43 @@ export function ShoppingPage() {
               <p className="text-sm text-neutral-500">{t("pages.shopping.empty.no_ingredients")}</p>
             ) : (
               <div className="flex flex-col gap-3">
-                <ShoppingStockFilter
-                  value={stockFilter}
-                  counts={countByStockFilter(data.items)}
-                  onChange={setStockFilter}
-                />
-                {visibleItems.length === 0 ? (
-                  <p className="text-sm text-neutral-500" data-testid="shopping-filter-no-match">
-                    {t("pages.shopping.filter.no_match")}
+                {tableItems.length === 0 ? (
+                  <p className="text-sm text-neutral-500" data-testid="shopping-no-quantified">
+                    {t("pages.shopping.empty.no_quantified")}
                   </p>
                 ) : (
-                  <ShoppingTable
-                    items={visibleItems}
-                    checked={checked}
-                    onCheckedChange={setChecked}
-                  />
+                  <>
+                    <ShoppingStockFilter
+                      value={stockFilter}
+                      counts={countByStockFilter(tableItems)}
+                      onChange={setStockFilter}
+                    />
+                    {visibleItems.length === 0 ? (
+                      <p
+                        className="text-sm text-neutral-500"
+                        data-testid="shopping-filter-no-match"
+                      >
+                        {t("pages.shopping.filter.no_match")}
+                      </p>
+                    ) : (
+                      <ShoppingTable
+                        items={visibleItems}
+                        checked={checked}
+                        onCheckedChange={setChecked}
+                      />
+                    )}
+                    <div>
+                      <Button
+                        type="button"
+                        disabled={checkedItems.length === 0}
+                        onClick={() => setDialogOpen(true)}
+                      >
+                        {t("pages.shopping.purchase.register", { count: checkedItems.length })}
+                      </Button>
+                    </div>
+                  </>
                 )}
-                <div>
-                  <Button
-                    type="button"
-                    disabled={checkedItems.length === 0}
-                    onClick={() => setDialogOpen(true)}
-                  >
-                    {t("pages.shopping.purchase.register", { count: checkedItems.length })}
-                  </Button>
-                </div>
+                {pantryItems.length > 0 && <ShoppingPantryList items={pantryItems} />}
               </div>
             )}
           </div>

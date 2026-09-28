@@ -8,6 +8,7 @@ import {
   createRecipeWithIngredients,
   dateAfter,
   openShoppingList,
+  shoppingPantryItem,
 } from "./helpers.js";
 
 // 対象期間はサイドバーから開いたときの「今日から 7 日間」を基準にし、日付は今日からの相対で組み立てる。
@@ -233,18 +234,25 @@ test.describe("期間の献立一覧", () => {
   });
 });
 
-test.describe("量の指定が無い材料", () => {
-  test("量る単位の材料は必要量を「—」で表示する", async ({ page }) => {
+test.describe("量を持たない材料の欄", () => {
+  test("量を持たない材料は材料テーブルとは別の欄に並ぶ", async ({ page }) => {
     const id = await createRecipeWithIngredients(page, "肉じゃが", [
+      { name: "玉ねぎ", amount: 2, unit: "個" },
+      { name: "塩", amount: 0, unit: "" },
       { name: "醤油", amount: 2, unit: "大さじ" },
     ]);
     await assignRecipe(page, dateAfter(0), "dinner", id);
     await openShoppingList(page);
 
-    const row = itemRow(page, "醤油");
-    await expect(row).toHaveCount(1);
-    await expect(row.locator("td").nth(2)).toHaveText(t.amount_unspecified);
-    await expect(row).toHaveAttribute("data-stock-status", "none");
+    expect(await ingredientNames(page)).toEqual(["玉ねぎ"]);
+    await expect(page.getByRole("heading", { name: t.pantry.title })).toBeVisible();
+    for (const name of ["塩", "醤油"]) {
+      const item = shoppingPantryItem(page, name);
+      await expect(item).toHaveCount(1);
+      await expect(item).toHaveAttribute("data-stock-status", "none");
+      await expect(item).not.toContainText(t.stock_status.none);
+      await expect(item).not.toContainText(t.stock_status.covered);
+    }
   });
 
   test("量を持たない材料は単位が違う在庫でも在庫ありになる", async ({ page }) => {
@@ -255,7 +263,24 @@ test.describe("量の指定が無い材料", () => {
     await addStockItem(page, { name: "醤油", amount: 1, unit: "本" });
     await openShoppingList(page);
 
-    await expect(itemRow(page, "醤油")).toHaveAttribute("data-stock-status", "covered");
+    const item = shoppingPantryItem(page, "醤油");
+    await expect(item).toHaveAttribute("data-stock-status", "covered");
+    await expect(item).toContainText(t.stock_status.covered);
+  });
+
+  test("量を持たない材料にはチェックを付けられない", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "肉じゃが", [
+      { name: "玉ねぎ", amount: 2, unit: "個" },
+      { name: "醤油", amount: 2, unit: "大さじ" },
+    ]);
+    await assignRecipe(page, dateAfter(0), "dinner", id);
+    await openShoppingList(page);
+
+    await expect(shoppingPantryItem(page, "醤油")).toHaveCount(1);
+    await expect(shoppingPantryItem(page, "醤油").getByRole("checkbox")).toHaveCount(0);
+    await expect(
+      page.getByLabel(t.purchase.check_row.replace("{{name}}", "醤油"), { exact: true }),
+    ).toHaveCount(0);
   });
 });
 
@@ -275,5 +300,22 @@ test.describe("買い物リストの空状態", () => {
     await expect(page.getByText(t.empty.no_ingredients)).toBeVisible();
     await expect(page.getByRole("heading", { name: t.dishes.title })).toBeVisible();
     await expect(dish(page, "ご飯")).toHaveCount(1);
+  });
+
+  test("量を持たない材料しか無い", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "肉じゃが", [
+      { name: "醤油", amount: 2, unit: "大さじ" },
+      { name: "塩", amount: 0, unit: "" },
+    ]);
+    await assignRecipe(page, dateAfter(0), "dinner", id);
+    await openShoppingList(page);
+
+    await expect(page.getByTestId("shopping-no-quantified")).toHaveText(t.empty.no_quantified);
+    await expect(page.getByRole("table")).toHaveCount(0);
+    await expect(
+      page.getByRole("button").filter({ hasText: t.purchase.register.split("{{count}}")[0] }),
+    ).toHaveCount(0);
+    await expect(shoppingPantryItem(page, "醤油")).toHaveCount(1);
+    await expect(shoppingPantryItem(page, "塩")).toHaveCount(1);
   });
 });

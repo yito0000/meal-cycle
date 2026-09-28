@@ -11,11 +11,10 @@ export function itemKey(item: Pick<Item, "name" | "unit">): string {
   return `${item.name}\u0000${item.unit}`;
 }
 
-// 必要量 0 (塩少々など) は在庫の量として登録できないので、利用者に入れてもらうため空にする。
 export function toPurchaseRows(items: Item[]): StockFormValues[] {
   return items.map((it) => ({
     name: it.name,
-    amount: it.amount === 0 ? "" : formatAmount(it.amount),
+    amount: formatAmount(it.amount),
     unit: it.unit,
     expiresAt: "",
   }));

@@ -314,7 +314,6 @@
         "stock": "Stock",
         "usage": "Used in"
       },
-      "amount_unspecified": "—",
       "stock_status": {
         "none": "Not in stock",
         "partial": "Partly in stock",
@@ -333,7 +332,8 @@
       },
       "empty": {
         "no_plans": "No meals are planned in this period. Assign recipes in the meal calendar to see ingredients here",
-        "no_ingredients": "The planned recipes have no ingredients"
+        "no_ingredients": "The planned recipes have no ingredients",
+        "no_quantified": "No ingredients with an amount to buy"
       },
       "loading": "Loading...",
       "load_error": "Failed to load the shopping list",
@@ -353,6 +353,10 @@
         "needed": "Missing or partial ({{count}})",
         "covered": "In stock ({{count}})",
         "no_match": "No matching ingredients"
+      },
+      "pantry": {
+        "title": "Check you have these",
+        "description": "These ingredients are not written in amounts you buy. Just check you haven't run out"
       }
     }
   },

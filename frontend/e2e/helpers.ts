@@ -98,6 +98,13 @@ export async function checkShoppingItem(page: Page, name: string) {
   await page.getByLabel(ts.purchase.check_row.replace("{{name}}", name), { exact: true }).check();
 }
 
+// S07 の量を持たない材料の欄から、食材名が name の項目を取る。
+export function shoppingPantryItem(page: Page, name: string) {
+  return page
+    .getByTestId("shopping-pantry-item")
+    .filter({ has: page.getByText(name, { exact: true }) });
+}
+
 // createRecipeWithIngredients は材料を指定してレシピを 1 件作り、ID を返す。
 export async function createRecipeWithIngredients(
   page: Page,
