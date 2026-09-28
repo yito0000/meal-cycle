@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"strings"
 	"time"
 
@@ -53,6 +54,27 @@ func (s *FridgeService) Add(ctx context.Context, input fridge.StockItem) (fridge
 		return fridge.StockItem{}, err
 	}
 	return s.withExpiry(created, s.now()), nil
+}
+
+// AddMany は S07 の一括登録用。途中まで入った状態を見せないため、全行を検証してから 1 トランザクションで入れる (add-shopping-purchase design.md D1)。
+func (s *FridgeService) AddMany(ctx context.Context, inputs []fridge.StockItem) ([]fridge.StockItem, error) {
+	normalized := make([]fridge.StockItem, 0, len(inputs))
+	for i, input := range inputs {
+		n, err := validateStockInput(input)
+		if err != nil {
+			return nil, fmt.Errorf("row %d: %w", i, err)
+		}
+		normalized = append(normalized, n)
+	}
+	created, err := s.repo.CreateMany(ctx, normalized)
+	if err != nil {
+		return nil, err
+	}
+	today := s.now()
+	for i := range created {
+		created[i] = s.withExpiry(created[i], today)
+	}
+	return created, nil
 }
 
 // Update は指定 ID の行を上書きする。AddedAt は変わらない。

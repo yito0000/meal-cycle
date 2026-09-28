@@ -93,6 +93,11 @@ export async function openShoppingList(page: Page) {
   await page.getByRole("heading", { name: ts.title }).waitFor();
 }
 
+// S07 の材料の行に購入済チェックを付ける。
+export async function checkShoppingItem(page: Page, name: string) {
+  await page.getByLabel(ts.purchase.check_row.replace("{{name}}", name), { exact: true }).check();
+}
+
 // createRecipeWithIngredients は材料を指定してレシピを 1 件作り、ID を返す。
 export async function createRecipeWithIngredients(
   page: Page,

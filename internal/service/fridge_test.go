@@ -192,6 +192,102 @@ func TestFridgeService_Add(t *testing.T) {
 	})
 }
 
+func TestFridgeService_AddMany(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("should add all items with trimmed name and unit when every input is valid", func(t *testing.T) {
+		svc, _ := newFridgeServiceForTest(t)
+		got, err := svc.AddMany(ctx, []fridge.StockItem{
+			{Name: " 玉ねぎ ", Amount: 3, Unit: " 個 "},
+			{Name: "豚ロース", Amount: 200, Unit: "g"},
+		})
+		if err != nil {
+			t.Fatalf("AddMany: %v", err)
+		}
+		if len(got) != 2 || got[0].Name != "玉ねぎ" || got[0].Unit != "個" {
+			t.Errorf("want trimmed 2 items, got %#v", got)
+		}
+		list, _ := svc.List(ctx)
+		if len(list) != 2 {
+			t.Errorf("want 2 rows, got %d", len(list))
+		}
+	})
+
+	t.Run("should return added items with expiry status evaluated when expiry is set", func(t *testing.T) {
+		svc, _ := newFridgeServiceForTest(t)
+		got, err := svc.AddMany(ctx, []fridge.StockItem{
+			{Name: "牛乳", Amount: 1, Unit: "本", ExpiresAt: daysLater(1)},
+			{Name: "米", Amount: 5, Unit: "kg"},
+		})
+		if err != nil {
+			t.Fatalf("AddMany: %v", err)
+		}
+		if got[0].ExpiryStatus != fridge.ExpiryUrgent || got[0].DaysLeft == nil || *got[0].DaysLeft != 1 {
+			t.Errorf("want urgent with 1 day left, got %#v", got[0])
+		}
+		if got[1].ExpiryStatus != fridge.ExpiryNone || got[1].DaysLeft != nil {
+			t.Errorf("want none with nil daysLeft, got %#v", got[1])
+		}
+	})
+
+	t.Run("should not add any item when one of the inputs has an empty name", func(t *testing.T) {
+		svc, _ := newFridgeServiceForTest(t)
+		_, err := svc.AddMany(ctx, []fridge.StockItem{validStock("玉ねぎ"), {Name: "  ", Amount: 1}})
+		if !errors.Is(err, fridge.ErrStockNameEmpty) {
+			t.Errorf("want ErrStockNameEmpty, got %v", err)
+		}
+		list, _ := svc.List(ctx)
+		if len(list) != 0 {
+			t.Errorf("want 0 rows, got %d", len(list))
+		}
+	})
+
+	t.Run("should wrap ErrStockAmountOutOfRange with the row index when the second input has zero amount", func(t *testing.T) {
+		svc, _ := newFridgeServiceForTest(t)
+		bad := validStock("塩")
+		bad.Amount = 0
+		_, err := svc.AddMany(ctx, []fridge.StockItem{validStock("玉ねぎ"), bad})
+		if !errors.Is(err, fridge.ErrStockAmountOutOfRange) {
+			t.Fatalf("want ErrStockAmountOutOfRange, got %v", err)
+		}
+		if !strings.Contains(err.Error(), "row 1") {
+			t.Errorf("want row index in message, got %q", err.Error())
+		}
+	})
+
+	t.Run("should not merge into existing stock when the same name and unit already exist", func(t *testing.T) {
+		svc, _ := newFridgeServiceForTest(t)
+		if _, err := svc.Add(ctx, fridge.StockItem{Name: "玉ねぎ", Amount: 1, Unit: "個"}); err != nil {
+			t.Fatalf("Add: %v", err)
+		}
+		if _, err := svc.AddMany(ctx, []fridge.StockItem{{Name: "玉ねぎ", Amount: 2, Unit: "個"}}); err != nil {
+			t.Fatalf("AddMany: %v", err)
+		}
+		list, _ := svc.List(ctx)
+		if len(list) != 2 {
+			t.Fatalf("want 2 rows, got %d", len(list))
+		}
+		amounts := map[float64]bool{}
+		for _, it := range list {
+			amounts[it.Amount] = true
+		}
+		if !amounts[1] || !amounts[2] {
+			t.Errorf("want amounts 1 and 2, got %#v", list)
+		}
+	})
+
+	t.Run("should return empty slice without error when inputs are empty", func(t *testing.T) {
+		svc, _ := newFridgeServiceForTest(t)
+		got, err := svc.AddMany(ctx, []fridge.StockItem{})
+		if err != nil {
+			t.Fatalf("AddMany: %v", err)
+		}
+		if got == nil || len(got) != 0 {
+			t.Errorf("want empty non-nil slice, got %#v", got)
+		}
+	})
+}
+
 func TestFridgeService_Update(t *testing.T) {
 	ctx := context.Background()
 

@@ -76,6 +76,39 @@ func (r *StockRepo) Create(ctx context.Context, input fridge.StockItem) (fridge.
 	return item, nil
 }
 
+// CreateMany は全行を 1 トランザクションで挿入し、途中で失敗したら 1 行も残さない。
+func (r *StockRepo) CreateMany(ctx context.Context, inputs []fridge.StockItem) ([]fridge.StockItem, error) {
+	out := make([]fridge.StockItem, 0, len(inputs))
+	if len(inputs) == 0 {
+		return out, nil
+	}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	for _, input := range inputs {
+		id, err := uuid.NewV7()
+		if err != nil {
+			return nil, fmt.Errorf("generate stock id: %w", err)
+		}
+		item := stripDerived(input)
+		item.ID = id.String()
+		item.AddedAt = now
+		item.UpdatedAt = now
+		if err := insertStockItem(ctx, tx, item); err != nil {
+			return nil, err
+		}
+		out = append(out, item)
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit tx: %w", err)
+	}
+	return out, nil
+}
+
 // Update は added_at を保ったまま他の列を上書きする。
 func (r *StockRepo) Update(ctx context.Context, id string, input fridge.StockItem) (fridge.StockItem, error) {
 	now := time.Now().UTC().Format(time.RFC3339)

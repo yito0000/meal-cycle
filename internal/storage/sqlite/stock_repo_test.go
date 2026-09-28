@@ -111,6 +111,126 @@ func TestStockRepo_Create(t *testing.T) {
 	})
 }
 
+func TestStockRepo_CreateMany(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("inserts all rows and they can be read back", func(t *testing.T) {
+		repo, _ := newStockRepoForTest(t)
+		inputs := []fridge.StockItem{
+			{Name: "玉ねぎ", Amount: 3, Unit: "個", ExpiresAt: "2026-10-05"},
+			{Name: "豚ロース", Amount: 200, Unit: "g"},
+			{Name: "卵", Amount: 10, Unit: "個"},
+		}
+		created, err := repo.CreateMany(ctx, inputs)
+		if err != nil {
+			t.Fatalf("CreateMany: %v", err)
+		}
+		if len(created) != 3 {
+			t.Fatalf("want 3 created, got %d", len(created))
+		}
+		list, err := repo.List(ctx)
+		if err != nil {
+			t.Fatalf("List: %v", err)
+		}
+		if len(list) != 3 {
+			t.Fatalf("want 3 rows, got %d", len(list))
+		}
+		byName := map[string]fridge.StockItem{}
+		for _, it := range list {
+			byName[it.Name] = it
+		}
+		for _, in := range inputs {
+			got, ok := byName[in.Name]
+			if !ok {
+				t.Errorf("%s not found", in.Name)
+				continue
+			}
+			if got.Amount != in.Amount || got.Unit != in.Unit || got.ExpiresAt != in.ExpiresAt {
+				t.Errorf("want %#v, got %#v", in, got)
+			}
+		}
+	})
+
+	t.Run("assigns distinct ids and the same addedAt to all rows", func(t *testing.T) {
+		repo, _ := newStockRepoForTest(t)
+		created, err := repo.CreateMany(ctx, []fridge.StockItem{
+			{Name: "a", Amount: 1}, {Name: "b", Amount: 1}, {Name: "c", Amount: 1},
+		})
+		if err != nil {
+			t.Fatalf("CreateMany: %v", err)
+		}
+		ids := map[string]bool{}
+		for _, it := range created {
+			if it.ID == "" || ids[it.ID] {
+				t.Errorf("id empty or duplicated: %q", it.ID)
+			}
+			ids[it.ID] = true
+			if it.AddedAt != created[0].AddedAt || it.UpdatedAt != created[0].AddedAt {
+				t.Errorf("timestamps differ: %#v", it)
+			}
+		}
+	})
+
+	t.Run("stores NULL when expiry is empty", func(t *testing.T) {
+		repo, db := newStockRepoForTest(t)
+		created, err := repo.CreateMany(ctx, []fridge.StockItem{{Name: "米", Amount: 5, Unit: "kg"}})
+		if err != nil {
+			t.Fatalf("CreateMany: %v", err)
+		}
+		var raw sql.NullString
+		if err := db.QueryRow(`SELECT expires_at FROM stock_items WHERE id = ?`, created[0].ID).Scan(&raw); err != nil {
+			t.Fatalf("select: %v", err)
+		}
+		if raw.Valid {
+			t.Errorf("want NULL, got %q", raw.String)
+		}
+		got, err := repo.GetByID(ctx, created[0].ID)
+		if err != nil {
+			t.Fatalf("GetByID: %v", err)
+		}
+		if got.ExpiresAt != "" {
+			t.Errorf("want empty expiresAt, got %q", got.ExpiresAt)
+		}
+	})
+
+	t.Run("returns empty slice and inserts nothing when inputs are empty", func(t *testing.T) {
+		repo, _ := newStockRepoForTest(t)
+		created, err := repo.CreateMany(ctx, nil)
+		if err != nil {
+			t.Fatalf("CreateMany: %v", err)
+		}
+		if created == nil || len(created) != 0 {
+			t.Errorf("want empty non-nil slice, got %#v", created)
+		}
+		list, _ := repo.List(ctx)
+		if len(list) != 0 {
+			t.Errorf("want 0 rows, got %d", len(list))
+		}
+	})
+
+	t.Run("rolls back all rows when the second insert fails", func(t *testing.T) {
+		repo, db := newStockRepoForTest(t)
+		if _, err := db.Exec(`
+			CREATE TRIGGER fail_insert BEFORE INSERT ON stock_items
+			WHEN NEW.name = 'fail'
+			BEGIN SELECT RAISE(ABORT, 'forced failure'); END;
+		`); err != nil {
+			t.Fatalf("create trigger: %v", err)
+		}
+		_, err := repo.CreateMany(ctx, []fridge.StockItem{
+			{Name: "玉ねぎ", Amount: 1, Unit: "個"},
+			{Name: "fail", Amount: 1},
+		})
+		if err == nil {
+			t.Fatal("want error, got nil")
+		}
+		list, _ := repo.List(ctx)
+		if len(list) != 0 {
+			t.Errorf("want 0 rows after rollback, got %d", len(list))
+		}
+	})
+}
+
 func TestStockRepo_Update(t *testing.T) {
 	ctx := context.Background()
 

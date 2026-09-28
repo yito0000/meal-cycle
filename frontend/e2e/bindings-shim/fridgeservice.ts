@@ -5,6 +5,10 @@ export function Add(input: fridge$0.StockItem) {
   return call<fridge$0.StockItem>("FridgeService", "Add", input);
 }
 
+export function AddMany(inputs: fridge$0.StockItem[] | null) {
+  return call<fridge$0.StockItem[]>("FridgeService", "AddMany", inputs);
+}
+
 export function Delete(id: string) {
   return call<void>("FridgeService", "Delete", id);
 }

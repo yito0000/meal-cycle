@@ -1,7 +1,11 @@
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { formatDisplayDate } from "@/lib/format-date";
+import { PurchaseDialog } from "../components/shopping/purchase-dialog";
+import { itemKey } from "../components/shopping/purchase-form";
 import { ShoppingDishList } from "../components/shopping/shopping-dish-list";
 import {
   periodEndOf,
@@ -19,6 +23,23 @@ export function ShoppingPage() {
   // 「今日」はマウント時点で固定する。深夜 0 時をまたいでも、開き直すまでは同じ期間を見せる。
   const period = useMemo(() => resolveShoppingPeriod(search, new Date()), [search]);
   const { data, isLoading, isError } = useShoppingList(period.periodStart, period.periodDays);
+
+  const [checked, setChecked] = useState<Set<string>>(() => new Set());
+  const [dialogOpen, setDialogOpen] = useState(false);
+  // 期間が変わったら描画中にチェックを捨てる。effect だと古いチェックが 1 フレーム残る (design.md D3)。
+  const periodKey = `${period.periodStart}/${period.periodDays}`;
+  const [checkedFor, setCheckedFor] = useState(periodKey);
+  if (checkedFor !== periodKey) {
+    setCheckedFor(periodKey);
+    setChecked(new Set());
+  }
+  const checkedItems = (data?.items ?? []).filter((it) => checked.has(itemKey(it)));
+
+  const onRegistered = (count: number) => {
+    setDialogOpen(false);
+    setChecked(new Set());
+    toast(t("pages.shopping.purchase.registered", { count }));
+  };
 
   const onPeriodChange = (next: ShoppingPeriod) => {
     navigate({
@@ -54,12 +75,29 @@ export function ShoppingPage() {
             {data.items.length === 0 ? (
               <p className="text-sm text-neutral-500">{t("pages.shopping.empty.no_ingredients")}</p>
             ) : (
-              <ShoppingTable items={data.items} />
+              <div className="flex flex-col gap-3">
+                <ShoppingTable items={data.items} checked={checked} onCheckedChange={setChecked} />
+                <div>
+                  <Button
+                    type="button"
+                    disabled={checkedItems.length === 0}
+                    onClick={() => setDialogOpen(true)}
+                  >
+                    {t("pages.shopping.purchase.register", { count: checkedItems.length })}
+                  </Button>
+                </div>
+              </div>
             )}
           </div>
           <ShoppingDishList dishes={data.dishes} />
         </div>
       )}
+      <PurchaseDialog
+        open={dialogOpen}
+        items={checkedItems}
+        onOpenChange={setDialogOpen}
+        onRegistered={onRegistered}
+      />
     </div>
   );
 }

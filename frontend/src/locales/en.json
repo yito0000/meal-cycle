@@ -336,7 +336,17 @@
         "no_ingredients": "The planned recipes have no ingredients"
       },
       "loading": "Loading...",
-      "load_error": "Failed to load the shopping list"
+      "load_error": "Failed to load the shopping list",
+      "purchase": {
+        "check_all": "Select all ingredients",
+        "check_row": "Mark {{name}} as purchased",
+        "register": "Add checked items to fridge ({{count}})",
+        "dialog_title": "Items to add to the fridge",
+        "dialog_description": "Check the amounts and best-before dates before adding",
+        "submit": "Add",
+        "cancel": "Cancel",
+        "registered": "Added {{count}} items to the fridge"
+      }
     }
   },
   "health": {

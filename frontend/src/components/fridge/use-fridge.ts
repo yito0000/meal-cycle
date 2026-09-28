@@ -26,7 +26,7 @@ export function useStockSuggestions() {
 }
 
 // 在庫名の増減で候補も変わるので、どの mutation でも一覧と候補の両方を捨てる (design.md D12)。
-function useInvalidateFridge() {
+export function useInvalidateFridge() {
   const queryClient = useQueryClient();
   return () =>
     Promise.all([

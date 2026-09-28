@@ -53,7 +53,8 @@ function dish(page: Page, recipeName: string) {
 }
 
 async function ingredientNames(page: Page): Promise<string[]> {
-  return page.locator("tbody tr td:first-child").allInnerTexts();
+  // 先頭はチェックの列なので、食材名は 2 列目。
+  return page.locator("tbody tr td:nth-child(2)").allInnerTexts();
 }
 
 test.describe("買い物リストの対象期間", () => {

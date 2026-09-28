@@ -336,7 +336,17 @@
         "no_ingredients": "献立のレシピに材料が登録されていません"
       },
       "loading": "読み込み中...",
-      "load_error": "買い物リストの読み込みに失敗しました"
+      "load_error": "買い物リストの読み込みに失敗しました",
+      "purchase": {
+        "check_all": "すべての食材を選択",
+        "check_row": "{{name}} を購入済みにする",
+        "register": "チェックした食材を冷蔵庫に登録 ({{count}} 件)",
+        "dialog_title": "冷蔵庫に登録する食材",
+        "dialog_description": "量と賞味期限を確かめてから登録してください",
+        "submit": "登録",
+        "cancel": "キャンセル",
+        "registered": "{{count}} 件を冷蔵庫に登録しました"
+      }
     }
   },
   "health": {

@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { ShoppingService } from "../../../bindings/github.com/yito0000/meal-cycle/internal/service";
 
-// 献立や在庫の mutation からは invalidate しない。S07 はマウントのたびに再取得するので、
-// 他画面での変更は開き直した時点で反映される (design.md D8)。
+// 他画面の mutation からは invalidate しない。S07 はマウントのたびに再取得するので、開き直した時点で反映される
+// (add-shopping-list design.md D8)。S07 自身の一括登録だけは invalidate する (add-shopping-purchase design.md D6)。
 export function useShoppingList(periodStart: string, periodDays: number) {
   return useQuery({
     queryKey: ["shopping", periodStart, periodDays],

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Table,
@@ -13,33 +14,76 @@ import {
   type Item,
   StockStatus,
 } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/shopping/models";
+import { itemKey } from "./purchase-form";
 import { StockStatusBadge } from "./stock-status-badge";
 
 type Props = {
   items: (Item & { recipes: string[] })[];
+  checked: Set<string>;
+  onCheckedChange: (next: Set<string>) => void;
 };
 
-export function ShoppingTable({ items }: Props) {
+export function ShoppingTable({ items, checked, onCheckedChange }: Props) {
   const { t } = useTranslation();
+  const checkedCount = items.filter((it) => checked.has(itemKey(it))).length;
+  const allChecked = items.length > 0 && checkedCount === items.length;
+  const headerRef = useRef<HTMLInputElement>(null);
+
+  // indeterminate は HTML 属性が無く DOM プロパティでしか設定できない (design.md D4)。
+  useEffect(() => {
+    if (headerRef.current) headerRef.current.indeterminate = checkedCount > 0 && !allChecked;
+  }, [checkedCount, allChecked]);
+
+  const toggleAll = () => {
+    onCheckedChange(allChecked ? new Set() : new Set(items.map(itemKey)));
+  };
+
+  const toggle = (key: string) => {
+    const next = new Set(checked);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    onCheckedChange(next);
+  };
+
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead className="w-[28%]">{t("pages.shopping.column.name")}</TableHead>
-          <TableHead className="w-[16%]">{t("pages.shopping.column.amount")}</TableHead>
-          <TableHead className="w-[18%]">{t("pages.shopping.column.stock")}</TableHead>
-          <TableHead className="w-[38%]">{t("pages.shopping.column.usage")}</TableHead>
+          <TableHead className="w-10">
+            <input
+              ref={headerRef}
+              type="checkbox"
+              checked={allChecked}
+              onChange={toggleAll}
+              aria-label={t("pages.shopping.purchase.check_all")}
+              className="h-4 w-4 align-middle"
+            />
+          </TableHead>
+          <TableHead className="w-[26%]">{t("pages.shopping.column.name")}</TableHead>
+          <TableHead className="w-[15%]">{t("pages.shopping.column.amount")}</TableHead>
+          <TableHead className="w-[17%]">{t("pages.shopping.column.stock")}</TableHead>
+          <TableHead className="w-[36%]">{t("pages.shopping.column.usage")}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {items.map((item) => {
+          const key = itemKey(item);
           const covered = item.stockStatus === StockStatus.StockCovered;
           return (
             <TableRow
-              key={`${item.name}\u0000${item.unit}`}
+              key={key}
               data-stock-status={item.stockStatus}
               className={cn(covered && "text-neutral-400")}
             >
+              <TableCell>
+                <input
+                  type="checkbox"
+                  checked={checked.has(key)}
+                  onChange={() => toggle(key)}
+                  aria-label={t("pages.shopping.purchase.check_row", { name: item.name })}
+                  className="h-4 w-4 align-middle"
+                />
+              </TableCell>
               <TableCell>{item.name}</TableCell>
               <TableCell>
                 {item.amount === 0
