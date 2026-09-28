@@ -214,7 +214,17 @@
           "notes": "Notes"
         },
         "empty": "Not set",
-        "edit": "Edit"
+        "edit": "Edit",
+        "delete": "Delete",
+        "archived": "Deleted"
+      },
+      "delete_confirm": {
+        "title": "Delete \"{{name}}\"?",
+        "body": "It will disappear from the recipe list and the recipe picker for meal plans. Meal plans that already use it stay as they are.",
+        "cancel": "Cancel",
+        "confirm": "Delete",
+        "error": "Could not delete the recipe. Please try again.",
+        "done": "Deleted \"{{name}}\""
       }
     },
     "fridge": {

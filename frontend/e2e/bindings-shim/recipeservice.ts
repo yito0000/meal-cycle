@@ -5,6 +5,10 @@ export function Create(input: recipe$0.Recipe) {
   return call<recipe$0.Recipe>("RecipeService", "Create", input);
 }
 
+export function Delete(id: string) {
+  return call<void>("RecipeService", "Delete", id);
+}
+
 export function GetByID(id: string) {
   return call<recipe$0.Recipe>("RecipeService", "GetByID", id);
 }

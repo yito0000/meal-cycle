@@ -144,6 +144,22 @@ func TestMealPlanRepo_Assign(t *testing.T) {
 			t.Errorf("err = %v, want ErrUnknownRecipe", err)
 		}
 	})
+
+	t.Run("Assign should return ErrUnknownRecipe and add no row when the recipe is archived", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "A")
+		if err := rr.Archive(ctx, rs[0].ID); err != nil {
+			t.Fatalf("Archive: %v", err)
+		}
+		_, err := repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+		if !errors.Is(err, mealplan.ErrUnknownRecipe) {
+			t.Errorf("err = %v, want ErrUnknownRecipe", err)
+		}
+		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
+		if len(got) != 0 {
+			t.Errorf("want no rows, got %d", len(got))
+		}
+	})
 }
 
 func TestMealPlanRepo_Replace(t *testing.T) {
@@ -175,6 +191,23 @@ func TestMealPlanRepo_Replace(t *testing.T) {
 		err := repo.Replace(ctx, "2026-08-24", "dinner", 0, rs[0].ID)
 		if !errors.Is(err, mealplan.ErrEntryNotFound) {
 			t.Errorf("err = %v, want ErrEntryNotFound", err)
+		}
+	})
+
+	t.Run("Replace should return ErrUnknownRecipe and keep the original recipe when the new recipe is archived", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "A", "B")
+		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+		if err := rr.Archive(ctx, rs[1].ID); err != nil {
+			t.Fatalf("Archive: %v", err)
+		}
+		err := repo.Replace(ctx, "2026-08-24", "dinner", 0, rs[1].ID)
+		if !errors.Is(err, mealplan.ErrUnknownRecipe) {
+			t.Errorf("err = %v, want ErrUnknownRecipe", err)
+		}
+		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
+		if len(got) != 1 || got[0].RecipeID != rs[0].ID {
+			t.Errorf("want original A kept, got %+v", got)
 		}
 	})
 }
@@ -852,6 +885,44 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		}
 		if e1.BatchID == e2.BatchID || e2.BatchID == e3.BatchID || e1.BatchID == e3.BatchID {
 			t.Errorf("Assign should produce distinct batch_ids, got %q / %q / %q", e1.BatchID, e2.BatchID, e3.BatchID)
+		}
+	})
+}
+
+func TestMealPlanRepo_ArchivedRecipe(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("ListPeriod should keep returning the entry with its recipe name after the recipe is archived", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが")
+		_, _ = repo.Assign(ctx, "2026-08-28", "dinner", rs[0].ID)
+		if err := rr.Archive(ctx, rs[0].ID); err != nil {
+			t.Fatalf("Archive: %v", err)
+		}
+		got, err := repo.ListPeriod(ctx, "2026-08-24", 7)
+		if err != nil {
+			t.Fatalf("ListPeriod: %v", err)
+		}
+		if len(got) != 1 || got[0].RecipeName != "肉じゃが" {
+			t.Errorf("want 肉じゃが kept, got %+v", got)
+		}
+	})
+
+	t.Run("CopyLeftover should spread an entry of an archived recipe as leftover", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが")
+		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+		if err := rr.Archive(ctx, rs[0].ID); err != nil {
+			t.Fatalf("Archive: %v", err)
+		}
+		source, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
+		if err := repo.CopyLeftover(ctx, "dinner",
+			[]string{"2026-08-25"}, source, mealplan.CopyModeAppend, mealplan.ShareBatchLeftover); err != nil {
+			t.Fatalf("CopyLeftover: %v", err)
+		}
+		got, _ := repo.MealEntries(ctx, "2026-08-25", "dinner")
+		if len(got) != 1 || got[0].RecipeID != rs[0].ID || got[0].BatchID != source[0].BatchID {
+			t.Errorf("want leftover of 肉じゃが sharing batch, got %+v", got)
 		}
 	})
 }

@@ -25,6 +25,7 @@ export function RecipeNewPage() {
           notes: input.notes,
           createdAt: "",
           updatedAt: "",
+          archivedAt: "",
         };
         const created = await RecipeService.Create(draft);
         await queryClient.invalidateQueries({ queryKey: ["recipes", "list"] });

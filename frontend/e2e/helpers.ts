@@ -201,3 +201,21 @@ export async function openItemMenu(page: Page, recipeName: string) {
   await row.getByRole("button", { name: ja.pages.meal_plan.cell_actions.item_menu }).click();
   await page.getByRole("menu").waitFor();
 }
+
+// 開いている S03 ドロワーで「削除」を押し、確認ダイアログの「削除」を選んでドロワーが閉じるまで待つ。
+// 確認ダイアログの「削除」ボタンはドロワーのものと同名なので、ダイアログのタイトルで絞る。
+export async function deleteRecipeFromDetail(page: Page) {
+  await page.getByRole("dialog").getByRole("button", { name: t.detail.delete }).click();
+  const confirm = page.getByRole("dialog").filter({ hasText: t.delete_confirm.body }).last();
+  await confirm.getByRole("button", { name: t.delete_confirm.confirm }).click();
+  // 確認ダイアログとドロワーが順に閉じる間は dialog が 2 つあり、locator.waitFor だと strict 違反になる。
+  await page.waitForFunction(() => document.querySelectorAll('[role="dialog"]').length === 0);
+}
+
+// deleteRecipe は UI を経由せずにレシピを削除する。S01 側のシナリオの前提づくりに使う。
+export async function deleteRecipe(page: Page, id: string) {
+  const res = await page.request.post("/api/RecipeService/Delete", { data: [id] });
+  if (!res.ok()) {
+    throw new Error(`delete ${id} failed: ${res.status()} ${await res.text()}`);
+  }
+}

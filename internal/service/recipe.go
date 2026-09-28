@@ -32,7 +32,7 @@ var (
 	ErrRecipeTagTooLong          = errors.New("recipe tag too long")
 )
 
-// RecipeService はレシピの List / GetByID / Create / Update をフロントに公開する。
+// RecipeService はレシピの List / GetByID / Create / Update / Delete をフロントに公開する。
 // Create / Update は保存前に validateRecipeInput を走らせ、違反時は Repository
 // に到達せず型付きエラーを返す。
 type RecipeService struct {
@@ -71,6 +71,12 @@ func (s *RecipeService) Update(ctx context.Context, id string, input recipe.Reci
 		return recipe.Recipe{}, err
 	}
 	return s.repo.Update(ctx, id, normalized)
+}
+
+// Delete は論理削除する。献立の履歴を残すため、そのレシピを使った献立は消えない (add-recipe-deletion D1)。
+// 削除済みのレシピに対しては何もせず nil を返す。
+func (s *RecipeService) Delete(ctx context.Context, id string) error {
+	return s.repo.Archive(ctx, id)
 }
 
 // validateRecipeInput は入力を trim (name / ingredient.Name / tags / unit) しつつ

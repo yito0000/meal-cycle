@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/yito0000/meal-cycle/internal/domain/recipe"
 )
@@ -80,6 +81,45 @@ func TestRecipeRepo_List(t *testing.T) {
 			t.Errorf("want IngredientCount=2, got %+v", got)
 		}
 	})
+
+	t.Run("excludes archived recipes and returns only active ones", func(t *testing.T) {
+		repo := newRecipeRepoForTest(t)
+		archived, err := repo.Create(ctx, recipe.Recipe{Name: "肉じゃが", Servings: 1})
+		if err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		if _, err := repo.Create(ctx, recipe.Recipe{Name: "豚汁", Servings: 1}); err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		if err := repo.Archive(ctx, archived.ID); err != nil {
+			t.Fatalf("Archive: %v", err)
+		}
+		got, err := repo.List(ctx)
+		if err != nil {
+			t.Fatalf("List: %v", err)
+		}
+		if len(got) != 1 || got[0].Name != "豚汁" {
+			t.Errorf("want only 豚汁, got %+v", got)
+		}
+	})
+
+	t.Run("returns empty slice when all recipes are archived", func(t *testing.T) {
+		repo := newRecipeRepoForTest(t)
+		created, err := repo.Create(ctx, recipe.Recipe{Name: "肉じゃが", Servings: 1})
+		if err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		if err := repo.Archive(ctx, created.ID); err != nil {
+			t.Fatalf("Archive: %v", err)
+		}
+		got, err := repo.List(ctx)
+		if err != nil {
+			t.Fatalf("List: %v", err)
+		}
+		if got == nil || len(got) != 0 {
+			t.Errorf("want empty non-nil slice, got %#v", got)
+		}
+	})
 }
 
 func TestRecipeRepo_GetByID(t *testing.T) {
@@ -123,6 +163,21 @@ func TestRecipeRepo_GetByID(t *testing.T) {
 		_, err := repo.GetByID(ctx, "no-such-id")
 		if !errors.Is(err, ErrRecipeNotFound) {
 			t.Errorf("want ErrRecipeNotFound, got %v", err)
+		}
+	})
+
+	t.Run("returns empty ArchivedAt when recipe is active", func(t *testing.T) {
+		repo := newRecipeRepoForTest(t)
+		created, err := repo.Create(ctx, recipe.Recipe{Name: "肉じゃが", Servings: 1})
+		if err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		got, err := repo.GetByID(ctx, created.ID)
+		if err != nil {
+			t.Fatalf("GetByID: %v", err)
+		}
+		if got.ArchivedAt != "" {
+			t.Errorf("want empty ArchivedAt, got %q", got.ArchivedAt)
 		}
 	})
 }
@@ -292,4 +347,154 @@ func TestRecipeRepo_Create_LongMarkdown_UsedAsSmokeSize(t *testing.T) {
 	if len([]rune(got.Steps)) != 4000 {
 		t.Errorf("Steps rune count: want 4000, got %d", len([]rune(got.Steps)))
 	}
+}
+
+func TestRecipeRepo_Update_Archived(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("returns ErrRecipeArchived and keeps name and UpdatedAt when recipe is archived", func(t *testing.T) {
+		repo := newRecipeRepoForTest(t)
+		created, err := repo.Create(ctx, recipe.Recipe{Name: "肉じゃが", Servings: 1})
+		if err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		if err := repo.Archive(ctx, created.ID); err != nil {
+			t.Fatalf("Archive: %v", err)
+		}
+		_, err = repo.Update(ctx, created.ID, recipe.Recipe{Name: "豚汁", Servings: 1})
+		if !errors.Is(err, ErrRecipeArchived) {
+			t.Fatalf("want ErrRecipeArchived, got %v", err)
+		}
+		got, err := repo.GetByID(ctx, created.ID)
+		if err != nil {
+			t.Fatalf("GetByID: %v", err)
+		}
+		if got.Name != "肉じゃが" || got.UpdatedAt != created.UpdatedAt {
+			t.Errorf("recipe changed: %+v", got)
+		}
+	})
+}
+
+func TestRecipeRepo_Archive(t *testing.T) {
+	ctx := context.Background()
+
+	create := func(t *testing.T, repo *RecipeRepo) recipe.Recipe {
+		t.Helper()
+		created, err := repo.Create(ctx, recipe.Recipe{
+			Name:        "肉じゃが",
+			Servings:    2,
+			Ingredients: []recipe.RecipeIngredient{{Name: "玉ねぎ", Amount: 1, Unit: "個"}},
+		})
+		if err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		return created
+	}
+
+	t.Run("sets ArchivedAt in RFC3339 when recipe is active", func(t *testing.T) {
+		repo := newRecipeRepoForTest(t)
+		created := create(t, repo)
+		if err := repo.Archive(ctx, created.ID); err != nil {
+			t.Fatalf("Archive: %v", err)
+		}
+		got, err := repo.GetByID(ctx, created.ID)
+		if err != nil {
+			t.Fatalf("GetByID: %v", err)
+		}
+		if _, err := time.Parse(time.RFC3339, got.ArchivedAt); err != nil {
+			t.Errorf("ArchivedAt not RFC3339: %q (%v)", got.ArchivedAt, err)
+		}
+	})
+
+	t.Run("keeps UpdatedAt unchanged", func(t *testing.T) {
+		repo := newRecipeRepoForTest(t)
+		created := create(t, repo)
+		if err := repo.Archive(ctx, created.ID); err != nil {
+			t.Fatalf("Archive: %v", err)
+		}
+		got, err := repo.GetByID(ctx, created.ID)
+		if err != nil {
+			t.Fatalf("GetByID: %v", err)
+		}
+		if got.UpdatedAt != created.UpdatedAt {
+			t.Errorf("UpdatedAt changed: %q -> %q", created.UpdatedAt, got.UpdatedAt)
+		}
+	})
+
+	t.Run("returns nil and keeps first ArchivedAt when already archived", func(t *testing.T) {
+		repo := newRecipeRepoForTest(t)
+		created := create(t, repo)
+		const first = "2026-01-01T00:00:00Z"
+		if _, err := repo.db.ExecContext(ctx,
+			`UPDATE recipes SET archived_at = ? WHERE id = ?`, first, created.ID); err != nil {
+			t.Fatalf("seed archived_at: %v", err)
+		}
+		if err := repo.Archive(ctx, created.ID); err != nil {
+			t.Fatalf("Archive: %v", err)
+		}
+		got, err := repo.GetByID(ctx, created.ID)
+		if err != nil {
+			t.Fatalf("GetByID: %v", err)
+		}
+		if got.ArchivedAt != first {
+			t.Errorf("want %q, got %q", first, got.ArchivedAt)
+		}
+	})
+
+	t.Run("returns ErrRecipeNotFound when id does not exist", func(t *testing.T) {
+		repo := newRecipeRepoForTest(t)
+		if err := repo.Archive(ctx, "no-such-id"); !errors.Is(err, ErrRecipeNotFound) {
+			t.Errorf("want ErrRecipeNotFound, got %v", err)
+		}
+	})
+
+	t.Run("keeps ingredients returned by GetByID", func(t *testing.T) {
+		repo := newRecipeRepoForTest(t)
+		created := create(t, repo)
+		if err := repo.Archive(ctx, created.ID); err != nil {
+			t.Fatalf("Archive: %v", err)
+		}
+		got, err := repo.GetByID(ctx, created.ID)
+		if err != nil {
+			t.Fatalf("GetByID: %v", err)
+		}
+		if len(got.Ingredients) != 1 || got.Ingredients[0].Name != "玉ねぎ" {
+			t.Errorf("unexpected ingredients: %+v", got.Ingredients)
+		}
+	})
+
+	t.Run("stays archived after reopening the database", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "test.db")
+		db, err := Open(path)
+		if err != nil {
+			t.Fatalf("Open: %v", err)
+		}
+		if err := Migrate(db); err != nil {
+			t.Fatalf("Migrate: %v", err)
+		}
+		repo := NewRecipeRepo(db)
+		created := create(t, repo)
+		if err := repo.Archive(ctx, created.ID); err != nil {
+			t.Fatalf("Archive: %v", err)
+		}
+		if err := db.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+
+		reopened, err := Open(path)
+		if err != nil {
+			t.Fatalf("reopen: %v", err)
+		}
+		t.Cleanup(func() { _ = reopened.Close() })
+		if err := Migrate(reopened); err != nil {
+			t.Fatalf("Migrate: %v", err)
+		}
+		got, err := NewRecipeRepo(reopened).List(ctx)
+		if err != nil {
+			t.Fatalf("List: %v", err)
+		}
+		if len(got) != 0 {
+			t.Errorf("want archived recipe hidden after reopen, got %+v", got)
+		}
+	})
 }

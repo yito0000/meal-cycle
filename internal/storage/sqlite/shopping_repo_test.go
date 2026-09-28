@@ -98,6 +98,22 @@ func TestShoppingRepo_ListPlannedBatches(t *testing.T) {
 		}
 	})
 
+	t.Run("should keep counting ingredients of an archived recipe that remains in the plan", func(t *testing.T) {
+		f := newShoppingRepoForTest(t)
+		id := f.recipe(t, "肉じゃが", onion(1))
+		f.place(t, "2026-09-25", "dinner", id, "b1")
+		if err := f.rr.Archive(context.Background(), id); err != nil {
+			t.Fatalf("Archive: %v", err)
+		}
+		got := f.list(t, start, 7)
+		if len(got) != 1 || got[0].RecipeName != "肉じゃが" {
+			t.Fatalf("want 肉じゃが kept, got %#v", got)
+		}
+		if !reflect.DeepEqual(got[0].Ingredients, []recipe.RecipeIngredient{onion(1)}) {
+			t.Errorf("ingredients: got %#v", got[0].Ingredients)
+		}
+	})
+
 	t.Run("should merge three rows of one batch into one with earliest first date", func(t *testing.T) {
 		f := newShoppingRepoForTest(t)
 		id := f.recipe(t, "肉じゃが", onion(2))

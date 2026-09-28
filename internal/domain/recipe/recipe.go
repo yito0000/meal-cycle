@@ -33,4 +33,5 @@ type Recipe struct {
 	Notes           string             `json:"notes"`
 	CreatedAt       string             `json:"createdAt"`
 	UpdatedAt       string             `json:"updatedAt"`
+	ArchivedAt      string             `json:"archivedAt"`
 }

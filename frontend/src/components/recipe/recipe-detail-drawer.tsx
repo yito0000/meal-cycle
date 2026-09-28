@@ -1,5 +1,7 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -15,7 +17,9 @@ import type {
   Recipe,
   RecipeIngredient,
 } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/recipe/models";
+import { RecipeService } from "../../../bindings/github.com/yito0000/meal-cycle/internal/service";
 import { formatDate } from "../mealplan/week-utils";
+import { DeleteRecipeDialog } from "./delete-recipe-dialog";
 import { RecipeMarkdown } from "./recipe-markdown";
 import { useRecipeDetail } from "./use-recipe-detail";
 
@@ -47,16 +51,42 @@ export function RecipeDetailDrawer({ recipeId, onClose, onEdit }: Props) {
             <p className="p-6 text-sm text-red-700">{t("pages.recipes.detail.load_error")}</p>
           </>
         )}
-        {data && <RecipeDetailBody recipe={data} onEdit={onEdit} />}
+        {data && <RecipeDetailBody recipe={data} onEdit={onEdit} onDeleted={onClose} />}
       </SheetContent>
     </Sheet>
   );
 }
 
-function RecipeDetailBody({ recipe, onEdit }: { recipe: Recipe; onEdit: (id: string) => void }) {
+function RecipeDetailBody({
+  recipe,
+  onEdit,
+  onDeleted,
+}: {
+  recipe: Recipe;
+  onEdit: (id: string) => void;
+  onDeleted: () => void;
+}) {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const tags = recipe.tags ?? [];
   const ingredients = recipe.ingredients ?? [];
+  const archived = recipe.archivedAt !== "";
+
+  const deleteMutation = useMutation({
+    mutationFn: () => RecipeService.Delete(recipe.id),
+    onSuccess: () => {
+      setConfirmOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["recipes", "list"] });
+      // 閉じるアニメーション中に削除済み表示や読み込み中へ切り替わらないよう、今は再取得しない (add-recipe-deletion D7)。
+      queryClient.invalidateQueries({
+        queryKey: ["recipes", "detail", recipe.id],
+        refetchType: "none",
+      });
+      toast(t("pages.recipes.delete_confirm.done", { name: recipe.name }));
+      onDeleted();
+    },
+  });
 
   return (
     <>
@@ -70,6 +100,9 @@ function RecipeDetailBody({ recipe, onEdit }: { recipe: Recipe; onEdit: (id: str
               date: formatDisplayDate(formatDate(new Date(recipe.updatedAt))),
             })}
           </span>
+          {archived && (
+            <span className="font-semibold text-red-700">{t("pages.recipes.detail.archived")}</span>
+          )}
         </SheetDescription>
       </SheetHeader>
 
@@ -101,11 +134,32 @@ function RecipeDetailBody({ recipe, onEdit }: { recipe: Recipe; onEdit: (id: str
         </Section>
       </div>
 
-      <SheetFooter>
-        <Button type="button" onClick={() => onEdit(recipe.id)}>
-          {t("pages.recipes.detail.edit")}
-        </Button>
-      </SheetFooter>
+      {!archived && (
+        <SheetFooter>
+          <Button type="button" onClick={() => onEdit(recipe.id)}>
+            {t("pages.recipes.detail.edit")}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              deleteMutation.reset();
+              setConfirmOpen(true);
+            }}
+          >
+            {t("pages.recipes.detail.delete")}
+          </Button>
+        </SheetFooter>
+      )}
+
+      <DeleteRecipeDialog
+        open={confirmOpen}
+        recipeName={recipe.name}
+        pending={deleteMutation.isPending}
+        error={deleteMutation.isError}
+        onConfirm={() => deleteMutation.mutate()}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </>
   );
 }

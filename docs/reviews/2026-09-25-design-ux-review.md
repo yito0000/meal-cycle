@@ -39,7 +39,7 @@ S01 の磨き込みが先行した結果、[product.md §1](../product.md) の�
 
 ### R2. レシピ削除が献立の履歴を消してしまう
 
-- [ ] 対応済み
+- [x] 対応済み（`add-recipe-deletion` で論理削除を採用。献立の履歴は残る）
 
 `meal_plans.recipe_id` には `ON DELETE CASCADE` が付いている（`internal/storage/sqlite/migrations/00003_meal_plans.sql`）。
 このままレシピ削除（`add-recipe-deletion`）を実装すると、そのレシピを使った過去と未来の献立が黙って消える。

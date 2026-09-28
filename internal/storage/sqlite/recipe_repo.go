@@ -18,6 +18,9 @@ var ErrRecipeNotFound = errors.New("recipe not found")
 // ErrRecipeNameEmpty はバリデーション最終防衛線。Service 層で通常は弾く。
 var ErrRecipeNameEmpty = errors.New("recipe name empty")
 
+// ErrRecipeArchived は削除済みレシピの更新要求。UI からは編集導線を出さないので最終防衛線。
+var ErrRecipeArchived = errors.New("recipe archived")
+
 // RecipeRepo は recipes / recipe_ingredients を 1 トランザクションで一括保存する。
 // 本 proposal では食材マスタを持たないため、材料名は recipe_ingredients.name に
 // 直接持つ。将来 add-ingredient-master で ingredient_id への migration を書く
@@ -32,6 +35,7 @@ func NewRecipeRepo(db *sql.DB) *RecipeRepo {
 
 // List は S02 一覧向けの projection。Ingredients / Steps / Notes は空値で返し、
 // IngredientCount は LEFT JOIN で 1 クエリに合成する。
+// 削除済みを除くのは献立を組む入口 (S02 と選択ダイアログ) だけで、既存献立の JOIN では除かない (add-recipe-deletion D4)。
 func (r *RecipeRepo) List(ctx context.Context) ([]recipe.Recipe, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT r.id, r.name, r.servings, r.tags_json, r.notes, r.created_at, r.updated_at,
@@ -42,6 +46,7 @@ func (r *RecipeRepo) List(ctx context.Context) ([]recipe.Recipe, error) {
 			FROM recipe_ingredients
 			GROUP BY recipe_id
 		) c ON c.recipe_id = r.id
+		WHERE r.archived_at IS NULL
 		ORDER BY r.updated_at DESC
 	`)
 	if err != nil {
@@ -73,18 +78,20 @@ func (r *RecipeRepo) List(ctx context.Context) ([]recipe.Recipe, error) {
 }
 
 // GetByID は詳細フィールド込みで返す。該当なしは ErrRecipeNotFound。
+// S01 の品から削除済みレシピの S03 を開けるよう、削除済みも返す。
 func (r *RecipeRepo) GetByID(ctx context.Context, id string) (recipe.Recipe, error) {
 	var (
-		rec      recipe.Recipe
-		tagsJSON string
+		rec        recipe.Recipe
+		tagsJSON   string
+		archivedAt sql.NullString
 	)
 	err := r.db.QueryRowContext(ctx, `
-		SELECT id, name, servings, tags_json, steps, notes, created_at, updated_at
+		SELECT id, name, servings, tags_json, steps, notes, created_at, updated_at, archived_at
 		FROM recipes
 		WHERE id = ?
 	`, id).Scan(
 		&rec.ID, &rec.Name, &rec.Servings, &tagsJSON, &rec.Steps,
-		&rec.Notes, &rec.CreatedAt, &rec.UpdatedAt,
+		&rec.Notes, &rec.CreatedAt, &rec.UpdatedAt, &archivedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return recipe.Recipe{}, ErrRecipeNotFound
@@ -95,6 +102,7 @@ func (r *RecipeRepo) GetByID(ctx context.Context, id string) (recipe.Recipe, err
 	if err := json.Unmarshal([]byte(tagsJSON), &rec.Tags); err != nil {
 		return recipe.Recipe{}, fmt.Errorf("decode tags_json: %w", err)
 	}
+	rec.ArchivedAt = archivedAt.String
 
 	ings, err := r.loadIngredients(ctx, id)
 	if err != nil {
@@ -149,6 +157,9 @@ func (r *RecipeRepo) Update(ctx context.Context, id string, input recipe.Recipe)
 	if err != nil {
 		return recipe.Recipe{}, err
 	}
+	if existing.ArchivedAt != "" {
+		return recipe.Recipe{}, ErrRecipeArchived
+	}
 
 	// RFC3339 は秒精度なので、同一秒に落ちたら +1s して updated_at を必ず進める。
 	now := time.Now().UTC().Format(time.RFC3339)
@@ -176,7 +187,7 @@ func (r *RecipeRepo) Update(ctx context.Context, id string, input recipe.Recipe)
 	res, err := tx.ExecContext(ctx, `
 		UPDATE recipes
 		SET name = ?, servings = ?, tags_json = ?, steps = ?, notes = ?, updated_at = ?
-		WHERE id = ?
+		WHERE id = ? AND archived_at IS NULL
 	`, rec.Name, rec.Servings, string(tagsJSON), rec.Steps, rec.Notes, rec.UpdatedAt, id)
 	if err != nil {
 		return recipe.Recipe{}, fmt.Errorf("update recipe: %w", err)
@@ -198,6 +209,26 @@ func (r *RecipeRepo) Update(ctx context.Context, id string, input recipe.Recipe)
 		return recipe.Recipe{}, fmt.Errorf("commit tx: %w", err)
 	}
 	return rec, nil
+}
+
+// Archive は論理削除する。献立の履歴を残すため行は消さない (add-recipe-deletion D1)。
+// 内容の更新ではないので updated_at は進めない。削除済みなら何もしない (冪等)。
+func (r *RecipeRepo) Archive(ctx context.Context, id string) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+	res, err := r.db.ExecContext(ctx, `
+		UPDATE recipes SET archived_at = COALESCE(archived_at, ?) WHERE id = ?
+	`, now, id)
+	if err != nil {
+		return fmt.Errorf("archive recipe: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("archive recipe rows affected: %w", err)
+	}
+	if affected == 0 {
+		return ErrRecipeNotFound
+	}
+	return nil
 }
 
 func insertRecipeRow(ctx context.Context, tx *sql.Tx, rec recipe.Recipe) error {

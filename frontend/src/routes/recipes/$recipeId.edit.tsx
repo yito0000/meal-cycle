@@ -50,6 +50,7 @@ export function RecipeEditPage() {
           notes: input.notes,
           createdAt: data.createdAt,
           updatedAt: data.updatedAt,
+          archivedAt: "",
         };
         const updated = await RecipeService.Update(recipeId, draft);
         await queryClient.invalidateQueries({ queryKey: ["recipes", "list"] });

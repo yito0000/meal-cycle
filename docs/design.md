@@ -91,7 +91,12 @@ tags         : string[]         // "和食", "簡単" など任意
 notes        : string           // 自由メモ
 createdAt    : timestamp
 updatedAt    : timestamp
+archivedAt   : timestamp | null // 論理削除の時刻。null = 未削除
 ```
+
+- レシピの削除は論理削除にする。物理削除だと `meal_plans.recipe_id` の `ON DELETE CASCADE` で献立の履歴まで消えるため
+  （`add-recipe-deletion` の design.md D1）
+- 削除済みレシピは、レシピ一覧、献立のレシピ選択、献立への新たな割当と入替から除く。既存の献立、買い物リスト、食材名候補では従来どおり参照する
 
 ### RecipeIngredient（レシピ内の食材）
 

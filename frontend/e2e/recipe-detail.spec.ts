@@ -36,7 +36,7 @@ test.describe("S03 レシピ詳細ドロワーの表示", () => {
     await expect(section(page, d.section.steps)).toContainText("玉ねぎを切る");
     await expect(section(page, d.section.notes)).toContainText("肉は 30 分漬ける");
     await expect(dialog.getByRole("button", { name: d.edit })).toBeVisible();
-    await expect(dialog.getByRole("button", { name: "削除" })).toHaveCount(0);
+    await expect(dialog.getByRole("button", { name: d.delete })).toBeVisible();
   });
 
   test("空の欄には未登録である旨が表示される", async ({ page }) => {

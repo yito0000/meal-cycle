@@ -82,6 +82,9 @@ func (r *MealPlanRepo) Assign(ctx context.Context, date, meal, recipeID string) 
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	if err := ensureActiveRecipe(ctx, tx, recipeID); err != nil {
+		return mealplan.Entry{}, err
+	}
 	pos, err := nextPosition(ctx, tx, date, meal)
 	if err != nil {
 		return mealplan.Entry{}, err
@@ -100,7 +103,16 @@ func (r *MealPlanRepo) Assign(ctx context.Context, date, meal, recipeID string) 
 // Replace は指定 (date, meal, position) の recipe_id を差し替える。該当行が無ければ ErrEntryNotFound。
 // batch_id は変更しない (「同じバッチのまま中身のレシピを差し替える」意味)。
 func (r *MealPlanRepo) Replace(ctx context.Context, date, meal string, position int, recipeID string) error {
-	res, err := r.db.ExecContext(ctx, `
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if err := ensureActiveRecipe(ctx, tx, recipeID); err != nil {
+		return err
+	}
+	res, err := tx.ExecContext(ctx, `
 		UPDATE meal_plans SET recipe_id = ? WHERE date = ? AND meal = ? AND position = ?
 	`, recipeID, date, meal, position)
 	if err != nil {
@@ -115,6 +127,9 @@ func (r *MealPlanRepo) Replace(ctx context.Context, date, meal string, position 
 	}
 	if n == 0 {
 		return mealplan.ErrEntryNotFound
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
 	}
 	return nil
 }
@@ -778,6 +793,22 @@ func prepareCopySource(source []mealplan.Entry, shareBatch mealplan.ShareBatch) 
 		out[i].BatchID = bid
 	}
 	return out
+}
+
+// ensureActiveRecipe は新たに献立へ入れるレシピが未削除かを確かめる。
+// 削除済みは FK を満たしてしまうので、存在しない場合と同じ ErrUnknownRecipe に寄せる (add-recipe-deletion D4)。
+func ensureActiveRecipe(ctx context.Context, q querier, recipeID string) error {
+	var one int
+	err := q.QueryRowContext(ctx, `
+		SELECT 1 FROM recipes WHERE id = ? AND archived_at IS NULL
+	`, recipeID).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
+		return mealplan.ErrUnknownRecipe
+	}
+	if err != nil {
+		return fmt.Errorf("check recipe active: %w", err)
+	}
+	return nil
 }
 
 // isForeignKeyErr は FK 違反 (存在しない recipe_id) を判定する。

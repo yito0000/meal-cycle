@@ -86,6 +86,23 @@ func TestDispatchHandler(t *testing.T) {
 		}
 	})
 
+	t.Run("should hide the recipe from List when RecipeService/Delete is called", func(t *testing.T) {
+		h := setup(t)
+		id := createRecipe(t, h, "肉じゃが")
+		rec := call(t, h, "/api/RecipeService/Delete", `["`+id+`"]`)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("want 200, got %d (%s)", rec.Code, rec.Body.String())
+		}
+		rec = call(t, h, "/api/RecipeService/List", "[]")
+		var got []recipe.Recipe
+		if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if len(got) != 0 {
+			t.Errorf("want deleted recipe hidden, got %+v", got)
+		}
+	})
+
 	t.Run("should return 200 when a method takes a string and a struct arg", func(t *testing.T) {
 		h := setup(t)
 		id := createRecipe(t, h, "肉じゃが")

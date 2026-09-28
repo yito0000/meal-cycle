@@ -255,6 +255,21 @@ func TestRecipeService_Update(t *testing.T) {
 			t.Errorf("want ErrRecipeNotFound, got %v", err)
 		}
 	})
+
+	t.Run("should return ErrRecipeArchived when the recipe is deleted", func(t *testing.T) {
+		svc := newRecipeServiceForTest(t)
+		created, err := svc.Create(ctx, validRecipe("肉じゃが"))
+		if err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		if err := svc.Delete(ctx, created.ID); err != nil {
+			t.Fatalf("Delete: %v", err)
+		}
+		_, err = svc.Update(ctx, created.ID, validRecipe("豚汁"))
+		if !errors.Is(err, sqlite.ErrRecipeArchived) {
+			t.Errorf("want ErrRecipeArchived, got %v", err)
+		}
+	})
 }
 
 func TestRecipeService_GetByID(t *testing.T) {
@@ -301,6 +316,70 @@ func TestRecipeService_GetByID(t *testing.T) {
 		}
 		if got.Notes != "**メモ**" {
 			t.Errorf("Notes not preserved: got %q", got.Notes)
+		}
+	})
+}
+
+func TestRecipeService_Delete(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("should hide the recipe from List when deleted", func(t *testing.T) {
+		svc := newRecipeServiceForTest(t)
+		target, err := svc.Create(ctx, validRecipe("肉じゃが"))
+		if err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		if _, err := svc.Create(ctx, validRecipe("豚汁")); err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		if err := svc.Delete(ctx, target.ID); err != nil {
+			t.Fatalf("Delete: %v", err)
+		}
+		got, err := svc.List(ctx)
+		if err != nil {
+			t.Fatalf("List: %v", err)
+		}
+		if len(got) != 1 || got[0].Name != "豚汁" {
+			t.Errorf("want only 豚汁, got %+v", got)
+		}
+	})
+
+	t.Run("should keep returning the recipe from GetByID with archivedAt when deleted", func(t *testing.T) {
+		svc := newRecipeServiceForTest(t)
+		created, err := svc.Create(ctx, validRecipe("肉じゃが"))
+		if err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		if err := svc.Delete(ctx, created.ID); err != nil {
+			t.Fatalf("Delete: %v", err)
+		}
+		got, err := svc.GetByID(ctx, created.ID)
+		if err != nil {
+			t.Fatalf("GetByID: %v", err)
+		}
+		if got.Name != "肉じゃが" || got.ArchivedAt == "" {
+			t.Errorf("want 肉じゃが with archivedAt, got %+v", got)
+		}
+	})
+
+	t.Run("should return ErrRecipeNotFound when id does not exist", func(t *testing.T) {
+		svc := newRecipeServiceForTest(t)
+		if err := svc.Delete(ctx, "no-such-id"); !errors.Is(err, sqlite.ErrRecipeNotFound) {
+			t.Errorf("want ErrRecipeNotFound, got %v", err)
+		}
+	})
+
+	t.Run("should succeed without error when the recipe is already deleted", func(t *testing.T) {
+		svc := newRecipeServiceForTest(t)
+		created, err := svc.Create(ctx, validRecipe("肉じゃが"))
+		if err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		if err := svc.Delete(ctx, created.ID); err != nil {
+			t.Fatalf("first Delete: %v", err)
+		}
+		if err := svc.Delete(ctx, created.ID); err != nil {
+			t.Errorf("second Delete: want nil, got %v", err)
 		}
 	})
 }
