@@ -346,6 +346,13 @@
         "submit": "Add",
         "cancel": "Cancel",
         "registered": "Added {{count}} items to the fridge"
+      },
+      "filter": {
+        "label": "Filter by stock status",
+        "all": "All ({{count}})",
+        "needed": "Missing or partial ({{count}})",
+        "covered": "In stock ({{count}})",
+        "no_match": "No matching ingredients"
       }
     }
   },

@@ -13,7 +13,14 @@ import {
   type ShoppingPeriod,
 } from "../components/shopping/shopping-period";
 import { ShoppingPeriodPicker } from "../components/shopping/shopping-period-picker";
+import { ShoppingStockFilter } from "../components/shopping/shopping-stock-filter";
 import { ShoppingTable } from "../components/shopping/shopping-table";
+import {
+  countByStockFilter,
+  DEFAULT_STOCK_FILTER,
+  matchesStockFilter,
+  type StockFilter,
+} from "../components/shopping/stock-filter";
 import { useShoppingList } from "../components/shopping/use-shopping-list";
 
 export function ShoppingPage() {
@@ -33,7 +40,12 @@ export function ShoppingPage() {
     setCheckedFor(periodKey);
     setChecked(new Set());
   }
-  const checkedItems = (data?.items ?? []).filter((it) => checked.has(itemKey(it)));
+  // 絞り込みは期間の切替では戻さない。見たい行の種類は期間を変えても同じため (add-shopping-stock-filter D2)。
+  const [stockFilter, setStockFilter] = useState<StockFilter>(DEFAULT_STOCK_FILTER);
+  const allItems = data?.items ?? [];
+  const visibleItems = allItems.filter((it) => matchesStockFilter(it, stockFilter));
+  // 件数とダイアログは隠れた行のチェックも含めるため、絞る前の全行から数える。
+  const checkedItems = allItems.filter((it) => checked.has(itemKey(it)));
 
   const onRegistered = (count: number) => {
     setDialogOpen(false);
@@ -76,7 +88,22 @@ export function ShoppingPage() {
               <p className="text-sm text-neutral-500">{t("pages.shopping.empty.no_ingredients")}</p>
             ) : (
               <div className="flex flex-col gap-3">
-                <ShoppingTable items={data.items} checked={checked} onCheckedChange={setChecked} />
+                <ShoppingStockFilter
+                  value={stockFilter}
+                  counts={countByStockFilter(data.items)}
+                  onChange={setStockFilter}
+                />
+                {visibleItems.length === 0 ? (
+                  <p className="text-sm text-neutral-500" data-testid="shopping-filter-no-match">
+                    {t("pages.shopping.filter.no_match")}
+                  </p>
+                ) : (
+                  <ShoppingTable
+                    items={visibleItems}
+                    checked={checked}
+                    onCheckedChange={setChecked}
+                  />
+                )}
                 <div>
                   <Button
                     type="button"

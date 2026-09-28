@@ -346,6 +346,13 @@
         "submit": "登録",
         "cancel": "キャンセル",
         "registered": "{{count}} 件を冷蔵庫に登録しました"
+      },
+      "filter": {
+        "label": "在庫の状態で絞り込む",
+        "all": "すべて ({{count}})",
+        "needed": "在庫なし・一部 ({{count}})",
+        "covered": "在庫あり ({{count}})",
+        "no_match": "該当する食材がありません"
       }
     }
   },

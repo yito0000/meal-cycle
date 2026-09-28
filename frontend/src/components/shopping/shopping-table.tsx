@@ -34,8 +34,14 @@ export function ShoppingTable({ items, checked, onCheckedChange }: Props) {
     if (headerRef.current) headerRef.current.indeterminate = checkedCount > 0 && !allChecked;
   }, [checkedCount, allChecked]);
 
+  // items は表示中の行だけなので、置き換えではなく差分で更新して隠れた行のチェックを残す (add-shopping-stock-filter D3)。
   const toggleAll = () => {
-    onCheckedChange(allChecked ? new Set() : new Set(items.map(itemKey)));
+    const next = new Set(checked);
+    for (const it of items) {
+      if (allChecked) next.delete(itemKey(it));
+      else next.add(itemKey(it));
+    }
+    onCheckedChange(next);
   };
 
   const toggle = (key: string) => {
