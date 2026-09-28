@@ -11,12 +11,9 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { formatAmount } from "@/lib/format-amount";
 import { formatDisplayDate } from "@/lib/format-date";
-import type {
-  Recipe,
-  RecipeIngredient,
-} from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/recipe/models";
+import { formatQuantity } from "@/lib/format-quantity";
+import type { Recipe } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/recipe/models";
 import { RecipeService } from "../../../bindings/github.com/yito0000/meal-cycle/internal/service";
 import { formatDate } from "../mealplan/week-utils";
 import { DeleteRecipeDialog } from "./delete-recipe-dialog";
@@ -117,7 +114,7 @@ function RecipeDetailBody({
                 <li key={i} className="flex gap-3">
                   <span className="min-w-32">{ing.name}</span>
                   <span className="text-neutral-700 tabular-nums">
-                    {formatIngredientAmount(ing)}
+                    {formatQuantity(ing.amount, ing.unit)}
                   </span>
                 </li>
               ))}
@@ -162,12 +159,6 @@ function RecipeDetailBody({
       />
     </>
   );
-}
-
-// 量 0 は「塩 少々」のような量を持たない材料なので、単位だけを出す。
-function formatIngredientAmount(ing: RecipeIngredient): string {
-  if (ing.amount === 0) return ing.unit;
-  return ing.unit ? `${formatAmount(ing.amount)} ${ing.unit}` : formatAmount(ing.amount);
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {

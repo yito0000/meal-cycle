@@ -37,6 +37,17 @@ function dotOf(page: Page, name: string) {
   return row(page, name).locator("[data-expiry-status]");
 }
 
+test.describe("在庫一覧の表示", () => {
+  test("量る単位の在庫は単位を量の前に表示する", async ({ page }) => {
+    await addStockItem(page, { name: "味噌", amount: 3, unit: "大さじ" });
+    await addStockItem(page, { name: "豚肉", amount: 300, unit: "g" });
+    await openFridge(page);
+
+    await expect(row(page, "味噌").locator("td").nth(1)).toHaveText("大さじ 3");
+    await expect(row(page, "豚肉").locator("td").nth(1)).toHaveText("300 g");
+  });
+});
+
 test.describe("賞味期限の状態表示", () => {
   test("当日期限は赤で表示される", async ({ page }) => {
     await page.goto("/");

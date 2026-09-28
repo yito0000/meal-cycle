@@ -8,7 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatAmount } from "@/lib/format-amount";
+import { formatQuantity } from "@/lib/format-quantity";
 import { cn } from "@/lib/utils";
 import {
   type Item,
@@ -94,7 +94,7 @@ export function ShoppingTable({ items, checked, onCheckedChange }: Props) {
               <TableCell>
                 {item.amount === 0
                   ? t("pages.shopping.amount_unspecified")
-                  : `${formatAmount(item.amount)} ${item.unit}`.trim()}
+                  : formatQuantity(item.amount, item.unit)}
               </TableCell>
               <TableCell>
                 <StockStatusBadge status={item.stockStatus} />

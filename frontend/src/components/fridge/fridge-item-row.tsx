@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { TableCell, TableRow } from "@/components/ui/table";
-import { formatAmount } from "@/lib/format-amount";
+import { formatQuantity } from "@/lib/format-quantity";
 import { cn } from "@/lib/utils";
 import {
   ExpiryStatus,
@@ -33,10 +33,7 @@ export function FridgeItemRow({ item, disabled, onEdit, onDelete }: Props) {
           <span>{item.name}</span>
         </span>
       </TableCell>
-      <TableCell className="tabular-nums">
-        {formatAmount(item.amount)}
-        {item.unit && ` ${item.unit}`}
-      </TableCell>
+      <TableCell className="tabular-nums">{formatQuantity(item.amount, item.unit)}</TableCell>
       <TableCell className="tabular-nums text-neutral-700">{item.expiresAt || none}</TableCell>
       <TableCell
         className={cn(

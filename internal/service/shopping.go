@@ -55,7 +55,7 @@ func (s *ShoppingService) List(ctx context.Context, periodStart string, periodDa
 		PeriodEnd:   start.AddDate(0, 0, periodDays-1).Format(fridge.DateLayout),
 		PeriodDays:  periodDays,
 		Dishes:      shopping.Dishes(batches),
-		Items:       shopping.Aggregate(batches, stocks),
+		Items:       shopping.Aggregate(batches, stocks, s.cfg.MeasuringUnits),
 	}, nil
 }
 

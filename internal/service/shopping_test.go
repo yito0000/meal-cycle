@@ -207,6 +207,25 @@ func TestShoppingService_List(t *testing.T) {
 		}
 	})
 
+	t.Run("should merge measuring-unit ingredients into one unquantified row when the same name uses tablespoons and teaspoons", func(t *testing.T) {
+		d := newShoppingServiceForTest(t)
+		d.assign(t, shoppingDay(0), d.createRecipe(t, "肉じゃが", recipe.RecipeIngredient{Name: "醤油", Amount: 2, Unit: "大さじ"}))
+		d.assign(t, shoppingDay(2), d.createRecipe(t, "生姜焼き", recipe.RecipeIngredient{Name: "醤油", Amount: 1, Unit: "小さじ"}))
+		it := onlyItem(t, d.list(t, 7))
+		if it.Name != "醤油" || it.Unit != "" || it.Amount != 0 || len(it.Recipes) != 2 {
+			t.Errorf("got %#v", it)
+		}
+	})
+
+	t.Run("should mark covered when a measuring-unit ingredient has non-expired stock with a different unit", func(t *testing.T) {
+		d := newShoppingServiceForTest(t)
+		d.assign(t, shoppingDay(0), d.createRecipe(t, "肉じゃが", recipe.RecipeIngredient{Name: "醤油", Amount: 2, Unit: "大さじ"}))
+		d.addStock(t, "醤油", 1, "本", "")
+		if it := onlyItem(t, d.list(t, 7)); it.StockStatus != shopping.StockCovered {
+			t.Errorf("want covered, got %v", it.StockStatus)
+		}
+	})
+
 	t.Run("should return dishes and empty items when planned recipes have no ingredients", func(t *testing.T) {
 		d := newShoppingServiceForTest(t)
 		d.assign(t, shoppingDay(0), d.createRecipe(t, "ご飯"))

@@ -141,6 +141,20 @@ test.describe("冷蔵庫への一括登録", () => {
     await expect(dialogRow(page, 0).getByLabel(tf.field.amount)).toHaveValue("");
   });
 
+  test("量る単位の材料は量と単位が空になる", async ({ page }) => {
+    await planDinner(page, "肉じゃが", [{ name: "醤油", amount: 2, unit: "大さじ" }]);
+    await openShoppingList(page);
+
+    await expect(itemRow(page, "醤油")).toContainText(t.amount_unspecified);
+    await checkShoppingItem(page, "醤油");
+    await registerButton(page).click();
+
+    const row = dialogRow(page, 0);
+    await expect(row.getByLabel(tf.field.name)).toHaveValue("醤油");
+    await expect(row.getByLabel(tf.field.amount)).toHaveValue("");
+    await expect(row.getByLabel(tf.field.unit)).toHaveValue("");
+  });
+
   test("量と期限を直して登録すると在庫に加わる", async ({ page }) => {
     await planDinner(page, "肉じゃが", [{ name: "玉ねぎ", amount: 5, unit: "個" }]);
     await openShoppingList(page);

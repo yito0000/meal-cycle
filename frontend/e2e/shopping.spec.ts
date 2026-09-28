@@ -233,6 +233,32 @@ test.describe("期間の献立一覧", () => {
   });
 });
 
+test.describe("量の指定が無い材料", () => {
+  test("量る単位の材料は必要量を「—」で表示する", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "肉じゃが", [
+      { name: "醤油", amount: 2, unit: "大さじ" },
+    ]);
+    await assignRecipe(page, dateAfter(0), "dinner", id);
+    await openShoppingList(page);
+
+    const row = itemRow(page, "醤油");
+    await expect(row).toHaveCount(1);
+    await expect(row.locator("td").nth(2)).toHaveText(t.amount_unspecified);
+    await expect(row).toHaveAttribute("data-stock-status", "none");
+  });
+
+  test("量を持たない材料は単位が違う在庫でも在庫ありになる", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "肉じゃが", [
+      { name: "醤油", amount: 2, unit: "大さじ" },
+    ]);
+    await assignRecipe(page, dateAfter(0), "dinner", id);
+    await addStockItem(page, { name: "醤油", amount: 1, unit: "本" });
+    await openShoppingList(page);
+
+    await expect(itemRow(page, "醤油")).toHaveAttribute("data-stock-status", "covered");
+  });
+});
+
 test.describe("買い物リストの空状態", () => {
   test("期間に献立が無い", async ({ page }) => {
     await openShoppingList(page);

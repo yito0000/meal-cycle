@@ -64,6 +64,10 @@ type Config struct {
 
 	// S07 をサイドバーから開いたときの対象期間の日数 (今日から N 日間)。
 	ShoppingDefaultPeriodDays int `json:"shoppingDefaultPeriodDays"`
+
+	// 調理で量るための単位。買う量として意味を持たないので、S07 では量 0 の材料と同じく食材名だけで合算する
+	// (add-measuring-units design.md D3)。表示では量の前に置く。
+	MeasuringUnits []string `json:"measuringUnits"`
 }
 
 // CellSizePreset は S01 献立カレンダーの (date, meal) セル描画パラメータ。
@@ -95,6 +99,7 @@ func Defaults() Config {
 		MealPlanCellSizePresets:   defaultCellSizePresets(),
 		ShoppingPeriodDayPresets:  []int{3, 4, 7, 14, 28},
 		ShoppingDefaultPeriodDays: 7,
+		MeasuringUnits:            []string{"大さじ", "小さじ", "カップ"},
 	}
 }
 

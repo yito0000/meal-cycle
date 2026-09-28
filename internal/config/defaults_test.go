@@ -46,6 +46,10 @@ func TestDefaults(t *testing.T) {
 		}
 	}
 
+	if got, want := c.MeasuringUnits, []string{"大さじ", "小さじ", "カップ"}; !equalStrings(got, want) {
+		t.Errorf("MeasuringUnits: got %v, want %v", got, want)
+	}
+
 	if got, want := c.DefaultVisibleMeals, []string{"dinner"}; !equalStrings(got, want) {
 		t.Errorf("DefaultVisibleMeals: got %v, want %v", got, want)
 	}

@@ -60,6 +60,22 @@ test.describe("S03 レシピ詳細ドロワーの表示", () => {
     await expect(ingredients).toContainText("少々");
     await expect(ingredients).not.toContainText("0");
   });
+
+  test("量る単位は量の前に表示される", async ({ page }) => {
+    await createRecipeDetailed(page, {
+      name: "照り焼き",
+      ingredients: [
+        { name: "醤油", amount: 2, unit: "大さじ" },
+        { name: "玉ねぎ", amount: 1, unit: "個" },
+      ],
+    });
+
+    await openRecipeDetail(page, "照り焼き");
+
+    const items = section(page, d.section.ingredients).getByRole("listitem");
+    await expect(items.filter({ hasText: "醤油" })).toContainText("大さじ 2");
+    await expect(items.filter({ hasText: "玉ねぎ" })).toContainText("1 個");
+  });
 });
 
 test.describe("S03 の開閉", () => {

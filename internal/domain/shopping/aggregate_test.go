@@ -50,12 +50,16 @@ func views(items []Item) []view {
 	return out
 }
 
+var defaultMeasuringUnits = []string{"大さじ", "小さじ", "カップ"}
+
 func TestAggregate(t *testing.T) {
 	cases := []struct {
 		name    string
 		batches []PlannedBatch
 		stocks  []StockAmount
-		want    []view
+		// noMeasuringUnits は量る単位の一覧を空にして呼ぶ。false なら既定の一覧を渡す。
+		noMeasuringUnits bool
+		want             []view
 	}{
 		{
 			name: "作り置き 0 件なら空",
@@ -155,6 +159,70 @@ func TestAggregate(t *testing.T) {
 			want:    []view{{"塩", "", 0, StockCovered, []string{"みそ汁"}}},
 		},
 		{
+			name:    "量る単位の材料は単位が空、必要量 0 の none の 1 行",
+			batches: []PlannedBatch{batch("2026-09-24", "dinner", "肉じゃが", ing("醤油", 2, "大さじ"))},
+			want:    []view{{"醤油", "", 0, StockNone, []string{"肉じゃが"}}},
+		},
+		{
+			name: "大さじと小さじの同名材料は 1 行にまとまる",
+			batches: []PlannedBatch{
+				batch("2026-09-24", "dinner", "肉じゃが", ing("醤油", 2, "大さじ")),
+				batch("2026-09-26", "dinner", "生姜焼き", ing("醤油", 1, "小さじ")),
+			},
+			want: []view{{"醤油", "", 0, StockNone, []string{"肉じゃが", "生姜焼き"}}},
+		},
+		{
+			name: "量 0 の材料と量る単位の同名材料は 1 行にまとまる",
+			batches: []PlannedBatch{
+				batch("2026-09-24", "dinner", "みそ汁", ing("塩", 0, "少々")),
+				batch("2026-09-25", "dinner", "肉じゃが", ing("塩", 1, "小さじ")),
+			},
+			want: []view{{"塩", "", 0, StockNone, []string{"みそ汁", "肉じゃが"}}},
+		},
+		{
+			name:    "量る単位の材料は単位が違う同名の在庫で covered",
+			batches: []PlannedBatch{batch("2026-09-24", "dinner", "肉じゃが", ing("醤油", 2, "大さじ"))},
+			stocks:  []StockAmount{stock("醤油", 1, "本")},
+			want:    []view{{"醤油", "", 0, StockCovered, []string{"肉じゃが"}}},
+		},
+		{
+			name:    "量る単位の材料は同名の在庫が無ければ none",
+			batches: []PlannedBatch{batch("2026-09-24", "dinner", "肉じゃが", ing("醤油", 2, "大さじ"))},
+			stocks:  []StockAmount{stock("みりん", 1, "本")},
+			want:    []view{{"醤油", "", 0, StockNone, []string{"肉じゃが"}}},
+		},
+		{
+			name: "量る単位の材料と量のある同名材料は 2 行",
+			batches: []PlannedBatch{
+				batch("2026-09-24", "dinner", "肉じゃが", ing("醤油", 2, "大さじ")),
+				batch("2026-09-24", "dinner", "たれ漬け", ing("醤油", 1, "本")),
+			},
+			want: []view{
+				{"醤油", "", 0, StockNone, []string{"肉じゃが"}},
+				{"醤油", "本", 1, StockNone, []string{"たれ漬け"}},
+			},
+		},
+		{
+			name: "単位の無い量のある材料に量る単位の材料が合算され、別単位の在庫は数えない",
+			batches: []PlannedBatch{
+				batch("2026-09-24", "dinner", "浅漬け", ing("塩", 2, "")),
+				batch("2026-09-25", "dinner", "肉じゃが", ing("塩", 1, "小さじ")),
+			},
+			stocks: []StockAmount{stock("塩", 1, "袋")},
+			want:   []view{{"塩", "", 2, StockNone, []string{"浅漬け", "肉じゃが"}}},
+		},
+		{
+			name:    "前後に空白のある量る単位も量る単位として扱う",
+			batches: []PlannedBatch{batch("2026-09-24", "dinner", "肉じゃが", ing("醤油", 2, " 大さじ "))},
+			want:    []view{{"醤油", "", 0, StockNone, []string{"肉じゃが"}}},
+		},
+		{
+			name:             "量る単位の一覧が空なら大さじも量のある単位",
+			batches:          []PlannedBatch{batch("2026-09-24", "dinner", "肉じゃが", ing("醤油", 2, "大さじ"))},
+			noMeasuringUnits: true,
+			want:             []view{{"醤油", "大さじ", 2, StockNone, []string{"肉じゃが"}}},
+		},
+		{
 			name: "covered は日付が早くても none / partial より後ろ",
 			batches: []PlannedBatch{
 				batch("2026-09-24", "dinner", "卵焼き", ing("卵", 2, "個")),
@@ -182,7 +250,11 @@ func TestAggregate(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := Aggregate(tc.batches, tc.stocks)
+			units := defaultMeasuringUnits
+			if tc.noMeasuringUnits {
+				units = nil
+			}
+			got := Aggregate(tc.batches, tc.stocks, units)
 			if got == nil {
 				t.Fatal("want non-nil slice")
 			}
