@@ -194,11 +194,16 @@ export async function createRecipeDetailed(
   return (await res.json()).id as string;
 }
 
-// S02 を開き、name の行を押して S03 ドロワーが見えるまで待つ。
+// S03 と S04 の上部にあるパンくず。サイドバーも navigation なので aria-label で絞る。
+export function detailBreadcrumb(page: Page) {
+  return page.getByRole("navigation", { name: ja.breadcrumb.aria_label });
+}
+
+// S02 を開き、name の行を押して S03 詳細画面のパンくずが見えるまで待つ。
 export async function openRecipeDetail(page: Page, name: string) {
   await openRecipeList(page);
   await page.getByRole("cell", { name, exact: true }).click();
-  await page.getByRole("dialog").waitFor();
+  await detailBreadcrumb(page).getByText(name, { exact: true }).waitFor();
 }
 
 // S01 の品行の `⋯` を押してメニューを開く。DropdownMenu の中身は body 直下の Portal に出るが、
@@ -214,13 +219,12 @@ export async function openItemMenu(page: Page, recipeName: string) {
   await page.getByRole("menu").waitFor();
 }
 
-// 開いている S03 ドロワーで「削除」を押し、確認ダイアログの「削除」を選んでドロワーが閉じるまで待つ。
-// 確認ダイアログの「削除」ボタンはドロワーのものと同名なので、ダイアログのタイトルで絞る。
+// 開いている S03 詳細画面で「削除」を押し、確認ダイアログの「削除」を選んでダイアログが閉じるまで待つ。
+// 確認ダイアログの「削除」ボタンは S03 のものと同名なので、S03 側は main で、確認側はダイアログで絞る。
 export async function deleteRecipeFromDetail(page: Page) {
-  await page.getByRole("dialog").getByRole("button", { name: t.detail.delete }).click();
-  const confirm = page.getByRole("dialog").filter({ hasText: t.delete_confirm.body }).last();
+  await page.getByRole("main").getByRole("button", { name: t.detail.delete }).click();
+  const confirm = page.getByRole("dialog").filter({ hasText: t.delete_confirm.body });
   await confirm.getByRole("button", { name: t.delete_confirm.confirm }).click();
-  // 確認ダイアログとドロワーが順に閉じる間は dialog が 2 つあり、locator.waitFor だと strict 違反になる。
   await page.waitForFunction(() => document.querySelectorAll('[role="dialog"]').length === 0);
 }
 

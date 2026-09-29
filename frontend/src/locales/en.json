@@ -11,6 +11,9 @@
     "settings": "Settings",
     "settings_disabled_hint": "Settings screen will be added post-MVP"
   },
+  "breadcrumb": {
+    "aria_label": "Breadcrumb"
+  },
   "pages": {
     "meal_plan": {
       "title": "Meal calendar",
@@ -160,6 +163,7 @@
       "edit": {
         "title_new": "New recipe",
         "title_edit": "Edit recipe: {{name}}",
+        "breadcrumb_edit": "Edit",
         "save": "Save",
         "cancel": "Cancel",
         "loading": "Loading…",
@@ -203,7 +207,6 @@
         }
       },
       "detail": {
-        "close": "Close",
         "loading": "Loading...",
         "load_error": "Could not load the recipe",
         "servings": "Serves {{count}}",

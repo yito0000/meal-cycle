@@ -41,6 +41,7 @@ meal-cycle の各画面のワイヤーフレーム。ここに置いた drawio �
 - `S01a_recipe_picker_dialog.drawio.svg` — レシピ選択ダイアログ（**候補セクション付き / MVP 後拡張**、[../product.md](../product.md) #5）
 - `S02_recipe_list.drawio.svg`
 - `S03_recipe_detail.drawio.svg`
+- `S03_recipe_detail.v2.drawio.svg` — ドロワーをやめ、メインエリア全体に表示してパンくずで開いた元へ戻す構成（revise-recipe-detail-page）
 - `S04_recipe_edit.drawio.svg`
 - `S05_fridge.drawio.svg`
 - `S06_fridge_item_inline.drawio.svg`
@@ -93,6 +94,7 @@ meal-cycle の各画面のワイヤーフレーム。ここに置いた drawio �
 - `S01a_recipe_picker_dialog.drawio.svg` — 新規生成
 - `S01_meal_calendar.drawio.svg` の下部 CTA 「✨ 翌週の候補を出す（MVP 後）」 — 既存ファイルへの追記
 - `S07_shopping_list.v2.drawio.svg` / `S07a_purchase_dialog.drawio.svg` — 新規生成（ヘッダとサイドバーは S07 から流用）
+- `S03_recipe_detail.v2.drawio.svg` — 新規生成（ヘッダとサイドバーは S07 v2 から流用し、選択中を「レシピ」に移した）
 
 ## Markdown からの参照
 

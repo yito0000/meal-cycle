@@ -9,6 +9,15 @@ export function formatDate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+// "YYYY-MM-DD" をローカル日付として読む。new Date の繰り上がり (2026-02-30 → 3/2) は往復比較で弾く。
+export function parseDate(s: string | undefined): Date | null {
+  if (s === undefined) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return formatDate(d) === s ? d : null;
+}
+
 export function weekStartOf(d: Date): Date {
   // getDay は Sun=0, Mon=1, .., Sat=6。月曜までの距離は (day + 6) % 7。
   const day = d.getDay();

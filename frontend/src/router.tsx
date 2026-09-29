@@ -6,27 +6,40 @@ import {
 } from "@tanstack/react-router";
 import { z } from "zod";
 import { RootLayout } from "@/components/layout/root-layout";
+import { detailSearchSchema } from "@/components/recipe/detail-origin";
+import { RECIPE_SORT_KEYS, type RecipeSortKey } from "@/components/recipe/recipe-sort";
 import { shoppingSearchSchema } from "@/components/shopping/shopping-period";
 import { FridgePage } from "@/routes/fridge";
 import { MealPlanPage } from "@/routes/meal-plan";
 import { RecipesPage } from "@/routes/recipes";
+import { RecipeDetailPage } from "@/routes/recipes/$recipeId";
 import { RecipeEditPage } from "@/routes/recipes/$recipeId.edit";
 import { RecipeNewPage } from "@/routes/recipes/new";
 import { ShoppingPage } from "@/routes/shopping";
 
 const rootRoute = createRootRoute({ component: RootLayout });
 
+// start は S03 から戻ったときに表示期間を復元するためだけに使う。サイドバー (search 無し) は今週になる (revise-recipe-detail-page D4)。
+const mealPlanSearchSchema = z.object({
+  start: z.string().optional().catch(undefined),
+});
+
 const mealPlanRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
   component: MealPlanPage,
+  validateSearch: mealPlanSearchSchema,
 });
 
 // S02 は保存直後のハイライト対象を search param で受け取る (design.md D6)。
-// detail は開いている S03 のレシピ ID。S04 のキャンセルで同じドロワーに戻すため URL に載せる (add-recipe-details D2)。
+// q / sort は S03 から戻ったときに検索語と並び順を復元するために持つ (revise-recipe-detail-page D3)。
 const recipesSearchSchema = z.object({
   highlight: z.string().optional(),
-  detail: z.string().optional(),
+  q: z.string().optional().catch(undefined),
+  sort: z
+    .enum(RECIPE_SORT_KEYS as [RecipeSortKey, ...RecipeSortKey[]])
+    .optional()
+    .catch(undefined),
 });
 
 const recipesRoute = createRoute({
@@ -42,10 +55,18 @@ const recipeNewRoute = createRoute({
   component: RecipeNewPage,
 });
 
+const recipeDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/recipes/$recipeId",
+  component: RecipeDetailPage,
+  validateSearch: detailSearchSchema,
+});
+
 const recipeEditRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/recipes/$recipeId/edit",
   component: RecipeEditPage,
+  validateSearch: detailSearchSchema,
 });
 
 const fridgeRoute = createRoute({
@@ -66,6 +87,7 @@ const routeTree = rootRoute.addChildren([
   mealPlanRoute,
   recipesRoute,
   recipeNewRoute,
+  recipeDetailRoute,
   recipeEditRoute,
   fridgeRoute,
   shoppingRoute,

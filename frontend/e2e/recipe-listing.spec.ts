@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import ja from "../src/locales/ja.json" with { type: "json" };
 import { expect, test } from "./fixtures.js";
-import { createRecipe, openRecipeList } from "./helpers.js";
+import { createRecipe, detailBreadcrumb, openRecipeList } from "./helpers.js";
 
 // 文言は ja.json から引き、日本語をテストにハードコードしない (design.md D9)。
 const t = ja.pages.recipes;
@@ -80,20 +80,19 @@ test.describe("ソート切替", () => {
   });
 });
 
-test.describe("S02 一覧から S03 を開く", () => {
-  test("行を押すと S03 詳細ドロワーが開く", async ({ page }) => {
+test.describe("S02 一覧から S03 詳細画面へ移る", () => {
+  test("行を押すと S03 詳細画面に移る", async ({ page }) => {
     await createRecipe(page, "肉じゃが");
     await openRecipeList(page);
 
     await page.getByRole("cell", { name: "肉じゃが" }).click();
 
-    await expect(page.getByRole("dialog")).toContainText("肉じゃが");
-    // ドロワーが開いている間、背後の一覧は Radix が aria-hidden にするので role では引けない。
-    await expect(page.locator("table td:first-child")).toHaveText(["肉じゃが"]);
+    await expect(page.getByRole("main").getByRole("heading", { name: "肉じゃが" })).toBeVisible();
+    await expect(page.getByRole("table")).toHaveCount(0);
     await expect(page.locator("#recipe-name")).toHaveCount(0);
   });
 
-  test("閉じると検索語と並び順が保たれている", async ({ page }) => {
+  test("S02 に戻ると検索語と並び順が保たれている", async ({ page }) => {
     await createRecipe(page, "肉じゃが");
     await createRecipe(page, "じゃがバター");
     await createRecipe(page, "豚汁");
@@ -106,12 +105,28 @@ test.describe("S02 一覧から S03 を開く", () => {
     await page.getByRole("option", { name: t.sort.name_asc }).click();
 
     await page.getByRole("cell", { name: "肉じゃが" }).click();
-    await expect(page.getByRole("dialog")).toBeVisible();
-    await page.getByRole("button", { name: t.detail.close }).click();
+    await detailBreadcrumb(page).getByRole("button", { name: ja.nav.recipes }).click();
 
-    await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(search).toHaveValue("じゃが");
     await expect(sort).toHaveText(t.sort.name_asc);
     await expect(nameCells(page)).toHaveCount(2);
+  });
+
+  test("サイドバーから開き直すと検索語と並び順は既定に戻る", async ({ page }) => {
+    await createRecipe(page, "肉じゃが");
+    await openRecipeList(page);
+
+    await page.getByRole("searchbox", { name: t.search.placeholder }).fill("じゃが");
+    await page.getByRole("combobox", { name: t.sort.label }).click();
+    await page.getByRole("option", { name: t.sort.name_asc }).click();
+
+    await page.getByRole("link", { name: ja.nav.fridge }).click();
+    await page.getByRole("heading", { name: ja.pages.fridge.title }).waitFor();
+    await page.getByRole("link", { name: ja.nav.recipes }).click();
+
+    await expect(page.getByRole("searchbox", { name: t.search.placeholder })).toHaveValue("");
+    await expect(page.getByRole("combobox", { name: t.sort.label })).toHaveText(
+      t.sort.updated_desc,
+    );
   });
 });

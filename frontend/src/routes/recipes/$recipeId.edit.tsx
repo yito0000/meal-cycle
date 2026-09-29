@@ -1,6 +1,11 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useParams } from "@tanstack/react-router";
+import { useParams, useSearch } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import {
+  DEFAULT_DETAIL_ORIGIN,
+  originLabelKey,
+  originNavigateOptions,
+} from "@/components/recipe/detail-origin";
 import { RecipeEditForm } from "@/components/recipe/recipe-edit-form";
 import { useRecipeDetail } from "@/components/recipe/use-recipe-detail";
 import { router } from "@/router";
@@ -11,6 +16,8 @@ export function RecipeEditPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { recipeId } = useParams({ from: "/recipes/$recipeId/edit" });
+  const { back } = useSearch({ from: "/recipes/$recipeId/edit" });
+  const origin = back ?? DEFAULT_DETAIL_ORIGIN;
 
   const { data, isLoading, isError } = useRecipeDetail(recipeId);
 
@@ -32,10 +39,25 @@ export function RecipeEditPage() {
     );
   }
 
+  const goDetail = () =>
+    router.navigate({
+      to: "/recipes/$recipeId",
+      params: { recipeId },
+      search: { back: origin },
+    });
+
   return (
     <RecipeEditForm
       mode="edit"
       initialRecipe={data}
+      breadcrumb={[
+        {
+          label: t(originLabelKey(origin)),
+          onSelect: () => router.navigate(originNavigateOptions(origin)),
+        },
+        { label: data.name, onSelect: goDetail },
+        { label: t("pages.recipes.edit.breadcrumb_edit") },
+      ]}
       onSave={async (input) => {
         // TS モードバインディング (task build) では Recipe が interface なので、
         // `new Recipe(...)` は使えない。Wails IPC は JSON なのでリテラルで足りる。
@@ -58,7 +80,7 @@ export function RecipeEditPage() {
         router.navigate({ to: "/recipes", search: { highlight: updated.id } });
         return updated;
       }}
-      onCancel={() => router.navigate({ to: "/recipes", search: { detail: recipeId } })}
+      onCancel={goDetail}
     />
   );
 }

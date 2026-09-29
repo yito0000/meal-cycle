@@ -5,6 +5,7 @@ import {
   createRecipe,
   createRecipeWithIngredients,
   dateAfter,
+  detailBreadcrumb,
   openItemMenu,
 } from "./helpers.js";
 
@@ -135,12 +136,10 @@ test.describe("1 品の入替 / 削除 / 詳細表示", () => {
     await openItemMenu(page, "肉じゃが");
     await page.getByRole("menuitem", { name: t.item_menu.view_detail }).click();
 
-    const dialog = page.getByRole("dialog");
-    await expect(dialog.getByRole("heading", { name: "肉じゃが" })).toBeVisible();
+    await expect(page.getByRole("main").getByRole("heading", { name: "肉じゃが" })).toBeVisible();
 
-    await page.keyboard.press("Escape");
+    await detailBreadcrumb(page).getByRole("button", { name: ja.nav.meal_plan }).click();
 
-    await expect(dialog).toHaveCount(0);
     await expect(page.getByRole("heading", { name: t.title })).toBeVisible();
     await expect(page.getByText("肉じゃが", { exact: true })).toBeVisible();
   });

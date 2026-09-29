@@ -7,6 +7,7 @@ import {
   dateAfter,
   deleteRecipe,
   deleteRecipeFromDetail,
+  detailBreadcrumb,
   openItemMenu,
   openRecipeDetail,
 } from "./helpers.js";
@@ -25,16 +26,16 @@ async function openMealCalendar(page: Page) {
 async function openDetailFromMealCalendar(page: Page, recipeName: string) {
   await openItemMenu(page, recipeName);
   await page.getByRole("menuitem", { name: mp.item_menu.view_detail }).click();
-  await page.getByRole("dialog").waitFor();
+  await detailBreadcrumb(page).getByText(recipeName, { exact: true }).waitFor();
 }
 
-test.describe("レシピの削除", () => {
+test.describe("S03 詳細画面からのレシピの削除", () => {
   test("確認してレシピを削除すると一覧から消える", async ({ page }) => {
     await createRecipeDetailed(page, { name: "肉じゃが" });
     await createRecipeDetailed(page, { name: "豚汁" });
     await openRecipeDetail(page, "肉じゃが");
 
-    await page.getByRole("dialog").getByRole("button", { name: t.detail.delete }).click();
+    await page.getByRole("main").getByRole("button", { name: t.detail.delete }).click();
     const confirm = page.getByRole("dialog").filter({ hasText: t.delete_confirm.body });
     await expect(confirm).toBeVisible();
     await expect(confirm).toContainText(t.delete_confirm.title.replace("{{name}}", "肉じゃが"));
@@ -42,7 +43,7 @@ test.describe("レシピの削除", () => {
     await confirm.getByRole("button", { name: t.delete_confirm.confirm }).click();
 
     await expect(page.getByRole("dialog")).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: t.title })).toBeVisible();
+    await expect(page.getByRole("heading", { name: t.title, exact: true })).toBeVisible();
     await expect(
       page.getByText(t.delete_confirm.done.replace("{{name}}", "肉じゃが")),
     ).toBeVisible();
@@ -54,19 +55,20 @@ test.describe("レシピの削除", () => {
     await createRecipeDetailed(page, { name: "肉じゃが" });
     await openRecipeDetail(page, "肉じゃが");
 
-    await page.getByRole("dialog").getByRole("button", { name: t.detail.delete }).click();
+    await page.getByRole("main").getByRole("button", { name: t.detail.delete }).click();
     const confirm = page.getByRole("dialog").filter({ hasText: t.delete_confirm.body });
     await confirm.getByRole("button", { name: t.delete_confirm.cancel }).click();
 
     await expect(confirm).toHaveCount(0);
-    const drawer = page.getByRole("dialog");
-    await expect(drawer.getByRole("heading", { name: "肉じゃが" })).toBeVisible();
+    await expect(
+      page.getByRole("main").getByRole("heading", { name: "肉じゃが", exact: true }),
+    ).toBeVisible();
 
-    await page.keyboard.press("Escape");
+    await detailBreadcrumb(page).getByRole("button", { name: ja.nav.recipes }).click();
     await expect(page.getByRole("cell", { name: "肉じゃが", exact: true })).toBeVisible();
   });
 
-  test("S01 から開いたドロワーで削除すると S01 に留まる", async ({ page }) => {
+  test("S01 から開いた詳細画面で削除すると S01 に戻る", async ({ page }) => {
     const id = await createRecipeDetailed(page, { name: "肉じゃが" });
     await assignRecipe(page, dateAfter(0), "dinner", id);
     await openMealCalendar(page);
@@ -121,7 +123,7 @@ test.describe("削除済みレシピを使った献立の保持", () => {
   });
 });
 
-test.describe("S03 レシピ詳細ドロワーの表示", () => {
+test.describe("S03 レシピ詳細画面の表示", () => {
   test("削除済みレシピは内容と削除済みの旨を表示し、操作ボタンを出さない", async ({ page }) => {
     const id = await createRecipeDetailed(page, {
       name: "肉じゃが",
@@ -135,13 +137,13 @@ test.describe("S03 レシピ詳細ドロワーの表示", () => {
 
     await openDetailFromMealCalendar(page, "肉じゃが");
 
-    const drawer = page.getByRole("dialog");
-    await expect(drawer.getByRole("heading", { name: "肉じゃが" })).toBeVisible();
-    await expect(drawer).toContainText("玉ねぎ");
-    await expect(drawer).toContainText("玉ねぎを切る");
-    await expect(drawer).toContainText("肉は 30 分漬ける");
-    await expect(drawer).toContainText(t.detail.archived);
-    await expect(drawer.getByRole("button", { name: t.detail.edit })).toHaveCount(0);
-    await expect(drawer.getByRole("button", { name: t.detail.delete })).toHaveCount(0);
+    const detail = page.getByRole("main");
+    await expect(detail.getByRole("heading", { name: "肉じゃが" })).toBeVisible();
+    await expect(detail).toContainText("玉ねぎ");
+    await expect(detail).toContainText("玉ねぎを切る");
+    await expect(detail).toContainText("肉は 30 分漬ける");
+    await expect(detail).toContainText(t.detail.archived);
+    await expect(detail.getByRole("button", { name: t.detail.edit })).toHaveCount(0);
+    await expect(detail.getByRole("button", { name: t.detail.delete })).toHaveCount(0);
   });
 });

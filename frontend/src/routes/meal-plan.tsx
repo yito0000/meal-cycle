@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
-import { useCallback, useMemo, useState } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Meal } from "../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
@@ -9,7 +9,7 @@ import { MealVisibilityCheckboxes } from "../components/mealplan/meal-visibility
 import { MEALPLAN_DEFAULTS } from "../components/mealplan/mealplan-config";
 import { PeriodNav, type PeriodWeeks } from "../components/mealplan/period-nav";
 import { WeekCalendar } from "../components/mealplan/week-calendar";
-import { formatDate, weekStartOf } from "../components/mealplan/week-utils";
+import { formatDate, parseDate, weekStartOf } from "../components/mealplan/week-utils";
 import { mealPlanKey, useMealPlanPreference } from "../lib/mealplan-preferences";
 
 const ALLOWED_MEAL_VALUES: ReadonlySet<string> = new Set<string>([
@@ -50,7 +50,8 @@ export function MealPlanPage() {
     (next: Set<string>) => setVisibleMealsArr([...next]),
     [setVisibleMealsArr],
   );
-  const [periodStart, setPeriodStart] = useState<Date>(() => weekStartOf(new Date()));
+  const { start } = useSearch({ from: "/" });
+  const periodStart = useMemo(() => weekStartOf(parseDate(start) ?? new Date()), [start]);
   const [periodWeeks, setPeriodWeeks] = useMealPlanPreference<PeriodWeeks>(
     mealPlanKey("periodWeeks"),
     1,
@@ -74,8 +75,8 @@ export function MealPlanPage() {
           <PeriodNav
             periodStart={periodStart}
             periodWeeks={periodWeeks}
-            onPeriodChange={(start, weeks) => {
-              setPeriodStart(start);
+            onPeriodChange={(nextStart, weeks) => {
+              navigate({ to: "/", search: { start: formatDate(nextStart) }, replace: true });
               setPeriodWeeks(weeks);
             }}
             onToday={() => {

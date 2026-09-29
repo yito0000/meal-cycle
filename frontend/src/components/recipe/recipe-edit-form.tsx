@@ -1,6 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { type BreadcrumbEntry, PageBreadcrumb } from "@/components/layout/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,6 +36,7 @@ type Props = {
   initialRecipe: Recipe | null;
   onSave: (input: SaveInput) => Promise<Recipe>;
   onCancel: () => void;
+  breadcrumb: BreadcrumbEntry[];
 };
 
 type FieldErrors = {
@@ -98,13 +100,14 @@ function validate(values: SaveInput): FieldErrors {
   return errors;
 }
 
-export function RecipeEditForm({ mode, initialRecipe, onSave, onCancel }: Props) {
+export function RecipeEditForm({ mode, initialRecipe, onSave, onCancel, breadcrumb }: Props) {
   const { t } = useTranslation();
 
   const form = useRecipeForm(initialRecipe ? recipeToFormValues(initialRecipe) : blankFormValues);
   const [saveErrorKey, setSaveErrorKey] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const [confirmingCancel, setConfirmingCancel] = useState(false);
+  // 未保存の確認で保留している移動先。キャンセルもパンくずも同じ確認に乗せる (revise-recipe-detail-page D8)。
+  const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
 
   const saveMutation = useMutation({
     mutationFn: (input: SaveInput) => onSave(input),
@@ -138,10 +141,17 @@ export function RecipeEditForm({ mode, initialRecipe, onSave, onCancel }: Props)
     saveMutation.mutate(input);
   };
 
-  const handleCancel = () => {
-    if (form.isDirty) setConfirmingCancel(true);
-    else onCancel();
+  const leave = (go: () => void) => {
+    // setState に関数を渡すと updater として呼ばれてしまうので包む。
+    if (form.isDirty) setPendingLeave(() => go);
+    else go();
   };
+  const handleCancel = () => leave(onCancel);
+
+  const guardedBreadcrumb = breadcrumb.map((item) => {
+    const { onSelect } = item;
+    return onSelect ? { ...item, onSelect: () => leave(onSelect) } : item;
+  });
 
   const titleKey =
     mode === "new" ? "pages.recipes.edit.title_new" : "pages.recipes.edit.title_edit";
@@ -149,6 +159,9 @@ export function RecipeEditForm({ mode, initialRecipe, onSave, onCancel }: Props)
 
   return (
     <div className="flex h-full flex-col">
+      <div className="px-6 pt-4">
+        <PageBreadcrumb items={guardedBreadcrumb} />
+      </div>
       <header className="sticky top-0 z-10 flex items-center justify-between border-b border-neutral-200 bg-white px-6 py-3">
         <h1 className="text-xl font-bold">{title}</h1>
         <div className="flex items-center gap-2">
@@ -278,12 +291,13 @@ export function RecipeEditForm({ mode, initialRecipe, onSave, onCancel }: Props)
       </div>
 
       <UnsavedChangesDialog
-        open={confirmingCancel}
+        open={pendingLeave !== null}
         onDiscard={() => {
-          setConfirmingCancel(false);
-          onCancel();
+          const go = pendingLeave;
+          setPendingLeave(null);
+          go?.();
         }}
-        onKeepEditing={() => setConfirmingCancel(false)}
+        onKeepEditing={() => setPendingLeave(null)}
       />
     </div>
   );
