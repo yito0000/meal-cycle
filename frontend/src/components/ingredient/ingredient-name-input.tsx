@@ -1,9 +1,9 @@
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
+import { isImeComposing } from "@/lib/ime";
 import { cn } from "@/lib/utils";
 import type { NameSuggestion } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/fridge/models";
-import { isImeComposing } from "./stock-form";
 
 const MAX_SUGGESTIONS = 8;
 
@@ -19,9 +19,9 @@ type Props = {
   autoFocus?: boolean;
 };
 
-// WAI-ARIA combobox パターンの候補補完つき自由入力 (design.md D6)。候補の選択は任意で、
+// WAI-ARIA combobox パターンの候補補完つき自由入力 (add-fridge-inventory design.md D6)。候補の選択は任意で、
 // 候補にない名前もそのまま入力できる。
-export const StockNameInput = React.forwardRef<HTMLInputElement, Props>(
+export const IngredientNameInput = React.forwardRef<HTMLInputElement, Props>(
   ({ value, onChange, onSelect, suggestions, className, ...inputProps }, ref) => {
     const { t } = useTranslation();
     const listboxId = React.useId();
@@ -100,7 +100,7 @@ export const StockNameInput = React.forwardRef<HTMLInputElement, Props>(
           <div
             id={listboxId}
             role="listbox"
-            aria-label={t("pages.fridge.add.suggestions_label")}
+            aria-label={t("ingredient.suggestions_label")}
             className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-md border border-neutral-200 bg-white py-1 text-sm shadow-md"
           >
             {matches.map((s, i) => (
@@ -131,4 +131,4 @@ export const StockNameInput = React.forwardRef<HTMLInputElement, Props>(
     );
   },
 );
-StockNameInput.displayName = "StockNameInput";
+IngredientNameInput.displayName = "IngredientNameInput";

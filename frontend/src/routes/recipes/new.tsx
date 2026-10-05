@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { INGREDIENT_SUGGESTIONS_KEY } from "@/components/ingredient/use-ingredient-suggestions";
 import { RecipeEditForm } from "@/components/recipe/recipe-edit-form";
 import { router } from "@/router";
 import type { Recipe } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/recipe/models";
@@ -36,6 +37,7 @@ export function RecipeNewPage() {
         };
         const created = await RecipeService.Create(draft);
         await queryClient.invalidateQueries({ queryKey: ["recipes", "list"] });
+        await queryClient.invalidateQueries({ queryKey: INGREDIENT_SUGGESTIONS_KEY });
         router.navigate({ to: "/recipes", search: { highlight: created.id } });
         return created;
       }}

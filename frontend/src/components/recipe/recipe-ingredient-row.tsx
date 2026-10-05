@@ -1,7 +1,10 @@
 import { X } from "lucide-react";
+import { useId } from "react";
 import { useTranslation } from "react-i18next";
+import { IngredientNameInput } from "@/components/ingredient/ingredient-name-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import type { NameSuggestion } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/fridge/models";
 import type { RecipeIngredient } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/recipe/models";
 
 type Props = {
@@ -9,19 +12,35 @@ type Props = {
   onChange: (next: RecipeIngredient) => void;
   onRemove: () => void;
   nameError?: string | null;
+  nameSuggestions: NameSuggestion[];
+  unitSuggestions: string[];
 };
 
-// 名前 / 量 / 単位 の 3 テキスト input + 削除ボタン。食材コンボボックスは持たない
-// (design.md D9)。
-export function RecipeIngredientRow({ value, onChange, onRemove, nameError }: Props) {
+// 名前 / 量 / 単位 + 削除ボタン。名前は S06 と同じ候補補完を持つ (add-ingredient-name-matching design.md D4)。
+export function RecipeIngredientRow({
+  value,
+  onChange,
+  onRemove,
+  nameError,
+  nameSuggestions,
+  unitSuggestions,
+}: Props) {
   const { t } = useTranslation();
+  const unitListId = useId();
   return (
     <div className="flex flex-col gap-1">
       <div className="grid grid-cols-[minmax(0,1fr)_5rem_5rem_2.25rem] items-center gap-2">
-        <Input
-          type="text"
+        <IngredientNameInput
           value={value.name}
-          onChange={(e) => onChange({ ...value, name: e.target.value })}
+          onChange={(name) => onChange({ ...value, name })}
+          onSelect={(s) =>
+            onChange({
+              ...value,
+              name: s.name,
+              unit: value.unit.trim() === "" ? s.unit : value.unit,
+            })
+          }
+          suggestions={nameSuggestions}
           placeholder={t("pages.recipes.edit.label.name")}
           aria-label={t("pages.recipes.edit.label.name")}
           aria-invalid={nameError != null}
@@ -38,12 +57,20 @@ export function RecipeIngredientRow({ value, onChange, onRemove, nameError }: Pr
           }}
           aria-label={t("pages.recipes.edit.label.amount")}
         />
-        <Input
-          type="text"
-          value={value.unit}
-          onChange={(e) => onChange({ ...value, unit: e.target.value })}
-          aria-label={t("pages.recipes.edit.label.unit")}
-        />
+        <div>
+          <Input
+            type="text"
+            list={unitListId}
+            value={value.unit}
+            onChange={(e) => onChange({ ...value, unit: e.target.value })}
+            aria-label={t("pages.recipes.edit.label.unit")}
+          />
+          <datalist id={unitListId}>
+            {unitSuggestions.map((u) => (
+              <option key={u} value={u} />
+            ))}
+          </datalist>
+        </div>
         <Button
           type="button"
           variant="ghost"

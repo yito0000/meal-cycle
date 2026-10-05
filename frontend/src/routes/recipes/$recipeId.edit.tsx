@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useParams, useSearch } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { INGREDIENT_SUGGESTIONS_KEY } from "@/components/ingredient/use-ingredient-suggestions";
 import {
   DEFAULT_DETAIL_ORIGIN,
   originLabelKey,
@@ -77,6 +78,7 @@ export function RecipeEditPage() {
         const updated = await RecipeService.Update(recipeId, draft);
         await queryClient.invalidateQueries({ queryKey: ["recipes", "list"] });
         await queryClient.invalidateQueries({ queryKey: ["recipes", "detail", recipeId] });
+        await queryClient.invalidateQueries({ queryKey: INGREDIENT_SUGGESTIONS_KEY });
         router.navigate({ to: "/recipes", search: { highlight: updated.id } });
         return updated;
       }}

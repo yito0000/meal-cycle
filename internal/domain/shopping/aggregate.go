@@ -27,34 +27,43 @@ type ingredientKey struct {
 	unit string
 }
 
-// Aggregate は計上する作り置きの材料を「trim 後の食材名 + 単位」で合算し、在庫の状態を付けて並べる。
+// Aggregate は計上する作り置きの材料を「表記をそろえた食材名 + 単位」で合算し、在庫の状態を付けて並べる。
 // 量 0 と量る単位の材料は量を持たない材料として、食材名 + 空の単位に量 0 で合算する (add-measuring-units design.md D3)。
 func Aggregate(batches []PlannedBatch, stocks []StockAmount, measuringUnits []string) []Item {
 	stockByKey := map[ingredientKey]float64{}
 	stockByName := map[string]float64{}
 	for _, s := range stocks {
-		name := strings.TrimSpace(s.Name)
-		stockByKey[ingredientKey{name, strings.TrimSpace(s.Unit)}] += s.Amount
+		name := normalizeKey(s.Name)
+		stockByKey[ingredientKey{name, normalizeKey(s.Unit)}] += s.Amount
 		stockByName[name] += s.Amount
+	}
+	measuring := make([]string, 0, len(measuringUnits))
+	for _, u := range measuringUnits {
+		measuring = append(measuring, normalizeKey(u))
 	}
 
 	// 用途欄のレシピ名を献立一覧と同じ順に並べるため、先に献立の順へ並べ替えてから走査する。
 	ordered := sortedBatches(batches)
 	index := map[ingredientKey]int{}
+	// 表示は最初に出てくる材料の表記を使うので、在庫を引くためのキーは行と別に持つ (add-ingredient-name-matching design.md D3)。
+	keys := make([]ingredientKey, 0)
 	items := make([]Item, 0)
 	for _, b := range ordered {
 		for _, ing := range b.Ingredients {
-			k := ingredientKey{strings.TrimSpace(ing.Name), strings.TrimSpace(ing.Unit)}
+			k := ingredientKey{normalizeKey(ing.Name), normalizeKey(ing.Unit)}
+			unit := strings.TrimSpace(ing.Unit)
 			amount := ing.Amount
-			if amount == 0 || slices.Contains(measuringUnits, k.unit) {
+			if amount == 0 || slices.Contains(measuring, k.unit) {
 				k.unit = ""
+				unit = ""
 				amount = 0
 			}
 			i, ok := index[k]
 			if !ok {
 				i = len(items)
 				index[k] = i
-				items = append(items, Item{Name: k.name, Unit: k.unit, Recipes: []string{}, firstDate: b.FirstDate})
+				keys = append(keys, k)
+				items = append(items, Item{Name: strings.TrimSpace(ing.Name), Unit: unit, Recipes: []string{}, firstDate: b.FirstDate})
 			}
 			items[i].Amount += amount
 			if !containsString(items[i].Recipes, b.RecipeName) {
@@ -65,10 +74,10 @@ func Aggregate(batches []PlannedBatch, stocks []StockAmount, measuringUnits []st
 
 	for i := range items {
 		items[i].Amount = roundAmount(items[i].Amount)
-		stock := roundAmount(stockByKey[ingredientKey{items[i].Name, items[i].Unit}])
+		stock := roundAmount(stockByKey[keys[i]])
 		// 量を持たない行は単位を問わず同名の在庫を数える。単位の無い量のある行に合算された行は量のある行として扱う (design.md D4)。
 		if items[i].Amount == 0 {
-			stock = roundAmount(stockByName[items[i].Name])
+			stock = roundAmount(stockByName[keys[i].name])
 		}
 		items[i].StockStatus = stockStatus(items[i].Amount, stock)
 	}

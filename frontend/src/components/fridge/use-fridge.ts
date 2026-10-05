@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { INGREDIENT_SUGGESTIONS_KEY } from "@/components/ingredient/use-ingredient-suggestions";
 import type { StockItem } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/fridge/models";
 import { FridgeService } from "../../../bindings/github.com/yito0000/meal-cycle/internal/service";
 
 const LIST_KEY = ["fridge", "list"] as const;
-const SUGGESTIONS_KEY = ["fridge", "suggestions"] as const;
 
 // 「元に戻す」トーストの表示時間。ユーザー可変値ではないので config には置かない (design.md D9)。
 export const UNDO_TOAST_MS = 5000;
@@ -15,23 +15,13 @@ export function useStockList() {
   });
 }
 
-export function useStockSuggestions() {
-  return useQuery({
-    queryKey: SUGGESTIONS_KEY,
-    queryFn: async () => {
-      const s = await FridgeService.ListSuggestions();
-      return { names: s.names ?? [], units: s.units ?? [] };
-    },
-  });
-}
-
 // 在庫名の増減で候補も変わるので、どの mutation でも一覧と候補の両方を捨てる (design.md D12)。
 export function useInvalidateFridge() {
   const queryClient = useQueryClient();
   return () =>
     Promise.all([
       queryClient.invalidateQueries({ queryKey: LIST_KEY }),
-      queryClient.invalidateQueries({ queryKey: SUGGESTIONS_KEY }),
+      queryClient.invalidateQueries({ queryKey: INGREDIENT_SUGGESTIONS_KEY }),
     ]);
 }
 

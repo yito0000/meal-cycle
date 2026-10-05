@@ -1,8 +1,10 @@
 import * as React from "react";
 import { useTranslation } from "react-i18next";
+import { IngredientNameInput } from "@/components/ingredient/ingredient-name-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TableCell, TableRow } from "@/components/ui/table";
+import { isImeComposing } from "@/lib/ime";
 import type {
   NameSuggestion,
   StockItem,
@@ -11,14 +13,12 @@ import { stockErrorOf } from "./error-messages";
 import { FieldError } from "./field-errors";
 import {
   fromStockItem,
-  isImeComposing,
   type StockField,
   type StockFormErrors,
   type StockFormValues,
   toStockInput,
   validateStockForm,
 } from "./stock-form";
-import { StockNameInput } from "./stock-name-input";
 import { useUpdateStock } from "./use-fridge";
 
 type Props = {
@@ -78,7 +78,7 @@ export function FridgeEditRow({ item, nameSuggestions, onDone }: Props) {
       onKeyDown={onKeyDown}
     >
       <TableCell className="align-top">
-        <StockNameInput
+        <IngredientNameInput
           autoFocus
           value={values.name}
           onChange={set("name")}

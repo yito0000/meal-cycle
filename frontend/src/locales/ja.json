@@ -256,8 +256,7 @@
         "amount_placeholder": "量",
         "unit_placeholder": "単位",
         "expires_placeholder": "賞味期限（任意）",
-        "submit": "追加",
-        "suggestions_label": "食材名の候補"
+        "submit": "追加"
       },
       "field": {
         "name": "食材名",
@@ -362,6 +361,9 @@
         "description": "量を買う単位で書いていない材料です。切らしていないかだけ確かめてください"
       }
     }
+  },
+  "ingredient": {
+    "suggestions_label": "食材名の候補"
   },
   "health": {
     "loading": "確認中...",

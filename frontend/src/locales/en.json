@@ -256,8 +256,7 @@
         "amount_placeholder": "Amount",
         "unit_placeholder": "Unit",
         "expires_placeholder": "Best before (optional)",
-        "submit": "Add",
-        "suggestions_label": "Ingredient suggestions"
+        "submit": "Add"
       },
       "field": {
         "name": "Ingredient",
@@ -362,6 +361,9 @@
         "description": "These ingredients are not written in amounts you buy. Just check you haven't run out"
       }
     }
+  },
+  "ingredient": {
+    "suggestions_label": "Ingredient suggestions"
   },
   "health": {
     "loading": "Checking...",

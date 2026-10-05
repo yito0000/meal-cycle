@@ -1,6 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useIngredientSuggestions } from "@/components/ingredient/use-ingredient-suggestions";
 import { type BreadcrumbEntry, PageBreadcrumb } from "@/components/layout/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -103,6 +104,7 @@ function validate(values: SaveInput): FieldErrors {
 export function RecipeEditForm({ mode, initialRecipe, onSave, onCancel, breadcrumb }: Props) {
   const { t } = useTranslation();
 
+  const suggestions = useIngredientSuggestions();
   const form = useRecipeForm(initialRecipe ? recipeToFormValues(initialRecipe) : blankFormValues);
   const [saveErrorKey, setSaveErrorKey] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -228,6 +230,8 @@ export function RecipeEditForm({ mode, initialRecipe, onSave, onCancel, breadcru
                 key={i}
                 value={row}
                 nameError={fieldErrors.ingredients?.[i] ?? null}
+                nameSuggestions={suggestions.data?.names ?? []}
+                unitSuggestions={suggestions.data?.units ?? []}
                 onChange={(next) => {
                   const copy = form.values.ingredients.slice();
                   copy[i] = next;

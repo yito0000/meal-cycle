@@ -1,20 +1,20 @@
 import * as React from "react";
 import { useTranslation } from "react-i18next";
+import { IngredientNameInput } from "@/components/ingredient/ingredient-name-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { isImeComposing } from "@/lib/ime";
 import type { NameSuggestion } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/fridge/models";
 import { stockErrorOf } from "./error-messages";
 import { FieldError } from "./field-errors";
 import {
   emptyStockForm,
-  isImeComposing,
   type StockField,
   type StockFormErrors,
   type StockFormValues,
   toStockInput,
   validateStockForm,
 } from "./stock-form";
-import { StockNameInput } from "./stock-name-input";
 import { useAddStock } from "./use-fridge";
 
 type Props = {
@@ -76,7 +76,7 @@ export function FridgeAddRow({ nameSuggestions, unitSuggestions }: Props) {
           {t("pages.fridge.add.label")}
         </span>
         <div className="min-w-48 flex-1">
-          <StockNameInput
+          <IngredientNameInput
             ref={nameRef}
             value={values.name}
             onChange={set("name")}

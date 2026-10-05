@@ -247,6 +247,52 @@ func TestAggregate(t *testing.T) {
 				{"じゃがいも", "個", 2, StockNone, []string{"カレー"}},
 			},
 		},
+		{
+			name: "ひらがなとカタカナの違う食材名は 1 行に合算され、表示は最初の材料の表記",
+			batches: []PlannedBatch{
+				batch("2026-09-26", "dinner", "カレー", ing("タマネギ", 1, "個")),
+				batch("2026-09-24", "dinner", "肉じゃが", ing("たまねぎ", 2, "個")),
+			},
+			want: []view{{"たまねぎ", "個", 3, StockNone, []string{"肉じゃが", "カレー"}}},
+		},
+		{
+			name: "全角ｇと半角 g の単位は 1 行に合算される",
+			batches: []PlannedBatch{
+				batch("2026-09-24", "dinner", "生姜焼き", ing("豚肉", 200, "g")),
+				batch("2026-09-26", "dinner", "豚汁", ing("豚肉", 100, "ｇ")),
+			},
+			want: []view{{"豚肉", "g", 300, StockNone, []string{"生姜焼き", "豚汁"}}},
+		},
+		{
+			name:    "カタカナの材料とひらがなの在庫が突き合わされて covered",
+			batches: []PlannedBatch{batch("2026-09-24", "dinner", "カレー", ing("タマネギ", 2, "個"))},
+			stocks:  []StockAmount{stock("たまねぎ", 3, "個")},
+			want:    []view{{"タマネギ", "個", 2, StockCovered, []string{"カレー"}}},
+		},
+		{
+			name: "漢字とかなの違う食材名は別の行のまま",
+			batches: []PlannedBatch{
+				batch("2026-09-24", "dinner", "肉じゃが", ing("玉ねぎ", 2, "個")),
+				batch("2026-09-26", "dinner", "カレー", ing("たまねぎ", 1, "個")),
+			},
+			want: []view{
+				{"玉ねぎ", "個", 2, StockNone, []string{"肉じゃが"}},
+				{"たまねぎ", "個", 1, StockNone, []string{"カレー"}},
+			},
+		},
+		{
+			name: "カタカナとひらがなの違う量なし材料は 1 行にまとまる",
+			batches: []PlannedBatch{
+				batch("2026-09-24", "dinner", "炒め物", ing("ごま油", 1, "小さじ")),
+				batch("2026-09-26", "dinner", "ナムル", ing("ゴマ油", 1, "大さじ")),
+			},
+			want: []view{{"ごま油", "", 0, StockNone, []string{"炒め物", "ナムル"}}},
+		},
+		{
+			name:    "量る単位をカタカナで書いても量なし材料として扱う",
+			batches: []PlannedBatch{batch("2026-09-24", "dinner", "肉じゃが", ing("醤油", 2, "大サジ"))},
+			want:    []view{{"醤油", "", 0, StockNone, []string{"肉じゃが"}}},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

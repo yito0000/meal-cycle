@@ -17,15 +17,15 @@ import {
   useDeleteStock,
   useRestoreStock,
   useStockList,
-  useStockSuggestions,
 } from "../components/fridge/use-fridge";
+import { useIngredientSuggestions } from "../components/ingredient/use-ingredient-suggestions";
 
 export function FridgePage() {
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<FridgeSortKey>(DEFAULT_FRIDGE_SORT);
   const { data, isLoading, isError } = useStockList();
-  const suggestions = useStockSuggestions();
+  const suggestions = useIngredientSuggestions();
   const del = useDeleteStock();
   const restore = useRestoreStock();
 

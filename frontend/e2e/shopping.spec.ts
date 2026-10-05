@@ -150,6 +150,49 @@ test.describe("同一食材の合算", () => {
     await expect(itemRow(page, "玉ねぎ")).toContainText("1.5 個");
     await expect(itemRow(page, "玉ねぎ")).toContainText("肉じゃが, みそ汁");
   });
+
+  test("ひらがなとカタカナの違う食材名は 1 行に合算される", async ({ page }) => {
+    const nikujaga = await createRecipeWithIngredients(page, "肉じゃが", [
+      { name: "たまねぎ", amount: 2, unit: "個" },
+    ]);
+    const curry = await createRecipeWithIngredients(page, "カレー", [
+      { name: "タマネギ", amount: 1, unit: "個" },
+    ]);
+    await assignRecipe(page, dateAfter(0), "dinner", nikujaga);
+    await assignRecipe(page, dateAfter(2), "dinner", curry);
+    await openShoppingList(page);
+
+    expect(await ingredientNames(page)).toEqual(["たまねぎ"]);
+    await expect(itemRow(page, "たまねぎ")).toContainText("3 個");
+    await expect(itemRow(page, "たまねぎ")).toContainText("肉じゃが, カレー");
+  });
+
+  test("表記の違う在庫も同じ食材として数える", async ({ page }) => {
+    const curry = await createRecipeWithIngredients(page, "カレー", [
+      { name: "タマネギ", amount: 2, unit: "個" },
+    ]);
+    await assignRecipe(page, dateAfter(0), "dinner", curry);
+    await addStockItem(page, { name: "たまねぎ", amount: 3, unit: "個" });
+    await openShoppingList(page);
+
+    await expect(itemRow(page, "タマネギ")).toHaveAttribute("data-stock-status", "covered");
+    await expect(itemRow(page, "タマネギ")).toContainText(t.stock_status.covered);
+  });
+
+  test("漢字とかなの違う食材名は別の行になる", async ({ page }) => {
+    const nikujaga = await createRecipeWithIngredients(page, "肉じゃが", [
+      { name: "玉ねぎ", amount: 2, unit: "個" },
+    ]);
+    const curry = await createRecipeWithIngredients(page, "カレー", [
+      { name: "たまねぎ", amount: 1, unit: "個" },
+    ]);
+    await assignRecipe(page, dateAfter(0), "dinner", nikujaga);
+    await assignRecipe(page, dateAfter(2), "dinner", curry);
+    await openShoppingList(page);
+
+    await expect(itemRow(page, "玉ねぎ")).toContainText("2 個");
+    await expect(itemRow(page, "たまねぎ")).toContainText("1 個");
+  });
 });
 
 test.describe("在庫の状態表示", () => {
@@ -281,6 +324,22 @@ test.describe("量を持たない材料の欄", () => {
     await expect(
       page.getByLabel(t.purchase.check_row.replace("{{name}}", "醤油"), { exact: true }),
     ).toHaveCount(0);
+  });
+
+  test("表記の違う量なし材料は 1 項目にまとまる", async ({ page }) => {
+    const itamemono = await createRecipeWithIngredients(page, "炒め物", [
+      { name: "ごま油", amount: 1, unit: "小さじ" },
+    ]);
+    const namul = await createRecipeWithIngredients(page, "ナムル", [
+      { name: "ゴマ油", amount: 1, unit: "大さじ" },
+    ]);
+    await assignRecipe(page, dateAfter(0), "dinner", itamemono);
+    await assignRecipe(page, dateAfter(2), "dinner", namul);
+    await openShoppingList(page);
+
+    await expect(page.getByTestId("shopping-pantry-item")).toHaveCount(1);
+    await expect(shoppingPantryItem(page, "ごま油")).toContainText("炒め物");
+    await expect(shoppingPantryItem(page, "ごま油")).toContainText("ナムル");
   });
 });
 

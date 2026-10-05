@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 import ja from "../src/locales/ja.json" with { type: "json" };
 import { expect, test } from "./fixtures.js";
 import {
+  addStockItem,
   assignRecipe,
   createRecipe,
   createRecipeWithIngredients,
@@ -25,10 +26,18 @@ async function openNewRecipeForm(page: Page) {
 // 材料 1 行を足して埋める。名前欄はレシピ名と同じラベルなので行内に絞る。
 async function fillFirstIngredient(page: Page, name: string, amount: string, unit: string) {
   await page.getByRole("button", { name: e.add_ingredient }).click();
-  const row = page.getByRole("textbox", { name: e.label.name }).last();
-  await row.fill(name);
+  await ingredientNameInput(page).fill(name);
   await page.getByRole("spinbutton", { name: e.label.amount }).fill(amount);
-  await page.getByRole("textbox", { name: e.label.unit }).fill(unit);
+  await ingredientUnitInput(page).fill(unit);
+}
+
+// 材料行の名前欄は候補補完つきの combobox、単位欄は datalist つきで combobox になる。
+function ingredientNameInput(page: Page) {
+  return page.getByRole("combobox", { name: e.label.name, exact: true }).last();
+}
+
+function ingredientUnitInput(page: Page) {
+  return page.getByRole("combobox", { name: e.label.unit, exact: true }).last();
 }
 
 // S03 詳細画面から「編集」で S04 に入る。
@@ -201,5 +210,86 @@ test.describe("S04 のパンくず", () => {
     await expect(page.getByRole("heading", { name: t.title, exact: true })).toBeVisible();
     await page.getByRole("cell", { name: "肉じゃが" }).click();
     await expect(page.getByRole("main")).toContainText(servingsText(2));
+  });
+});
+
+test.describe("材料名と単位の候補補完", () => {
+  test("在庫の食材名が材料名の候補に出る", async ({ page }) => {
+    await page.goto("/");
+    await addStockItem(page, { name: "しめじ", amount: 1, unit: "パック" });
+    await openNewRecipeForm(page);
+
+    await page.getByRole("button", { name: e.add_ingredient }).click();
+    await ingredientNameInput(page).fill("しめ");
+
+    await expect(page.getByRole("option", { name: /しめじ/ })).toBeVisible();
+  });
+
+  test("他のレシピの材料名が材料名の候補に出る", async ({ page }) => {
+    await page.goto("/");
+    await createRecipeWithIngredients(page, "肉じゃが", [
+      { name: "玉ねぎ", amount: 2, unit: "個" },
+    ]);
+    await openNewRecipeForm(page);
+
+    await page.getByRole("button", { name: e.add_ingredient }).click();
+    await ingredientNameInput(page).fill("玉ね");
+
+    await expect(page.getByRole("option", { name: /玉ねぎ/ })).toBeVisible();
+  });
+
+  test("材料名の候補を選ぶと単位が埋まる", async ({ page }) => {
+    await page.goto("/");
+    await addStockItem(page, { name: "玉ねぎ", amount: 3, unit: "個" });
+    await openNewRecipeForm(page);
+
+    await page.getByRole("button", { name: e.add_ingredient }).click();
+    const nameInput = ingredientNameInput(page);
+    await nameInput.fill("玉ね");
+    await nameInput.press("ArrowDown");
+    await nameInput.press("Enter");
+
+    await expect(nameInput).toHaveValue("玉ねぎ");
+    await expect(ingredientUnitInput(page)).toHaveValue("個");
+  });
+
+  test("材料行の単位を先に入れていれば上書きしない", async ({ page }) => {
+    await page.goto("/");
+    await addStockItem(page, { name: "玉ねぎ", amount: 3, unit: "個" });
+    await openNewRecipeForm(page);
+
+    await page.getByRole("button", { name: e.add_ingredient }).click();
+    await ingredientUnitInput(page).fill("g");
+    const nameInput = ingredientNameInput(page);
+    await nameInput.fill("玉ね");
+    await page.getByRole("option", { name: /玉ねぎ/ }).click();
+
+    await expect(nameInput).toHaveValue("玉ねぎ");
+    await expect(ingredientUnitInput(page)).toHaveValue("g");
+  });
+
+  test("保存したレシピの材料名が次から候補に出る", async ({ page }) => {
+    await openNewRecipeForm(page);
+    await page.locator("#recipe-name").fill("ズッキーニのソテー");
+    await fillFirstIngredient(page, "ズッキーニ", "1", "本");
+    await page.getByRole("button", { name: e.save }).click();
+    await expect(page.getByRole("heading", { name: t.title })).toBeVisible();
+
+    await page.getByRole("button", { name: t.new_button }).click();
+    await page.getByRole("button", { name: e.add_ingredient }).click();
+    await ingredientNameInput(page).fill("ズッキ");
+
+    await expect(page.getByRole("option", { name: /ズッキーニ/ })).toBeVisible();
+  });
+
+  test("単位欄に既知の単位が候補として示される", async ({ page }) => {
+    await page.goto("/");
+    await addStockItem(page, { name: "豚肉", amount: 1, unit: "パック" });
+    await openNewRecipeForm(page);
+
+    await page.getByRole("button", { name: e.add_ingredient }).click();
+    const listId = await ingredientUnitInput(page).getAttribute("list");
+
+    await expect(page.locator(`datalist[id="${listId}"] option[value="パック"]`)).toHaveCount(1);
   });
 });

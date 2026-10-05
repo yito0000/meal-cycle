@@ -226,6 +226,35 @@ func TestShoppingService_List(t *testing.T) {
 		}
 	})
 
+	t.Run("should merge ingredients when names differ only in hiragana and katakana", func(t *testing.T) {
+		d := newShoppingServiceForTest(t)
+		d.assign(t, shoppingDay(0), d.createRecipe(t, "肉じゃが", recipe.RecipeIngredient{Name: "たまねぎ", Amount: 2, Unit: "個"}))
+		d.assign(t, shoppingDay(2), d.createRecipe(t, "カレー", recipe.RecipeIngredient{Name: "タマネギ", Amount: 1, Unit: "個"}))
+		it := onlyItem(t, d.list(t, 7))
+		if it.Name != "たまねぎ" || it.Unit != "個" || it.Amount != 3 || len(it.Recipes) != 2 {
+			t.Errorf("got %#v", it)
+		}
+	})
+
+	t.Run("should count stock when stock name differs only in width or kana", func(t *testing.T) {
+		d := newShoppingServiceForTest(t)
+		d.assign(t, shoppingDay(0), d.createRecipe(t, "カレー", recipe.RecipeIngredient{Name: "タマネギ", Amount: 2, Unit: "個"}))
+		d.addStock(t, "ﾀﾏﾈｷﾞ", 3, "個", "")
+		it := onlyItem(t, d.list(t, 7))
+		if it.Name != "タマネギ" || it.StockStatus != shopping.StockCovered {
+			t.Errorf("got %#v", it)
+		}
+	})
+
+	t.Run("should keep separate rows when names differ in kanji and kana", func(t *testing.T) {
+		d := newShoppingServiceForTest(t)
+		d.assign(t, shoppingDay(0), d.createRecipe(t, "肉じゃが", onionIng(2)))
+		d.assign(t, shoppingDay(2), d.createRecipe(t, "カレー", recipe.RecipeIngredient{Name: "たまねぎ", Amount: 1, Unit: "個"}))
+		if got := d.list(t, 7).Items; len(got) != 2 {
+			t.Errorf("want 2 items, got %#v", got)
+		}
+	})
+
 	t.Run("should return dishes and empty items when planned recipes have no ingredients", func(t *testing.T) {
 		d := newShoppingServiceForTest(t)
 		d.assign(t, shoppingDay(0), d.createRecipe(t, "ご飯"))
