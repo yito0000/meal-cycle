@@ -20,6 +20,7 @@ const (
 // RecipeID は永続化の主参照で、RecipeName は表示用に recipes と JOIN した値。
 // BatchID は「同じバッチ = 1 回分の調理を共有」の識別子。BatchMemberCount は
 // 同じ BatchID を持つ行の全体数 (repo が COUNT(*) OVER (PARTITION BY batch_id) で返す)。
+// Cooked は同じ (BatchID, RecipeID) の組に作った印が付いているか。
 type Entry struct {
 	Date             string `json:"date"`
 	Meal             Meal   `json:"meal"`
@@ -28,6 +29,7 @@ type Entry struct {
 	RecipeName       string `json:"recipeName"`
 	BatchID          string `json:"batchId"`
 	BatchMemberCount int    `json:"batchMemberCount"`
+	Cooked           bool   `json:"cooked"`
 }
 
 // BatchSummary は合流候補ダイアログに表示する「同 meal 内の他バッチ」の 1 件。

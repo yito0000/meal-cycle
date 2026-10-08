@@ -27,6 +27,7 @@ type mealPlanRepo interface {
 		targetDate, targetMeal string, mode mealplan.CopyMode) error
 	MoveEntry(ctx context.Context, sourceDate, sourceMeal string, sourcePosition int,
 		targetDate, targetMeal string) error
+	SetCooked(ctx context.Context, date, meal string, position int, cooked bool) error
 }
 
 // MealPlanService は S01 献立カレンダーのデータをフロントに公開する。
@@ -176,6 +177,20 @@ func (s *MealPlanService) SplitBatch(
 		return "", err
 	}
 	return s.repo.SplitBatch(ctx, date, meal, position)
+}
+
+// SetCooked は 1 行が属する (BatchID, RecipeID) の組に作った印を付け外しする。
+// 印は同じ組の全行に効き、別の作り置きには広がらない (add-mealplan-cooked-mark design.md D1)。
+func (s *MealPlanService) SetCooked(
+	ctx context.Context, date, meal string, position int, cooked bool,
+) error {
+	if err := s.validateMealAddress(date, meal); err != nil {
+		return err
+	}
+	if err := mealplan.ValidatePosition(position); err != nil {
+		return err
+	}
+	return s.repo.SetCooked(ctx, date, meal, position, cooked)
 }
 
 // MergeBatch は 1 行の BatchID を targetBatchID に付け替え、既存の作り置きに合流させる。

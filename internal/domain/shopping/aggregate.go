@@ -49,6 +49,10 @@ func Aggregate(batches []PlannedBatch, stocks []StockAmount, measuringUnits []st
 	keys := make([]ingredientKey, 0)
 	items := make([]Item, 0)
 	for _, b := range ordered {
+		// 作った印の付いた組は調理済みなので材料を計上しない。献立欄 (Dishes) には残す (add-mealplan-cooked-mark design.md D5)。
+		if b.Cooked {
+			continue
+		}
 		for _, ing := range b.Ingredients {
 			k := ingredientKey{normalizeKey(ing.Name), normalizeKey(ing.Unit)}
 			unit := strings.TrimSpace(ing.Unit)
@@ -123,6 +127,7 @@ func Dishes(batches []PlannedBatch) []Dish {
 			Meals:               nonNil(b.Meals),
 			BatchMemberCount:    b.BatchMemberCount,
 			StartedBeforePeriod: b.StartedBeforePeriod,
+			Cooked:              b.Cooked,
 		})
 	}
 	return out

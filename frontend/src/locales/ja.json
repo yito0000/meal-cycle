@@ -39,7 +39,8 @@
         "week_4": "4 週"
       },
       "cell": {
-        "more_items": "他 {{count}} 件"
+        "more_items": "他 {{count}} 件",
+        "cooked": "作った"
       },
       "picker": {
         "title": "レシピを選ぶ",
@@ -54,6 +55,8 @@
         "item_menu": "品メニュー"
       },
       "item_menu": {
+        "mark_cooked": "作った",
+        "unmark_cooked": "作った印を外す",
         "replace": "入れ替え",
         "remove": "この品を削除",
         "view_detail": "この品のレシピ詳細を見る",
@@ -330,12 +333,14 @@
           "breakfast": "朝",
           "lunch": "昼",
           "dinner": "夕"
-        }
+        },
+        "cooked": "作った"
       },
       "empty": {
         "no_plans": "この期間に献立がありません。S01 でレシピを割り当てると、ここに材料が並びます",
         "no_ingredients": "献立のレシピに材料が登録されていません",
-        "no_quantified": "買う量の決まった材料はありません"
+        "no_quantified": "買う量の決まった材料はありません",
+        "all_cooked": "この期間の献立はすべて作りました。買う材料はありません"
       },
       "loading": "読み込み中...",
       "load_error": "買い物リストの読み込みに失敗しました",

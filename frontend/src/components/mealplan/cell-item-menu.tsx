@@ -9,6 +9,8 @@ import {
 
 interface Props {
   batchMemberCount: number;
+  cooked: boolean;
+  onToggleCooked: () => void;
   onReplace: () => void;
   onRemove: () => void;
   onViewDetail: () => void;
@@ -17,13 +19,15 @@ interface Props {
   onMergeBatch: () => void;
 }
 
-// 1 品行の `⋯` メニュー: 入替 / 削除 / 詳細 / 作り置きを広げる / 作り置きから外す /
+// 1 品行の `⋯` メニュー: 作った / 作った印を外す / 入替 / 削除 / 詳細 / 作り置きを広げる / 作り置きから外す /
 // 他の作り置きにまとめる。表示条件 (spec:「作り置きの外し / まとめ」Requirement 参照):
 //   isInBatch = batchMemberCount > 1: 複数行の作り置きに属する
 //   - 「作り置きから外す」は isInBatch のときだけ表示 (単独作り置きに外す対象はない)
 //   - 「作り置きを広げる」はどの状態でも表示 (統合ダイアログで対象日 × 時間帯を選ぶ)
 export function CellItemMenu({
   batchMemberCount,
+  cooked,
+  onToggleCooked,
   onReplace,
   onRemove,
   onViewDetail,
@@ -42,6 +46,12 @@ export function CellItemMenu({
         ⋯
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={onToggleCooked}>
+          {cooked
+            ? t("pages.meal_plan.item_menu.unmark_cooked")
+            : t("pages.meal_plan.item_menu.mark_cooked")}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
         <DropdownMenuItem onClick={onReplace}>
           {t("pages.meal_plan.item_menu.replace")}
         </DropdownMenuItem>

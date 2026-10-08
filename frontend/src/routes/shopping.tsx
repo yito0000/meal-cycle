@@ -88,7 +88,12 @@ export function ShoppingPage() {
         // 広い画面では材料と献立を左右に並べ、狭い画面では献立を材料の下に回す (design.md D14)。
         <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[1fr_20rem]">
           <div>
-            {data.items.length === 0 ? (
+            {/* すべて作った印付きなら材料も 0 件になるので、材料が無い判定より先に見ないと誤った理由を出す (design.md D5)。 */}
+            {data.dishes.every((d) => d.cooked) ? (
+              <p className="text-sm text-neutral-500" data-testid="shopping-all-cooked">
+                {t("pages.shopping.empty.all_cooked")}
+              </p>
+            ) : data.items.length === 0 ? (
               <p className="text-sm text-neutral-500">{t("pages.shopping.empty.no_ingredients")}</p>
             ) : (
               <div className="flex flex-col gap-3">

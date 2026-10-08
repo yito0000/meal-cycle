@@ -29,6 +29,11 @@ func at(b PlannedBatch, position int) PlannedBatch {
 	return b
 }
 
+func cooked(b PlannedBatch) PlannedBatch {
+	b.Cooked = true
+	return b
+}
+
 func stock(name string, amount float64, unit string) StockAmount {
 	return StockAmount{Name: name, Amount: amount, Unit: unit}
 }
@@ -289,6 +294,19 @@ func TestAggregate(t *testing.T) {
 			want: []view{{"ごま油", "", 0, StockNone, []string{"炒め物", "ナムル"}}},
 		},
 		{
+			name:    "作った印の付いた作り置きの材料は計上しない",
+			batches: []PlannedBatch{cooked(batch("2026-09-24", "dinner", "カレー", ing("玉ねぎ", 3, "個")))},
+			want:    []view{},
+		},
+		{
+			name: "作った印の付いた作り置きと同じ食材は、印の無い側の量だけが計上される",
+			batches: []PlannedBatch{
+				cooked(batch("2026-09-24", "dinner", "肉じゃが", ing("玉ねぎ", 2, "個"))),
+				batch("2026-09-26", "dinner", "カレー", ing("玉ねぎ", 3, "個")),
+			},
+			want: []view{{"玉ねぎ", "個", 3, StockNone, []string{"カレー"}}},
+		},
+		{
 			name:    "量る単位をカタカナで書いても量なし材料として扱う",
 			batches: []PlannedBatch{batch("2026-09-24", "dinner", "肉じゃが", ing("醤油", 2, "大サジ"))},
 			want:    []view{{"醤油", "", 0, StockNone, []string{"肉じゃが"}}},
@@ -350,7 +368,7 @@ func TestDishes(t *testing.T) {
 		})
 	}
 
-	t.Run("識別子 / 日付 / 時間帯 / 作り置き行数 / 期間前フラグがそのまま移る", func(t *testing.T) {
+	t.Run("識別子 / 日付 / 時間帯 / 作り置き行数 / 期間前フラグ / 作った印がそのまま移る", func(t *testing.T) {
 		b := PlannedBatch{
 			FirstDate:           "2026-09-24",
 			BatchID:             "b1",
@@ -360,6 +378,7 @@ func TestDishes(t *testing.T) {
 			Meals:               []string{"breakfast", "dinner"},
 			BatchMemberCount:    3,
 			StartedBeforePeriod: true,
+			Cooked:              true,
 		}
 		got := Dishes([]PlannedBatch{b})
 		want := []Dish{{
@@ -370,6 +389,7 @@ func TestDishes(t *testing.T) {
 			Meals:               []string{"breakfast", "dinner"},
 			BatchMemberCount:    3,
 			StartedBeforePeriod: true,
+			Cooked:              true,
 		}}
 		if !reflect.DeepEqual(got, want) {
 			t.Errorf("got %#v, want %#v", got, want)

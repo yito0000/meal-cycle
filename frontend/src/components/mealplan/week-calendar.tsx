@@ -166,6 +166,10 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
         MealPlanService.CopyLeftover(v.date, v.meal, v.days, v.position, v.mode, v.shareBatch),
       ),
   });
+  const cookedMut = useMutation({
+    mutationFn: (v: { date: string; meal: string; position: number; cooked: boolean }) =>
+      withHandlers(MealPlanService.SetCooked(v.date, v.meal, v.position, v.cooked)),
+  });
   const splitMut = useMutation({
     mutationFn: (v: { date: string; meal: string; position: number }) =>
       withHandlers(MealPlanService.SplitBatch(v.date, v.meal, v.position)),
@@ -343,6 +347,9 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
 
   const handleEntryAction = (date: string, meal: string, action: EntryAction, entry: Entry) => {
     switch (action) {
+      case "toggle-cooked":
+        cookedMut.mutate({ date, meal, position: entry.position, cooked: !entry.cooked });
+        break;
       case "replace":
         setPicker({ kind: "replace", date, meal, position: entry.position });
         break;

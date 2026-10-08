@@ -147,6 +147,20 @@ position     : int              // 同一 (date, meal) 内での並び順（0 �
 - 「未定 = null」は現状の使い方（1 行必ずある + `recipeId` が null）から「行を作らない」に変える方が自然
 - `memo` は MVP からは外す。将来時間帯単位のメモが欲しくなれば `MealMemo(date, meal, memo)` を別テーブルで足す
 
+**作った印 `meal_plan_cooked`**（proposal: add-mealplan-cooked-mark）
+
+```
+batchId      : string           // meal_plans.batch_id
+recipeId     : string           // meal_plans.recipe_id
+cookedAt     : string           // RFC3339。画面には出さない
+PRIMARY KEY (batchId, recipeId)
+```
+
+- 印は S07 が材料を 1 回分として数える単位、つまり `(batch_id, recipe_id)` の組に 1 行で持つ。同じ組の行をいくつ足しても動かしても印はそのまま効く
+- `(batch_id, recipe_id)` は `meal_plans` 上で一意でないので外部キーは張らない。
+  代わりに、行を消したり組を変えたりする操作の最後に、対応する行の無くなった印を消す (入れ替え後に元のレシピへ戻したときの印の復活を防ぐ)
+- 作り置きから外す (`SplitBatch`) と他の作り置きにまとめる (`MergeBatch`) は `batch_id` を変えるので、印を新しい組へ写す
+
 ### 議論ポイント
 
 - **食材マスタを分けるか、レシピ内に文字列で持つか**: 分けたほうが在庫連動や名寄せが効くが初期実装は重い。→ **最初から分ける方針**（後で統合し直すコストのほうが高い）
@@ -335,7 +349,8 @@ add-shopping-purchase     ← 購入済チェックと確認ダイアログで�
 MVP 後（[product.md #5](product.md#5-献立候補の提示mvp-後拡張) の候補提示 3 軸）:
 
 ```
-add-mealplan-cook-consume       ← 「作った」マークで在庫を材料分だけ減らす（提案精度の下敷き）
+add-mealplan-cooked-mark        ← S01 の品に「作った」印を付け、S07 の計上から外す（予定と実績の区別）
+add-mealplan-cook-consume       ← 作った印に合わせて在庫を材料分だけ減らす（提案精度の下敷き）
 add-mealplan-suggest-by-stock   ← 使い切り軸: 期限が近い在庫を使うレシピを提示
 add-mealplan-suggest-by-recency ← 久しぶり軸: 最近作っていないレシピを提示
 add-mealplan-suggest-week-preset ← 週プリセット: 5コマ分を貪欲生成した案を2〜3件提示

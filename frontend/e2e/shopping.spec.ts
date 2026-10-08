@@ -8,6 +8,7 @@ import {
   createRecipeWithIngredients,
   dateAfter,
   openShoppingList,
+  setCooked,
   shoppingPantryItem,
 } from "./helpers.js";
 
@@ -115,6 +116,43 @@ test.describe("作り置き単位の計上", () => {
 
     await expect(itemRow(page, "玉ねぎ")).toHaveCount(1);
     await expect(itemRow(page, "玉ねぎ")).toContainText("2 個");
+  });
+
+  test("作った印の付いた作り置きの材料は計上しない", async ({ page }) => {
+    const curry = await createRecipeWithIngredients(page, "カレー", [
+      { name: "玉ねぎ", amount: 3, unit: "個" },
+    ]);
+    // 材料テーブルが空状態に倒れないよう、別の食材を使う献立を 1 つ置いておく。
+    const salad = await createRecipeWithIngredients(page, "サラダ", [
+      { name: "トマト", amount: 1, unit: "個" },
+    ]);
+    await assignRecipe(page, dateAfter(-1), "dinner", curry);
+    await copyLeftover(page, dateAfter(-1), "dinner", 2, true);
+    await setCooked(page, dateAfter(-1), "dinner", 0, true);
+    await assignRecipe(page, dateAfter(1), "dinner", salad);
+    await openShoppingList(page);
+
+    await expect(itemRow(page, "トマト")).toHaveCount(1);
+    await expect(itemRow(page, "玉ねぎ")).toHaveCount(0);
+  });
+
+  test("作った印の無い作り置きの材料は計上し続ける", async ({ page }) => {
+    const nikujaga = await createRecipeWithIngredients(page, "肉じゃが", [
+      { name: "玉ねぎ", amount: 2, unit: "個" },
+    ]);
+    const curry = await createRecipeWithIngredients(page, "カレー", [
+      { name: "玉ねぎ", amount: 3, unit: "個" },
+    ]);
+    await assignRecipe(page, dateAfter(0), "dinner", nikujaga);
+    await assignRecipe(page, dateAfter(2), "dinner", curry);
+    await setCooked(page, dateAfter(0), "dinner", 0, true);
+    await openShoppingList(page);
+
+    const row = itemRow(page, "玉ねぎ");
+    await expect(row).toHaveCount(1);
+    await expect(row).toContainText("3 個");
+    await expect(row).toContainText("カレー");
+    await expect(row).not.toContainText("肉じゃが");
   });
 });
 
@@ -275,6 +313,26 @@ test.describe("期間の献立一覧", () => {
     );
     await expect(row.getByTestId("shopping-dish-dates")).toHaveText(monthDay(dateAfter(0)));
   });
+
+  test("作った印の付いた献立は印を添えて一覧に残る", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "カレー", [
+      { name: "玉ねぎ", amount: 3, unit: "個" },
+    ]);
+    await assignRecipe(page, dateAfter(0), "dinner", id);
+    await copyLeftover(page, dateAfter(0), "dinner", 2, true);
+    await setCooked(page, dateAfter(0), "dinner", 0, true);
+    await openShoppingList(page);
+
+    const row = dish(page, "カレー");
+    await expect(row).toHaveCount(1);
+    const [startMonth] = dateAfter(0).split("-").slice(1).map(Number);
+    const [endMonth, endDay] = dateAfter(1).split("-").slice(1).map(Number);
+    const end = endMonth === startMonth ? String(endDay) : monthDay(dateAfter(1));
+    await expect(row.getByTestId("shopping-dish-dates")).toHaveText(
+      t.dishes.date_range.replace("{{start}}", monthDay(dateAfter(0))).replace("{{end}}", end),
+    );
+    await expect(row.getByTestId("shopping-dish-cooked")).toHaveText(t.dishes.cooked);
+  });
 });
 
 test.describe("量を持たない材料の欄", () => {
@@ -376,5 +434,24 @@ test.describe("買い物リストの空状態", () => {
     ).toHaveCount(0);
     await expect(shoppingPantryItem(page, "醤油")).toHaveCount(1);
     await expect(shoppingPantryItem(page, "塩")).toHaveCount(1);
+  });
+
+  test("期間の献立がすべて作った印付き", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "カレー", [
+      { name: "玉ねぎ", amount: 3, unit: "個" },
+    ]);
+    await assignRecipe(page, dateAfter(0), "dinner", id);
+    await copyLeftover(page, dateAfter(0), "dinner", 2, true);
+    await setCooked(page, dateAfter(0), "dinner", 0, true);
+    await openShoppingList(page);
+
+    await expect(page.getByTestId("shopping-all-cooked")).toHaveText(t.empty.all_cooked);
+    await expect(page.getByRole("table")).toHaveCount(0);
+    await expect(
+      page.getByRole("button").filter({ hasText: t.purchase.register.split("{{count}}")[0] }),
+    ).toHaveCount(0);
+    await expect(dish(page, "カレー").getByTestId("shopping-dish-cooked")).toHaveText(
+      t.dishes.cooked,
+    );
   });
 });

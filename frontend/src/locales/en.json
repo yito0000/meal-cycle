@@ -39,7 +39,8 @@
         "week_4": "4 weeks"
       },
       "cell": {
-        "more_items": "+{{count}} more"
+        "more_items": "+{{count}} more",
+        "cooked": "Cooked"
       },
       "picker": {
         "title": "Pick a recipe",
@@ -54,6 +55,8 @@
         "item_menu": "Dish menu"
       },
       "item_menu": {
+        "mark_cooked": "Mark as cooked",
+        "unmark_cooked": "Unmark as cooked",
         "replace": "Replace",
         "remove": "Remove this dish",
         "view_detail": "View recipe detail",
@@ -330,12 +333,14 @@
           "breakfast": "B",
           "lunch": "L",
           "dinner": "D"
-        }
+        },
+        "cooked": "Cooked"
       },
       "empty": {
         "no_plans": "No meals are planned in this period. Assign recipes in the meal calendar to see ingredients here",
         "no_ingredients": "The planned recipes have no ingredients",
-        "no_quantified": "No ingredients with an amount to buy"
+        "no_quantified": "No ingredients with an amount to buy",
+        "all_cooked": "All meals in this period are cooked. Nothing to buy"
       },
       "loading": "Loading...",
       "load_error": "Failed to load the shopping list",

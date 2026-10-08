@@ -3,11 +3,14 @@ package service
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"sort"
 	"testing"
 	"time"
 
 	"github.com/yito0000/meal-cycle/internal/domain/mealplan"
+	"github.com/yito0000/meal-cycle/internal/domain/recipe"
+	"github.com/yito0000/meal-cycle/internal/storage/sqlite"
 )
 
 // fakeMealPlanRepo は service 層の入力バリデーションと分岐だけを検証する薄い in-memory 実装。
@@ -443,6 +446,20 @@ func (r *fakeMealPlanRepo) MoveEntry(
 	moved.Position = pos
 	r.entries = append(r.entries, moved)
 	return nil
+}
+
+func (r *fakeMealPlanRepo) SetCooked(_ context.Context, date, meal string, position int, cooked bool) error {
+	for _, e := range r.entries {
+		if e.Date == date && string(e.Meal) == meal && e.Position == position {
+			for i, o := range r.entries {
+				if o.BatchID == e.BatchID && o.RecipeID == e.RecipeID {
+					r.entries[i].Cooked = cooked
+				}
+			}
+			return nil
+		}
+	}
+	return mealplan.ErrEntryNotFound
 }
 
 func (r *fakeMealPlanRepo) mergeDayRange() int {
@@ -1171,6 +1188,122 @@ func TestMealPlanService_MoveEntry(t *testing.T) {
 		err := svc.MoveEntry(ctx, "2026-08-24", "dinner", 0, "2026-08-24", "dinner")
 		if !errors.Is(err, mealplan.ErrInvalidPosition) {
 			t.Errorf("err = %v, want ErrInvalidPosition", err)
+		}
+	})
+}
+
+// openMealPlanDB は実 SQLite を開く。作った印は組単位で広がり再起動後も残ることを確かめるため、fake ではなく実 DB を使う。
+func openMealPlanDB(t *testing.T, path string) (*MealPlanService, *RecipeService) {
+	t.Helper()
+	db, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if err := sqlite.Migrate(db); err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+	return NewMealPlanService(sqlite.NewMealPlanRepo(db)), NewRecipeService(db)
+}
+
+func cookedDates(t *testing.T, svc *MealPlanService) map[string]bool {
+	t.Helper()
+	got, err := svc.ListPeriod(context.Background(), "2026-08-24", 1)
+	if err != nil {
+		t.Fatalf("ListPeriod: %v", err)
+	}
+	out := map[string]bool{}
+	for _, e := range got {
+		out[e.Date] = e.Cooked
+	}
+	return out
+}
+
+func TestMealPlanService_SetCooked(t *testing.T) {
+	ctx := context.Background()
+
+	setup := func(t *testing.T) (*MealPlanService, string, string) {
+		t.Helper()
+		path := filepath.Join(t.TempDir(), "test.db")
+		svc, rs := openMealPlanDB(t, path)
+		r, err := rs.Create(ctx, recipe.Recipe{Name: "カレー", Servings: 1})
+		if err != nil {
+			t.Fatalf("create recipe: %v", err)
+		}
+		return svc, r.ID, path
+	}
+
+	t.Run("should mark all rows of the same batch and recipe when marking one row", func(t *testing.T) {
+		svc, rid, _ := setup(t)
+		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", rid)
+		if err := svc.CopyLeftover(ctx, "2026-08-24", "dinner", 3, 0, string(mealplan.CopyModeAppend), true); err != nil {
+			t.Fatalf("CopyLeftover: %v", err)
+		}
+		if err := svc.SetCooked(ctx, "2026-08-25", "dinner", 0, true); err != nil {
+			t.Fatalf("SetCooked: %v", err)
+		}
+		got := cookedDates(t, svc)
+		if len(got) != 3 {
+			t.Fatalf("want 3 rows, got %+v", got)
+		}
+		for d, c := range got {
+			if !c {
+				t.Errorf("%s: want cooked", d)
+			}
+		}
+	})
+
+	t.Run("should not spread the mark to a separate batch of the same recipe", func(t *testing.T) {
+		svc, rid, _ := setup(t)
+		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", rid)
+		_, _ = svc.AssignRecipe(ctx, "2026-08-26", "dinner", rid)
+		_ = svc.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+		got := cookedDates(t, svc)
+		if !got["2026-08-24"] || got["2026-08-26"] {
+			t.Errorf("want only 2026-08-24 cooked, got %+v", got)
+		}
+	})
+
+	t.Run("should unmark all rows of the same batch and recipe when unmarking one row", func(t *testing.T) {
+		svc, rid, _ := setup(t)
+		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", rid)
+		_ = svc.CopyLeftover(ctx, "2026-08-24", "dinner", 3, 0, string(mealplan.CopyModeAppend), true)
+		_ = svc.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+		if err := svc.SetCooked(ctx, "2026-08-25", "dinner", 0, false); err != nil {
+			t.Fatalf("SetCooked: %v", err)
+		}
+		for d, c := range cookedDates(t, svc) {
+			if c {
+				t.Errorf("%s: want not cooked", d)
+			}
+		}
+	})
+
+	t.Run("should return ErrEntryNotFound when the row does not exist", func(t *testing.T) {
+		svc, _, _ := setup(t)
+		err := svc.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+		if !errors.Is(err, mealplan.ErrEntryNotFound) {
+			t.Errorf("want ErrEntryNotFound, got %v", err)
+		}
+	})
+
+	t.Run("should return ErrInvalidDate when the date is malformed", func(t *testing.T) {
+		svc, _, _ := setup(t)
+		err := svc.SetCooked(ctx, "2026/08/24", "dinner", 0, true)
+		if !errors.Is(err, mealplan.ErrInvalidDate) {
+			t.Errorf("want ErrInvalidDate, got %v", err)
+		}
+	})
+
+	t.Run("should keep the mark after reopening the database", func(t *testing.T) {
+		svc, rid, path := setup(t)
+		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", rid)
+		if err := svc.SetCooked(ctx, "2026-08-24", "dinner", 0, true); err != nil {
+			t.Fatalf("SetCooked: %v", err)
+		}
+		reopened, _ := openMealPlanDB(t, path)
+		if !cookedDates(t, reopened)["2026-08-24"] {
+			t.Error("want cooked after reopen")
 		}
 	})
 }

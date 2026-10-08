@@ -45,7 +45,11 @@ func (r *MealPlanRepo) ListPeriod(
 	}
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT m.date, m.meal, m.position, m.recipe_id, r.name, m.batch_id,
-		       COUNT(*) OVER (PARTITION BY m.batch_id) AS batch_member_count
+		       COUNT(*) OVER (PARTITION BY m.batch_id) AS batch_member_count,
+		       EXISTS (
+		           SELECT 1 FROM meal_plan_cooked c
+		           WHERE c.batch_id = m.batch_id AND c.recipe_id = m.recipe_id
+		       ) AS cooked
 		FROM meal_plans m
 		JOIN recipes r ON r.id = m.recipe_id
 		WHERE m.date >= ? AND m.date < ?
@@ -61,7 +65,7 @@ func (r *MealPlanRepo) ListPeriod(
 		var e mealplan.Entry
 		var meal string
 		if err := rows.Scan(&e.Date, &meal, &e.Position, &e.RecipeID, &e.RecipeName,
-			&e.BatchID, &e.BatchMemberCount); err != nil {
+			&e.BatchID, &e.BatchMemberCount, &e.Cooked); err != nil {
 			return nil, fmt.Errorf("scan meal_plans row: %w", err)
 		}
 		e.Meal = mealplan.Meal(meal)
@@ -128,6 +132,10 @@ func (r *MealPlanRepo) Replace(ctx context.Context, date, meal string, position 
 	if n == 0 {
 		return mealplan.ErrEntryNotFound
 	}
+	// 掃除しないと、入れ替えてから元のレシピに戻したときに古い印が復活する (design.md D4)。
+	if err := pruneCookedMarks(ctx, tx); err != nil {
+		return err
+	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit tx: %w", err)
 	}
@@ -145,6 +153,9 @@ func (r *MealPlanRepo) Remove(ctx context.Context, date, meal string, position i
 	defer func() { _ = tx.Rollback() }()
 
 	if err := removeRowTx(ctx, tx, date, meal, position); err != nil {
+		return err
+	}
+	if err := pruneCookedMarks(ctx, tx); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {
@@ -227,10 +238,22 @@ func removeRowTx(ctx context.Context, tx *sql.Tx, date, meal string, position in
 
 // ClearMeal は (date, meal) の全 position を削除する。0 件でもエラーにしない。
 func (r *MealPlanRepo) ClearMeal(ctx context.Context, date, meal string) error {
-	if _, err := r.db.ExecContext(ctx, `
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, `
 		DELETE FROM meal_plans WHERE date = ? AND meal = ?
 	`, date, meal); err != nil {
 		return fmt.Errorf("clear meal: %w", err)
+	}
+	if err := pruneCookedMarks(ctx, tx); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
 	}
 	return nil
 }
@@ -361,6 +384,9 @@ func (r *MealPlanRepo) CopyLeftover(
 			}
 		}
 	}
+	if err := pruneCookedMarks(ctx, tx); err != nil {
+		return err
+	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit tx: %w", err)
 	}
@@ -402,14 +428,14 @@ func (r *MealPlanRepo) SplitBatch(ctx context.Context, date, meal string, positi
 		return currentBatchID, nil
 	}
 
-	var originDate, originMeal string
+	var originDate, originMeal, originRecipeID string
 	var originPosition int
 	if err := tx.QueryRowContext(ctx, `
-		SELECT date, meal, position FROM meal_plans
+		SELECT date, meal, position, recipe_id FROM meal_plans
 		WHERE batch_id = ?
 		ORDER BY date, position
 		LIMIT 1
-	`, currentBatchID).Scan(&originDate, &originMeal, &originPosition); err != nil {
+	`, currentBatchID).Scan(&originDate, &originMeal, &originPosition, &originRecipeID); err != nil {
 		return "", fmt.Errorf("locate origin: %w", err)
 	}
 
@@ -460,6 +486,12 @@ func (r *MealPlanRepo) SplitBatch(ctx context.Context, date, meal string, positi
 	`, newID, originDate, originMeal, originPosition); err != nil {
 		return "", fmt.Errorf("assign new batch_id: %w", err)
 	}
+	if err := copyCookedMark(ctx, tx, currentBatchID, newID, originRecipeID); err != nil {
+		return "", err
+	}
+	if err := pruneCookedMarks(ctx, tx); err != nil {
+		return "", err
+	}
 
 	if err := tx.Commit(); err != nil {
 		return "", fmt.Errorf("commit tx: %w", err)
@@ -481,10 +513,10 @@ func (r *MealPlanRepo) MergeBatch(
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	var sourceRecipeID string
+	var sourceRecipeID, sourceBatchID string
 	err = tx.QueryRowContext(ctx, `
-		SELECT recipe_id FROM meal_plans WHERE date = ? AND meal = ? AND position = ?
-	`, date, meal, position).Scan(&sourceRecipeID)
+		SELECT recipe_id, batch_id FROM meal_plans WHERE date = ? AND meal = ? AND position = ?
+	`, date, meal, position).Scan(&sourceRecipeID, &sourceBatchID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return mealplan.ErrEntryNotFound
 	}
@@ -530,6 +562,12 @@ func (r *MealPlanRepo) MergeBatch(
 	}
 	if n == 0 {
 		return mealplan.ErrEntryNotFound
+	}
+	if err := copyCookedMark(ctx, tx, sourceBatchID, targetBatchID, sourceRecipeID); err != nil {
+		return err
+	}
+	if err := pruneCookedMarks(ctx, tx); err != nil {
+		return err
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit tx: %w", err)
@@ -681,6 +719,51 @@ func (r *MealPlanRepo) CopyToOtherMeal(
 	if _, err := insertMealPlan(ctx, tx, targetDate, targetMeal, pos, sourceRecipeID, sourceBatchID); err != nil {
 		return err
 	}
+	if err := pruneCookedMarks(ctx, tx); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+	return nil
+}
+
+// SetCooked は指定行の (batch_id, recipe_id) の組に作った印を付け外しする。該当行が無ければ ErrEntryNotFound。
+// 二重に付けても外してもエラーにしない (design.md D3)。
+func (r *MealPlanRepo) SetCooked(ctx context.Context, date, meal string, position int, cooked bool) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var recipeID, batchID string
+	err = tx.QueryRowContext(ctx, `
+		SELECT recipe_id, batch_id FROM meal_plans
+		WHERE date = ? AND meal = ? AND position = ?
+	`, date, meal, position).Scan(&recipeID, &batchID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return mealplan.ErrEntryNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("lookup row: %w", err)
+	}
+
+	if cooked {
+		cookedAt := time.Now().UTC().Format(time.RFC3339)
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO meal_plan_cooked (batch_id, recipe_id, cooked_at) VALUES (?, ?, ?)
+			ON CONFLICT (batch_id, recipe_id) DO NOTHING
+		`, batchID, recipeID, cookedAt); err != nil {
+			return fmt.Errorf("insert meal_plan_cooked: %w", err)
+		}
+	} else {
+		if _, err := tx.ExecContext(ctx, `
+			DELETE FROM meal_plan_cooked WHERE batch_id = ? AND recipe_id = ?
+		`, batchID, recipeID); err != nil {
+			return fmt.Errorf("delete meal_plan_cooked: %w", err)
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit tx: %w", err)
 	}
@@ -718,6 +801,34 @@ func loadMealEntries(ctx context.Context, q querier, date, meal string) ([]mealp
 		out = append(out, e)
 	}
 	return out, rows.Err()
+}
+
+// copyCookedMark は (fromBatchID, recipeID) に印があれば (toBatchID, recipeID) にも印を足す。
+// cooked_at は元の印の値を引き継ぐ。
+func copyCookedMark(ctx context.Context, q querier, fromBatchID, toBatchID, recipeID string) error {
+	if _, err := q.ExecContext(ctx, `
+		INSERT INTO meal_plan_cooked (batch_id, recipe_id, cooked_at)
+		SELECT ?, recipe_id, cooked_at FROM meal_plan_cooked
+		WHERE batch_id = ? AND recipe_id = ?
+		ON CONFLICT (batch_id, recipe_id) DO NOTHING
+	`, toBatchID, fromBatchID, recipeID); err != nil {
+		return fmt.Errorf("copy cooked mark: %w", err)
+	}
+	return nil
+}
+
+// pruneCookedMarks は meal_plans に対応する行の無くなった印を消す (design.md D4)。
+func pruneCookedMarks(ctx context.Context, q querier) error {
+	if _, err := q.ExecContext(ctx, `
+		DELETE FROM meal_plan_cooked
+		WHERE NOT EXISTS (
+			SELECT 1 FROM meal_plans m
+			WHERE m.batch_id = meal_plan_cooked.batch_id AND m.recipe_id = meal_plan_cooked.recipe_id
+		)
+	`); err != nil {
+		return fmt.Errorf("prune cooked marks: %w", err)
+	}
+	return nil
 }
 
 func nextPosition(ctx context.Context, q querier, date, meal string) (int, error) {

@@ -171,6 +171,38 @@ func TestShoppingService_List(t *testing.T) {
 		}
 	})
 
+	t.Run("should exclude ingredients of a cooked batch", func(t *testing.T) {
+		d := newShoppingServiceForTest(t)
+		nikujaga := d.createRecipe(t, "肉じゃが", onionIng(2))
+		curry := d.createRecipe(t, "カレー", onionIng(3))
+		d.assign(t, shoppingDay(0), nikujaga)
+		d.assign(t, shoppingDay(2), curry)
+		if err := d.meal.SetCooked(ctx, shoppingDay(0), "dinner", 0, true); err != nil {
+			t.Fatalf("SetCooked: %v", err)
+		}
+		it := onlyItem(t, d.list(t, 7))
+		if it.Amount != 3 || len(it.Recipes) != 1 || it.Recipes[0] != "カレー" {
+			t.Errorf("want 3 for カレー only, got %#v", it)
+		}
+	})
+
+	t.Run("should keep a cooked batch in dishes with cooked flag", func(t *testing.T) {
+		d := newShoppingServiceForTest(t)
+		id := d.createRecipe(t, "カレー", onionIng(3))
+		d.assign(t, shoppingDay(-1), id)
+		d.leftover(t, shoppingDay(-1), 2)
+		if err := d.meal.SetCooked(ctx, shoppingDay(-1), "dinner", 0, true); err != nil {
+			t.Fatalf("SetCooked: %v", err)
+		}
+		got := d.list(t, 7)
+		if len(got.Items) != 0 {
+			t.Errorf("want no items, got %#v", got.Items)
+		}
+		if len(got.Dishes) != 1 || !got.Dishes[0].Cooked {
+			t.Errorf("dishes: %#v", got.Dishes)
+		}
+	})
+
 	t.Run("should mark covered when non-expired stock with same name and unit is enough", func(t *testing.T) {
 		d := newShoppingServiceForTest(t)
 		d.assign(t, shoppingDay(0), d.createRecipe(t, "肉じゃが", onionIng(2)))

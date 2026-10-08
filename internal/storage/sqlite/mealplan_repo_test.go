@@ -926,3 +926,245 @@ func TestMealPlanRepo_ArchivedRecipe(t *testing.T) {
 		}
 	})
 }
+
+func cookedByCell(t *testing.T, repo *MealPlanRepo, periodStart string) map[string]bool {
+	t.Helper()
+	got, err := repo.ListPeriod(context.Background(), periodStart, 7)
+	if err != nil {
+		t.Fatalf("ListPeriod: %v", err)
+	}
+	out := map[string]bool{}
+	for _, e := range got {
+		out[e.Date+"/"+string(e.Meal)+"/"+e.RecipeName] = e.Cooked
+	}
+	return out
+}
+
+func countCookedMarks(t *testing.T, repo *MealPlanRepo) int {
+	t.Helper()
+	var n int
+	if err := repo.db.QueryRow(`SELECT COUNT(*) FROM meal_plan_cooked`).Scan(&n); err != nil {
+		t.Fatalf("count meal_plan_cooked: %v", err)
+	}
+	return n
+}
+
+// seedLeftover は 2026-08-24 の dinner に recipe を置き、続く extraDays 日に作り置きとして広げる。
+func seedLeftover(t *testing.T, repo *MealPlanRepo, recipeID string, extraDays ...string) mealplan.Entry {
+	t.Helper()
+	ctx := context.Background()
+	src, err := repo.Assign(ctx, "2026-08-24", "dinner", recipeID)
+	if err != nil {
+		t.Fatalf("Assign: %v", err)
+	}
+	if len(extraDays) > 0 {
+		source, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
+		if err := repo.CopyLeftover(ctx, "dinner", extraDays, source,
+			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover); err != nil {
+			t.Fatalf("CopyLeftover: %v", err)
+		}
+	}
+	return src
+}
+
+func TestMealPlanRepo_Cooked(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("SetCooked true should mark every row of the same batch and recipe", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "カレー")
+		seedLeftover(t, repo, rs[0].ID, "2026-08-25", "2026-08-26")
+
+		if err := repo.SetCooked(ctx, "2026-08-25", "dinner", 0, true); err != nil {
+			t.Fatalf("SetCooked: %v", err)
+		}
+		for cell, cooked := range cookedByCell(t, repo, "2026-08-24") {
+			if !cooked {
+				t.Errorf("%s: want cooked", cell)
+			}
+		}
+	})
+
+	t.Run("SetCooked false should unmark every row of the same batch and recipe", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "カレー")
+		seedLeftover(t, repo, rs[0].ID, "2026-08-25", "2026-08-26")
+		_ = repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+
+		if err := repo.SetCooked(ctx, "2026-08-25", "dinner", 0, false); err != nil {
+			t.Fatalf("SetCooked: %v", err)
+		}
+		for cell, cooked := range cookedByCell(t, repo, "2026-08-24") {
+			if cooked {
+				t.Errorf("%s: want not cooked", cell)
+			}
+		}
+	})
+
+	t.Run("SetCooked should not spread the mark to another batch of the same recipe", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "カレー")
+		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+		_, _ = repo.Assign(ctx, "2026-08-26", "dinner", rs[0].ID)
+
+		_ = repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+		got := cookedByCell(t, repo, "2026-08-24")
+		if !got["2026-08-24/dinner/カレー"] {
+			t.Error("2026-08-24: want cooked")
+		}
+		if got["2026-08-26/dinner/カレー"] {
+			t.Error("2026-08-26: want not cooked")
+		}
+	})
+
+	t.Run("SetCooked should return ErrEntryNotFound when the row does not exist", func(t *testing.T) {
+		repo, _ := newMealPlanRepoForTest(t)
+		err := repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+		if !errors.Is(err, mealplan.ErrEntryNotFound) {
+			t.Errorf("want ErrEntryNotFound, got %v", err)
+		}
+		if n := countCookedMarks(t, repo); n != 0 {
+			t.Errorf("want 0 marks, got %d", n)
+		}
+	})
+
+	t.Run("SetCooked should not fail when marking or unmarking twice", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが")
+		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+		for _, cooked := range []bool{true, true, false, false} {
+			if err := repo.SetCooked(ctx, "2026-08-24", "dinner", 0, cooked); err != nil {
+				t.Fatalf("SetCooked(%v): %v", cooked, err)
+			}
+		}
+	})
+
+	t.Run("CopyLeftover leftover mode should carry the mark to added rows", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "カレー")
+		seedLeftover(t, repo, rs[0].ID)
+		_ = repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+
+		source, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
+		_ = repo.CopyLeftover(ctx, "dinner", []string{"2026-08-25"}, source,
+			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover)
+		if !cookedByCell(t, repo, "2026-08-24")["2026-08-25/dinner/カレー"] {
+			t.Error("2026-08-25: want cooked")
+		}
+	})
+
+	t.Run("CopyLeftover distinct mode should not mark added rows", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "カレー")
+		seedLeftover(t, repo, rs[0].ID)
+		_ = repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+
+		source, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
+		_ = repo.CopyLeftover(ctx, "dinner", []string{"2026-08-25"}, source,
+			mealplan.CopyModeAppend, mealplan.ShareBatchDistinct)
+		if cookedByCell(t, repo, "2026-08-24")["2026-08-25/dinner/カレー"] {
+			t.Error("2026-08-25: want not cooked")
+		}
+	})
+
+	t.Run("MoveEntry should keep the mark on the moved row", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが")
+		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+		_ = repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+
+		if err := repo.MoveEntry(ctx, "2026-08-24", "dinner", 0, "2026-08-25", "dinner"); err != nil {
+			t.Fatalf("MoveEntry: %v", err)
+		}
+		if !cookedByCell(t, repo, "2026-08-24")["2026-08-25/dinner/肉じゃが"] {
+			t.Error("2026-08-25: want cooked")
+		}
+	})
+
+	t.Run("Replace should leave the replaced row unmarked and not revive the mark when replaced back", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが", "カレー")
+		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+		_ = repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+
+		if err := repo.Replace(ctx, "2026-08-24", "dinner", 0, rs[1].ID); err != nil {
+			t.Fatalf("Replace: %v", err)
+		}
+		if cookedByCell(t, repo, "2026-08-24")["2026-08-24/dinner/カレー"] {
+			t.Error("after replace: want not cooked")
+		}
+		if err := repo.Replace(ctx, "2026-08-24", "dinner", 0, rs[0].ID); err != nil {
+			t.Fatalf("Replace back: %v", err)
+		}
+		if cookedByCell(t, repo, "2026-08-24")["2026-08-24/dinner/肉じゃが"] {
+			t.Error("after replace back: want not cooked")
+		}
+	})
+
+	t.Run("SplitBatch should keep the mark on the remaining origin row", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "カレー")
+		seedLeftover(t, repo, rs[0].ID, "2026-08-25", "2026-08-26")
+		_ = repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+
+		if _, err := repo.SplitBatch(ctx, "2026-08-25", "dinner", 0); err != nil {
+			t.Fatalf("SplitBatch: %v", err)
+		}
+		got := cookedByCell(t, repo, "2026-08-24")
+		if len(got) != 1 || !got["2026-08-24/dinner/カレー"] {
+			t.Errorf("want only 2026-08-24 cooked, got %+v", got)
+		}
+		if n := countCookedMarks(t, repo); n != 1 {
+			t.Errorf("want 1 mark (old batch pruned), got %d", n)
+		}
+	})
+
+	t.Run("MergeBatch into a marked batch should mark the merged row", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "カレー")
+		target, _ := repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+		_, _ = repo.Assign(ctx, "2026-08-26", "dinner", rs[0].ID)
+		_ = repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+
+		if err := repo.MergeBatch(ctx, "2026-08-26", "dinner", 0, target.BatchID); err != nil {
+			t.Fatalf("MergeBatch: %v", err)
+		}
+		got := cookedByCell(t, repo, "2026-08-24")
+		if !got["2026-08-24/dinner/カレー"] || !got["2026-08-26/dinner/カレー"] {
+			t.Errorf("want both cooked, got %+v", got)
+		}
+	})
+
+	t.Run("MergeBatch of a marked row into an unmarked batch should mark the target batch", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "カレー")
+		target, _ := repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+		_, _ = repo.Assign(ctx, "2026-08-26", "dinner", rs[0].ID)
+		_ = repo.SetCooked(ctx, "2026-08-26", "dinner", 0, true)
+
+		if err := repo.MergeBatch(ctx, "2026-08-26", "dinner", 0, target.BatchID); err != nil {
+			t.Fatalf("MergeBatch: %v", err)
+		}
+		got := cookedByCell(t, repo, "2026-08-24")
+		if !got["2026-08-24/dinner/カレー"] || !got["2026-08-26/dinner/カレー"] {
+			t.Errorf("want both cooked, got %+v", got)
+		}
+		if n := countCookedMarks(t, repo); n != 1 {
+			t.Errorf("want 1 mark (source batch pruned), got %d", n)
+		}
+	})
+
+	t.Run("ClearMeal should drop the mark when no row of the batch and recipe remains", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが")
+		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+		_ = repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+
+		if err := repo.ClearMeal(ctx, "2026-08-24", "dinner"); err != nil {
+			t.Fatalf("ClearMeal: %v", err)
+		}
+		if n := countCookedMarks(t, repo); n != 0 {
+			t.Errorf("want 0 marks, got %d", n)
+		}
+	})
+}

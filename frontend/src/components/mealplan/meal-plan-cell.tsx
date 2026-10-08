@@ -1,3 +1,4 @@
+import { Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Entry } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
 import { colorForBatch } from "./batch-color";
@@ -6,6 +7,7 @@ import { MealMenu } from "./meal-menu";
 import { type CellSizePreset, minHeightClass } from "./mealplan-config";
 
 export type EntryAction =
+  | "toggle-cooked"
   | "replace"
   | "remove"
   | "view-detail"
@@ -152,6 +154,7 @@ export function MealPlanCell({
             }`}
             data-batch-id={entry.batchId}
             data-batch-member-count={entry.batchMemberCount}
+            data-cooked={entry.cooked}
             draggable={!isBatchMember}
             aria-label={isBatchMember ? undefined : t("pages.meal_plan.dnd.item_grabbable_label")}
             onDragStart={
@@ -190,10 +193,21 @@ export function MealPlanCell({
                   🔗
                 </span>
               )}
+              {entry.cooked && (
+                <span
+                  role="img"
+                  aria-label={t("pages.meal_plan.cell.cooked")}
+                  className="shrink-0 text-emerald-600"
+                >
+                  <Check aria-hidden="true" className="size-3.5" />
+                </span>
+              )}
               <span className="truncate">{entry.recipeName}</span>
             </span>
             <CellItemMenu
               batchMemberCount={entry.batchMemberCount}
+              cooked={entry.cooked}
+              onToggleCooked={() => onEntryAction("toggle-cooked", entry)}
               onReplace={() => onEntryAction("replace", entry)}
               onRemove={() => onEntryAction("remove", entry)}
               onViewDetail={() => onEntryAction("view-detail", entry)}

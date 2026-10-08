@@ -62,7 +62,11 @@ func loadPlannedGroups(
 		       EXISTS (
 		           SELECT 1 FROM meal_plans p
 		           WHERE p.batch_id = m.batch_id AND p.recipe_id = m.recipe_id AND p.date < ?
-		       ) AS started_before
+		       ) AS started_before,
+		       EXISTS (
+		           SELECT 1 FROM meal_plan_cooked c
+		           WHERE c.batch_id = m.batch_id AND c.recipe_id = m.recipe_id
+		       ) AS cooked
 		FROM meal_plans m
 		JOIN recipes r ON r.id = m.recipe_id
 		WHERE m.date >= ? AND m.date < ?
@@ -80,7 +84,7 @@ func loadPlannedGroups(
 		var k batchKey
 		var b shopping.PlannedBatch
 		if err := rows.Scan(&k.batchID, &k.recipeID, &b.RecipeName, &b.FirstDate,
-			&b.BatchMemberCount, &b.StartedBeforePeriod); err != nil {
+			&b.BatchMemberCount, &b.StartedBeforePeriod, &b.Cooked); err != nil {
 			return nil, nil, fmt.Errorf("scan planned batch: %w", err)
 		}
 		b.BatchID = k.batchID

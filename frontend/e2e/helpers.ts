@@ -158,6 +158,22 @@ export async function copyLeftover(
   }
 }
 
+// setCooked は UI を経由せず (date, meal, position) の品に作った印を付け外しする。S07 側のシナリオの前提づくりに使う。
+export async function setCooked(
+  page: Page,
+  date: string,
+  meal: string,
+  position: number,
+  cooked: boolean,
+) {
+  const res = await page.request.post("/api/MealPlanService/SetCooked", {
+    data: [date, meal, position, cooked],
+  });
+  if (!res.ok()) {
+    throw new Error(`set cooked ${date} ${meal} failed: ${res.status()} ${await res.text()}`);
+  }
+}
+
 // createRecipeDetailed は S03 の表示を確かめるために、各項目を指定してレシピを 1 件作り ID を返す。
 // 省略した項目は createRecipe と同じ既定値にする。材料 0 件は ingredients: [] を明示する。
 export async function createRecipeDetailed(

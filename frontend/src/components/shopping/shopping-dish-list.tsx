@@ -22,6 +22,7 @@ export function ShoppingDishList({ dishes }: Props) {
           <li
             key={`${dish.batchId}\u0000${dish.recipeId}`}
             data-testid="shopping-dish"
+            data-cooked={dish.cooked}
             className="flex flex-col gap-0.5 text-sm"
           >
             <span className="flex min-w-0 items-center gap-1 font-medium">
@@ -43,6 +44,14 @@ export function ShoppingDishList({ dishes }: Props) {
                   className="rounded border border-amber-300 bg-amber-50 px-1 py-0.5 leading-none text-amber-900"
                 >
                   {t("pages.shopping.dishes.started_before")}
+                </span>
+              )}
+              {dish.cooked && (
+                <span
+                  data-testid="shopping-dish-cooked"
+                  className="rounded border border-emerald-300 bg-emerald-50 px-1 py-0.5 leading-none text-emerald-900"
+                >
+                  {t("pages.shopping.dishes.cooked")}
                 </span>
               )}
             </span>

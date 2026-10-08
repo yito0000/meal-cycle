@@ -22,6 +22,7 @@ type PlannedBatch struct {
 	Meals               []string
 	BatchMemberCount    int
 	StartedBeforePeriod bool
+	Cooked              bool
 	Ingredients         []recipe.RecipeIngredient
 }
 
@@ -35,6 +36,7 @@ type Dish struct {
 	Meals               []string `json:"meals"`
 	BatchMemberCount    int      `json:"batchMemberCount"`
 	StartedBeforePeriod bool     `json:"startedBeforePeriod"`
+	Cooked              bool     `json:"cooked"`
 }
 
 // StockAmount は突き合わせに使う在庫 1 行。期限切れの在庫は呼び出し側で除いておく。

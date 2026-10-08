@@ -100,3 +100,7 @@ export function MoveEntry(
     targetMeal,
   );
 }
+
+export function SetCooked(date: string, meal: string, position: number, cooked: boolean) {
+  return call<void>("MealPlanService", "SetCooked", date, meal, position, cooked);
+}
