@@ -21,3 +21,6 @@ build/android/gen/
 # Playwright (E2E)
 frontend/playwright-report/
 frontend/test-results/
+
+# レシピのインポート動作確認用ファイル (他サイトのレシピを元にしているのでコミットしない)
+/imports/
