@@ -3,11 +3,10 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { formatDisplayDate } from "@/lib/format-date";
+import { formatTimestampDate } from "@/lib/format-date";
 import { formatQuantity } from "@/lib/format-quantity";
 import type { Recipe } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/recipe/models";
 import { RecipeService } from "../../../bindings/github.com/yito0000/meal-cycle/internal/service";
-import { formatDate } from "../mealplan/week-utils";
 import { DeleteRecipeDialog } from "./delete-recipe-dialog";
 import { RecipeMarkdown } from "./recipe-markdown";
 
@@ -57,7 +56,7 @@ export function RecipeDetailBody({
             <span>{t("pages.recipes.detail.servings", { count: recipe.servings })}</span>
             <span>
               {t("pages.recipes.detail.updated_at", {
-                date: formatDisplayDate(formatDate(new Date(recipe.updatedAt))),
+                date: formatTimestampDate(recipe.updatedAt),
               })}
             </span>
             {archived && (

@@ -1,24 +1,24 @@
 import { deepEqual } from "fast-equals";
 import { useCallback, useMemo, useState } from "react";
-import type {
-  Recipe,
-  RecipeIngredient,
-} from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/recipe/models";
+import type { Recipe } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/recipe/models";
 
 // S04 フォームが扱うフィールドの projection。Repository 側で決まる値
 // (ID / CreatedAt / UpdatedAt / IngredientCount) はフォーム状態に持たない。
+// 人数と量は入力途中の表記 (空、「1.」) を保つため文字列で持ち、保存時に数値へ直す (fix-recipe-form-and-list design.md D3)。
+export type IngredientFormRow = { name: string; amount: string; unit: string };
+
 export type RecipeFormValues = {
   name: string;
-  servings: number;
+  servings: string;
   tags: string[];
-  ingredients: RecipeIngredient[];
+  ingredients: IngredientFormRow[];
   steps: string;
   notes: string;
 };
 
 export const blankFormValues: RecipeFormValues = {
   name: "",
-  servings: 1,
+  servings: "1",
   tags: [],
   ingredients: [],
   steps: "",
@@ -29,9 +29,14 @@ export const blankFormValues: RecipeFormValues = {
 export function recipeToFormValues(r: Recipe): RecipeFormValues {
   return {
     name: r.name ?? "",
-    servings: r.servings ?? 1,
+    servings: String(r.servings ?? 1),
     tags: r.tags ?? [],
-    ingredients: r.ingredients ?? [],
+    // 量 0 は「量を持たない材料」なので、欄には 0 を出さず空にする。
+    ingredients: (r.ingredients ?? []).map((ing) => ({
+      name: ing.name,
+      amount: ing.amount === 0 ? "" : String(ing.amount),
+      unit: ing.unit,
+    })),
     steps: r.steps ?? "",
     notes: r.notes ?? "",
   };
@@ -50,10 +55,10 @@ export function useRecipeForm(initial: RecipeFormValues) {
   }, []);
 
   const setName = useCallback((name: string) => setValues((v) => ({ ...v, name })), []);
-  const setServings = useCallback((servings: number) => setValues((v) => ({ ...v, servings })), []);
+  const setServings = useCallback((servings: string) => setValues((v) => ({ ...v, servings })), []);
   const setTags = useCallback((tags: string[]) => setValues((v) => ({ ...v, tags })), []);
   const setIngredients = useCallback(
-    (ingredients: RecipeIngredient[]) => setValues((v) => ({ ...v, ingredients })),
+    (ingredients: IngredientFormRow[]) => setValues((v) => ({ ...v, ingredients })),
     [],
   );
   const setSteps = useCallback((steps: string) => setValues((v) => ({ ...v, steps })), []);

@@ -7,6 +7,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatTimestampDate } from "@/lib/format-date";
 import { cn } from "@/lib/utils";
 import type { Recipe } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/recipe/models";
 
@@ -34,9 +35,27 @@ export function RecipeTable({ recipes, onRowClick, highlightId }: Props) {
             className={cn(onRowClick && "cursor-pointer", highlightId === r.id && "bg-accent")}
             onClick={() => onRowClick?.(r.id)}
           >
-            <TableCell className="font-medium">{r.name}</TableCell>
+            <TableCell className="font-medium">
+              {onRowClick ? (
+                <button
+                  type="button"
+                  className="cursor-pointer rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                  onClick={(e) => {
+                    // 行の onClick と二重に開かないようにする。
+                    e.stopPropagation();
+                    onRowClick(r.id);
+                  }}
+                >
+                  {r.name}
+                </button>
+              ) : (
+                r.name
+              )}
+            </TableCell>
             <TableCell className="text-neutral-700">{(r.tags ?? []).join(" / ")}</TableCell>
-            <TableCell className="text-neutral-700 tabular-nums">{r.updatedAt}</TableCell>
+            <TableCell className="text-neutral-700 tabular-nums">
+              {formatTimestampDate(r.updatedAt)}
+            </TableCell>
           </TableRow>
         ))}
       </TableBody>

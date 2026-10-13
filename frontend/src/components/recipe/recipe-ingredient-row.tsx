@@ -5,11 +5,11 @@ import { IngredientNameInput } from "@/components/ingredient/ingredient-name-inp
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { NameSuggestion } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/fridge/models";
-import type { RecipeIngredient } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/recipe/models";
+import type { IngredientFormRow } from "./use-recipe-form";
 
 type Props = {
-  value: RecipeIngredient;
-  onChange: (next: RecipeIngredient) => void;
+  value: IngredientFormRow;
+  onChange: (next: IngredientFormRow) => void;
   onRemove: () => void;
   nameError?: string | null;
   nameSuggestions: NameSuggestion[];
@@ -50,11 +50,8 @@ export function RecipeIngredientRow({
           inputMode="decimal"
           step="any"
           min={0}
-          value={Number.isFinite(value.amount) ? value.amount : 0}
-          onChange={(e) => {
-            const parsed = Number.parseFloat(e.target.value);
-            onChange({ ...value, amount: Number.isNaN(parsed) ? 0 : parsed });
-          }}
+          value={value.amount}
+          onChange={(e) => onChange({ ...value, amount: e.target.value })}
           aria-label={t("pages.recipes.edit.label.amount")}
         />
         <div>

@@ -3,3 +3,10 @@
 export function formatDisplayDate(isoDate: string): string {
   return isoDate.replaceAll("-", "/");
 }
+
+// RFC3339 (UTC) のタイムスタンプを、PC の時刻で見た年月日 yyyy/mm/dd にする (fix-recipe-form-and-list design.md D4)。
+export function formatTimestampDate(rfc3339: string): string {
+  const d = new Date(rfc3339);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}`;
+}

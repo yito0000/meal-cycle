@@ -1,5 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useBlocker } from "@tanstack/react-router";
+import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useIngredientSuggestions } from "@/components/ingredient/use-ingredient-suggestions";
 import { type BreadcrumbEntry, PageBreadcrumb } from "@/components/layout/breadcrumb";
@@ -108,12 +109,24 @@ export function RecipeEditForm({ mode, initialRecipe, onSave, onCancel, breadcru
   const form = useRecipeForm(initialRecipe ? recipeToFormValues(initialRecipe) : blankFormValues);
   const [saveErrorKey, setSaveErrorKey] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  // 未保存の確認で保留している移動先。キャンセルもパンくずも同じ確認に乗せる (revise-recipe-detail-page D8)。
-  const [pendingLeave, setPendingLeave] = useState<(() => void) | null>(null);
+  // 保存後の移動は onSave の中で起き、描画を待たずに通す必要があるので ref で持つ (fix-recipe-form-and-list design.md D2)。
+  const leavingAfterSave = useRef(false);
+
+  // キャンセル、パンくず、サイドバーのどれで出ても同じ確認に乗せる (fix-recipe-form-and-list design.md D1)。
+  const blocker = useBlocker({
+    shouldBlockFn: () => form.isDirty && !leavingAfterSave.current,
+    withResolver: true,
+    enableBeforeUnload: false,
+  });
 
   const saveMutation = useMutation({
     mutationFn: (input: SaveInput) => onSave(input),
+    onMutate: () => {
+      leavingAfterSave.current = true;
+    },
     onError: (err: unknown) => {
+      // 戻さないと、保存に失敗したあとの移動で未保存の確認が出なくなる。
+      leavingAfterSave.current = false;
       setSaveErrorKey(mapErrorToI18nKey(err));
     },
   });
@@ -131,9 +144,14 @@ export function RecipeEditForm({ mode, initialRecipe, onSave, onCancel, breadcru
     setSaveErrorKey(null);
     const input: SaveInput = {
       name: form.values.name.trim(),
-      servings: form.values.servings,
+      // 空は Number("") が 0 になり範囲外、小数や数字でない値は isInteger で弾かれ、どれも人数のエラーになる。
+      servings: Number(form.values.servings),
       tags: form.values.tags,
-      ingredients: form.values.ingredients,
+      ingredients: form.values.ingredients.map((ing) => ({
+        name: ing.name,
+        amount: ing.amount.trim() === "" ? 0 : Number(ing.amount),
+        unit: ing.unit,
+      })),
       steps: form.values.steps,
       notes: form.values.notes,
     };
@@ -143,18 +161,6 @@ export function RecipeEditForm({ mode, initialRecipe, onSave, onCancel, breadcru
     saveMutation.mutate(input);
   };
 
-  const leave = (go: () => void) => {
-    // setState に関数を渡すと updater として呼ばれてしまうので包む。
-    if (form.isDirty) setPendingLeave(() => go);
-    else go();
-  };
-  const handleCancel = () => leave(onCancel);
-
-  const guardedBreadcrumb = breadcrumb.map((item) => {
-    const { onSelect } = item;
-    return onSelect ? { ...item, onSelect: () => leave(onSelect) } : item;
-  });
-
   const titleKey =
     mode === "new" ? "pages.recipes.edit.title_new" : "pages.recipes.edit.title_edit";
   const title = t(titleKey, { name: initialRecipe?.name ?? "" });
@@ -162,12 +168,12 @@ export function RecipeEditForm({ mode, initialRecipe, onSave, onCancel, breadcru
   return (
     <div className="flex h-full flex-col">
       <div className="px-6 pt-4">
-        <PageBreadcrumb items={guardedBreadcrumb} />
+        <PageBreadcrumb items={breadcrumb} />
       </div>
       <header className="sticky top-0 z-10 flex items-center justify-between border-b border-neutral-200 bg-white px-6 py-3">
         <h1 className="text-xl font-bold">{title}</h1>
         <div className="flex items-center gap-2">
-          <Button type="button" variant="outline" onClick={handleCancel}>
+          <Button type="button" variant="outline" onClick={onCancel}>
             {t("pages.recipes.edit.cancel")}
           </Button>
           <Button type="button" onClick={handleSave} disabled={saveMutation.isPending}>
@@ -205,10 +211,7 @@ export function RecipeEditForm({ mode, initialRecipe, onSave, onCancel, breadcru
               max={SERVINGS_MAX}
               step={1}
               value={form.values.servings}
-              onChange={(e) => {
-                const parsed = Number.parseInt(e.target.value, 10);
-                form.setServings(Number.isNaN(parsed) ? 1 : parsed);
-              }}
+              onChange={(e) => form.setServings(e.target.value)}
               className="w-24"
               aria-invalid={fieldErrors.servings != null}
             />
@@ -246,7 +249,10 @@ export function RecipeEditForm({ mode, initialRecipe, onSave, onCancel, breadcru
               type="button"
               variant="outline"
               onClick={() =>
-                form.setIngredients([...form.values.ingredients, { name: "", amount: 0, unit: "" }])
+                form.setIngredients([
+                  ...form.values.ingredients,
+                  { name: "", amount: "", unit: "" },
+                ])
               }
             >
               {t("pages.recipes.edit.add_ingredient")}
@@ -295,13 +301,9 @@ export function RecipeEditForm({ mode, initialRecipe, onSave, onCancel, breadcru
       </div>
 
       <UnsavedChangesDialog
-        open={pendingLeave !== null}
-        onDiscard={() => {
-          const go = pendingLeave;
-          setPendingLeave(null);
-          go?.();
-        }}
-        onKeepEditing={() => setPendingLeave(null)}
+        open={blocker.status === "blocked"}
+        onDiscard={() => blocker.proceed?.()}
+        onKeepEditing={() => blocker.reset?.()}
       />
     </div>
   );

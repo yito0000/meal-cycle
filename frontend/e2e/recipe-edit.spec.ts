@@ -47,6 +47,13 @@ async function openEditFromDetail(page: Page, name: string) {
   await expect(page.locator("#recipe-name")).toHaveValue(name);
 }
 
+// dirty な S04 からサイドバーで S02 に戻る。未保存の確認は破棄で抜ける。
+async function openRecipeListDiscarding(page: Page) {
+  await page.getByRole("link", { name: t.title }).click();
+  await page.getByRole("button", { name: e.unsaved_confirm.discard }).click();
+  await expect(page.getByRole("heading", { name: t.title, exact: true })).toBeVisible();
+}
+
 const servingsText = (n: number) => t.detail.servings.replace("{{count}}", String(n));
 
 // S03 詳細画面の見出し。S04 の見出し「レシピを編集: <名前>」と区別するため完全一致で引く。
@@ -115,6 +122,127 @@ test.describe("未保存変更のキャンセル確認", () => {
 
     await expect(detailHeading(page, "肉じゃが")).toBeVisible();
     await expect(page.getByRole("main")).toContainText(servingsText(2));
+  });
+
+  test("dirty 状態でサイドバーを押すと確認される", async ({ page }) => {
+    await openNewRecipeForm(page);
+
+    await page.locator("#recipe-name").fill("肉じゃが");
+    await page.getByRole("link", { name: ja.nav.meal_plan }).click();
+
+    await expect(page.getByRole("dialog")).toContainText(e.unsaved_confirm.title);
+    // ダイアログが開いている間は背面が aria-hidden になるので、role ではなく id で S04 を確かめる。
+    await expect(page.locator("#recipe-name")).toHaveValue("肉じゃが");
+  });
+
+  test("サイドバーからの確認で破棄を選ぶと押した画面へ移る", async ({ page }) => {
+    await openNewRecipeForm(page);
+    await page.locator("#recipe-name").fill("肉じゃが");
+    await page.getByRole("link", { name: ja.nav.meal_plan }).click();
+
+    await page.getByRole("button", { name: e.unsaved_confirm.discard }).click();
+
+    await expect(page.getByRole("heading", { name: ja.pages.meal_plan.title })).toBeVisible();
+    await openRecipeList(page);
+    await expect(page.getByText(t.empty.no_recipes)).toBeVisible();
+  });
+
+  test("サイドバーからの確認で編集を続けるを選ぶと入力が残る", async ({ page }) => {
+    await openNewRecipeForm(page);
+    await page.locator("#recipe-name").fill("肉じゃが");
+    await page.getByRole("link", { name: ja.nav.meal_plan }).click();
+
+    await page.getByRole("button", { name: e.unsaved_confirm.keep_editing }).click();
+
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.locator("#recipe-name")).toHaveValue("肉じゃが");
+  });
+
+  test("dirty でない状態のサイドバーは確認をスキップする", async ({ page }) => {
+    await openNewRecipeForm(page);
+
+    await page.getByRole("link", { name: ja.nav.fridge }).click();
+
+    await expect(page.getByRole("heading", { name: ja.pages.fridge.title })).toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
+
+  test("保存に成功したあとの移動では確認されない", async ({ page }) => {
+    await openNewRecipeForm(page);
+    await page.locator("#recipe-name").fill("肉じゃが");
+
+    await page.getByRole("button", { name: e.save }).click();
+
+    await expect(page.getByRole("heading", { name: t.title })).toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByRole("row").locator("td:first-child")).toHaveText(["肉じゃが"]);
+  });
+});
+
+test.describe("数値欄の入力途中の保持", () => {
+  // fill は欄を丸ごと置き換えるので、消した直後に別の値が入る不具合を見逃す。1 文字ずつ操作する。
+  test("人数を消して打ち直せる", async ({ page }) => {
+    await openNewRecipeForm(page);
+    const servings = page.locator("#recipe-servings");
+    await expect(servings).toHaveValue("1");
+
+    await servings.focus();
+    await servings.press("End");
+    await servings.press("Backspace");
+    await expect(servings).toHaveValue("");
+    await servings.pressSequentially("4");
+
+    await expect(servings).toHaveValue("4");
+  });
+
+  test("人数が空のままでは保存できない", async ({ page }) => {
+    await openNewRecipeForm(page);
+    await page.locator("#recipe-name").fill("x");
+
+    await page.locator("#recipe-servings").fill("");
+    await page.getByRole("button", { name: e.save }).click();
+
+    await expect(page.getByText(e.save_error.servings_out_of_range)).toBeVisible();
+    await expect(page.getByRole("heading", { name: e.title_new })).toBeVisible();
+    await openRecipeListDiscarding(page);
+    await expect(page.getByText(t.empty.no_recipes)).toBeVisible();
+  });
+
+  test("量を消して打ち直せる", async ({ page }) => {
+    await openNewRecipeForm(page);
+    await page.getByRole("button", { name: e.add_ingredient }).click();
+    const amount = page.getByRole("spinbutton", { name: e.label.amount });
+    await amount.pressSequentially("200");
+    await expect(amount).toHaveValue("200");
+
+    for (let i = 0; i < 3; i++) await amount.press("Backspace");
+    await expect(amount).toHaveValue("");
+    await amount.pressSequentially("50");
+
+    await expect(amount).toHaveValue("50");
+  });
+
+  test("量が空の材料は量 0 として保存される", async ({ page }) => {
+    await openNewRecipeForm(page);
+    await page.locator("#recipe-name").fill("野菜炒め");
+    await page.getByRole("button", { name: e.add_ingredient }).click();
+    await ingredientNameInput(page).fill("塩");
+    await ingredientUnitInput(page).fill("少々");
+    await expect(page.getByRole("spinbutton", { name: e.label.amount })).toHaveValue("");
+
+    await page.getByRole("button", { name: e.save }).click();
+    await expect(page.getByRole("heading", { name: t.title })).toBeVisible();
+    await openRecipeDetail(page, "野菜炒め");
+
+    const ingredients = page
+      .getByRole("main")
+      .locator("section")
+      .filter({
+        has: page.getByRole("heading", { name: t.detail.section.ingredients, exact: true }),
+      });
+    await expect(ingredients).toContainText("塩");
+    await expect(ingredients).toContainText("少々");
+    await expect(ingredients).not.toContainText("0");
   });
 });
 

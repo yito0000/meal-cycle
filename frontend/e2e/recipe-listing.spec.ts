@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import ja from "../src/locales/ja.json" with { type: "json" };
 import { expect, test } from "./fixtures.js";
-import { createRecipe, detailBreadcrumb, openRecipeList } from "./helpers.js";
+import { createRecipe, dateAfter, detailBreadcrumb, openRecipeList } from "./helpers.js";
 
 // 文言は ja.json から引き、日本語をテストにハードコードしない (design.md D9)。
 const t = ja.pages.recipes;
@@ -17,6 +17,35 @@ test.describe("レシピ一覧の初期表示", () => {
 
     await expect(page.getByText(t.empty.no_recipes)).toBeVisible();
     await expect(page.getByRole("button", { name: t.new_button })).toBeVisible();
+    await expect(page.getByRole("table")).toHaveCount(0);
+  });
+
+  test("更新日は年月日だけで表示される", async ({ page }) => {
+    await createRecipe(page, "肉じゃが");
+    await openRecipeList(page);
+
+    await expect(page.getByRole("row").locator("td:nth-child(3)")).toHaveText([
+      dateAfter(0).replaceAll("-", "/"),
+    ]);
+  });
+});
+
+test.describe("S02 の行のキーボード操作", () => {
+  test("レシピ名にフォーカスして Enter で詳細を開く", async ({ page }) => {
+    await createRecipe(page, "肉じゃが");
+    await openRecipeList(page);
+    const nameButton = page.getByRole("button", { name: "肉じゃが", exact: true });
+    await expect(nameButton).toBeVisible();
+
+    // Tab の回数は画面上部の部品の数で変わるので、届くまで送る。届かなければ次の検証で落ちる。
+    for (let i = 0; i < 30; i++) {
+      await page.keyboard.press("Tab");
+      if (await nameButton.evaluate((el) => el === document.activeElement)) break;
+    }
+    await expect(nameButton).toBeFocused();
+    await page.keyboard.press("Enter");
+
+    await expect(page.getByRole("main").getByRole("heading", { name: "肉じゃが" })).toBeVisible();
     await expect(page.getByRole("table")).toHaveCount(0);
   });
 });
