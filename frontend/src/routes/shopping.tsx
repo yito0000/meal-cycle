@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { formatDisplayDate } from "@/lib/format-date";
+import { CopyShoppingTextButton } from "../components/shopping/copy-shopping-text-button";
 import { isPantryItem } from "../components/shopping/pantry";
 import { PurchaseDialog } from "../components/shopping/purchase-dialog";
 import { itemKey } from "../components/shopping/purchase-form";
@@ -72,12 +73,17 @@ export function ShoppingPage() {
       </header>
 
       <ShoppingPeriodPicker value={period} onChange={onPeriodChange} />
-      <p className="text-sm text-neutral-700" data-testid="shopping-period">
-        {t("pages.shopping.period", {
-          start: formatDisplayDate(period.periodStart),
-          end: formatDisplayDate(periodEndOf(period.periodStart, period.periodDays)),
-        })}
-      </p>
+      <div className="flex min-h-8 items-center justify-between gap-3">
+        <p className="text-sm text-neutral-700" data-testid="shopping-period">
+          {t("pages.shopping.period", {
+            start: formatDisplayDate(period.periodStart),
+            end: formatDisplayDate(periodEndOf(period.periodStart, period.periodDays)),
+          })}
+        </p>
+        {data && data.dishes.length > 0 && data.items.length > 0 && (
+          <CopyShoppingTextButton items={data.items} period={period} />
+        )}
+      </div>
 
       {isLoading && <p className="text-sm text-neutral-500">{t("pages.shopping.loading")}</p>}
       {isError && <p className="text-sm text-red-700">{t("pages.shopping.load_error")}</p>}

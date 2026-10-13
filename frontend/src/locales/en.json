@@ -407,6 +407,16 @@
       "pantry": {
         "title": "Check you have these",
         "description": "These ingredients are not written in amounts you buy. Just check you haven't run out"
+      },
+      "copy": {
+        "button": "Copy as text",
+        "heading": "Shopping list {{start}}–{{end}}",
+        "item": "- {{name}} {{quantity}}",
+        "item_partial": "- {{name}} {{quantity}} (partly in stock)",
+        "pantry_heading": "Check at home",
+        "pantry_item": "- {{name}}",
+        "copied": "Copied the shopping list ({{count}} items)",
+        "failed": "Could not copy the shopping list"
       }
     }
   },

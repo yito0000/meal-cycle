@@ -407,6 +407,16 @@
       "pantry": {
         "title": "家にあるか確かめる材料",
         "description": "量を買う単位で書いていない材料です。切らしていないかだけ確かめてください"
+      },
+      "copy": {
+        "button": "テキストでコピー",
+        "heading": "買い物リスト {{start}}〜{{end}}",
+        "item": "- {{name}} {{quantity}}",
+        "item_partial": "- {{name}} {{quantity}} (一部在庫あり)",
+        "pantry_heading": "家にあるか確かめる材料",
+        "pantry_item": "- {{name}}",
+        "copied": "買い物リストをコピーしました ({{count}} 件)",
+        "failed": "コピーできませんでした"
       }
     }
   },
