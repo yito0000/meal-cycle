@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 
 	"github.com/yito0000/meal-cycle/internal/config"
 	"github.com/yito0000/meal-cycle/internal/domain/mealplan"
@@ -292,8 +291,3 @@ func (s *MealPlanService) isAllowedCopyDays(days int) bool {
 	}
 	return false
 }
-
-// 型付きエラーは Wails 経由でも errors.Is で拾えるように exported される。
-var (
-	_ = errors.Is
-)

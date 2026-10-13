@@ -12,6 +12,10 @@ import (
 	"github.com/yito0000/meal-cycle/internal/domain/mealplan"
 )
 
+// positionShiftOffset は position を書き換えるあいだ、PRIMARY KEY (date, meal, position) の重複を避けるための退避幅。
+// 1 セルの品数がこの値より少ないことを前提にする (fix-mealplan-renumber-after-reorder design.md D1)。
+const positionShiftOffset = 1000
+
 type MealPlanRepo struct {
 	db  *sql.DB
 	cfg config.Config
@@ -143,8 +147,6 @@ func (r *MealPlanRepo) Replace(ctx context.Context, date, meal string, position 
 }
 
 // Remove は 1 行削除し、後続 position を 1 つずつ詰め直す。
-// 詰め直しは (date, meal, position) が PRIMARY KEY のため、下から上に UPDATE する必要は無く、
-// 小さい position 側から順に上書きしていけば衝突しない (position=3 → 2、position=4 → 3、...)。
 func (r *MealPlanRepo) Remove(ctx context.Context, date, meal string, position int) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -227,11 +229,63 @@ func removeRowTx(ctx context.Context, tx *sql.Tx, date, meal string, position in
 	if n == 0 {
 		return mealplan.ErrEntryNotFound
 	}
-	if _, err := tx.ExecContext(ctx, `
-		UPDATE meal_plans SET position = position - 1
+	return closePositionGap(ctx, tx, date, meal, position)
+}
+
+// closePositionGap は removed の行を消した直後のセルで、後ろの行を 1 つずつ前へ詰める。
+// SQLite は行ごとに PRIMARY KEY の重複を確かめ、処理順は position 順とは限らないので、
+// position - 1 の 1 文にせず退避を挟む (fix-mealplan-renumber-after-reorder design.md D1)。
+func closePositionGap(ctx context.Context, q querier, date, meal string, removed int) error {
+	if _, err := q.ExecContext(ctx, `
+		UPDATE meal_plans SET position = position + ?
 		WHERE date = ? AND meal = ? AND position > ?
-	`, date, meal, position); err != nil {
+	`, positionShiftOffset, date, meal, removed); err != nil {
+		return fmt.Errorf("shift positions: %w", err)
+	}
+	if _, err := q.ExecContext(ctx, `
+		UPDATE meal_plans SET position = position - ? - 1
+		WHERE date = ? AND meal = ? AND position >= ?
+	`, positionShiftOffset, date, meal, positionShiftOffset); err != nil {
 		return fmt.Errorf("renumber positions: %w", err)
+	}
+	return nil
+}
+
+// renumberMeal はセルの行を、いまの順を保ったまま position 0 から隙間なく振り直す。
+// 複数行を消したあと用 (fix-mealplan-renumber-after-reorder design.md D2)。
+func renumberMeal(ctx context.Context, q querier, date, meal string) error {
+	rows, err := q.QueryContext(ctx, `
+		SELECT position FROM meal_plans WHERE date = ? AND meal = ? ORDER BY position
+	`, date, meal)
+	if err != nil {
+		return fmt.Errorf("query positions: %w", err)
+	}
+	positions := make([]int, 0)
+	for rows.Next() {
+		var p int
+		if err := rows.Scan(&p); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan position: %w", err)
+		}
+		positions = append(positions, p)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate positions: %w", err)
+	}
+
+	if _, err := q.ExecContext(ctx, `
+		UPDATE meal_plans SET position = position + ? WHERE date = ? AND meal = ?
+	`, positionShiftOffset, date, meal); err != nil {
+		return fmt.Errorf("shift positions: %w", err)
+	}
+	for newPos, oldPos := range positions {
+		if _, err := q.ExecContext(ctx, `
+			UPDATE meal_plans SET position = ?
+			WHERE date = ? AND meal = ? AND position = ?
+		`, newPos, date, meal, oldPos+positionShiftOffset); err != nil {
+			return fmt.Errorf("renumber position %d: %w", newPos, err)
+		}
 	}
 	return nil
 }
@@ -260,7 +314,7 @@ func (r *MealPlanRepo) ClearMeal(ctx context.Context, date, meal string) error {
 
 // Reorder は orderedRecipeIDs の順で position を 0..N-1 に採番し直す。
 // 既存 meal の recipe_id 集合と一致しない場合は ErrReorderMismatch。
-// PRIMARY KEY (date, meal, position) の衝突を避けるため、一旦 +1000 のオフセットに退避する。
+// PRIMARY KEY (date, meal, position) の衝突を避けるため、一旦 positionShiftOffset ぶん退避する。
 func (r *MealPlanRepo) Reorder(ctx context.Context, date, meal string, orderedRecipeIDs []string) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -298,11 +352,9 @@ func (r *MealPlanRepo) Reorder(ctx context.Context, date, meal string, orderedRe
 		}
 	}
 
-	// 一時オフセット (+1000) に退避して PRIMARY KEY 衝突を避ける。meal 内の品数は最大でも
-	// 数個〜十数個の想定で、+1000 で衝突する状況は現実的に無い。
 	if _, err := tx.ExecContext(ctx, `
-		UPDATE meal_plans SET position = position + 1000 WHERE date = ? AND meal = ?
-	`, date, meal); err != nil {
+		UPDATE meal_plans SET position = position + ? WHERE date = ? AND meal = ?
+	`, positionShiftOffset, date, meal); err != nil {
 		return fmt.Errorf("shift positions: %w", err)
 	}
 
@@ -312,9 +364,9 @@ func (r *MealPlanRepo) Reorder(ctx context.Context, date, meal string, orderedRe
 		var oldPos int
 		err := tx.QueryRowContext(ctx, `
 			SELECT position FROM meal_plans
-			WHERE date = ? AND meal = ? AND recipe_id = ? AND position >= 1000
+			WHERE date = ? AND meal = ? AND recipe_id = ? AND position >= ?
 			ORDER BY position LIMIT 1
-		`, date, meal, id).Scan(&oldPos)
+		`, date, meal, id, positionShiftOffset).Scan(&oldPos)
 		if errors.Is(err, sql.ErrNoRows) {
 			return mealplan.ErrReorderMismatch
 		}
@@ -465,17 +517,25 @@ func (r *MealPlanRepo) SplitBatch(ctx context.Context, date, meal string, positi
 		return "", fmt.Errorf("iterate siblings: %w", err)
 	}
 
+	// 1 行消すたびに詰めると、同じセルにある次の行の position がずれて別の行を消してしまう。
+	type cell struct{ date, meal string }
+	affected := make([]cell, 0)
+	seen := map[cell]bool{}
 	for _, cr := range toDelete {
 		if _, err := tx.ExecContext(ctx, `
 			DELETE FROM meal_plans WHERE date = ? AND meal = ? AND position = ?
 		`, cr.date, cr.meal, cr.position); err != nil {
 			return "", fmt.Errorf("delete sibling row: %w", err)
 		}
-		if _, err := tx.ExecContext(ctx, `
-			UPDATE meal_plans SET position = position - 1
-			WHERE date = ? AND meal = ? AND position > ?
-		`, cr.date, cr.meal, cr.position); err != nil {
-			return "", fmt.Errorf("renumber positions in cell: %w", err)
+		c := cell{cr.date, cr.meal}
+		if !seen[c] {
+			seen[c] = true
+			affected = append(affected, c)
+		}
+	}
+	for _, c := range affected {
+		if err := renumberMeal(ctx, tx, c.date, c.meal); err != nil {
+			return "", err
 		}
 	}
 
@@ -928,9 +988,7 @@ func isForeignKeyErr(err error) bool {
 	if err == nil {
 		return false
 	}
-	msg := err.Error()
-	return strings.Contains(msg, "FOREIGN KEY constraint failed") ||
-		strings.Contains(msg, "constraint failed")
+	return strings.Contains(err.Error(), "FOREIGN KEY constraint failed")
 }
 
 func addDays(date string, days int) (string, error) {

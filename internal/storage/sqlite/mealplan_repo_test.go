@@ -235,6 +235,37 @@ func TestMealPlanRepo_Remove(t *testing.T) {
 			t.Errorf("recipeIDs = %s, %s; want %s, %s", got[0].RecipeID, got[1].RecipeID, rs[0].ID, rs[2].ID)
 		}
 	})
+
+	t.Run("Remove should succeed and keep the remaining order when the meal was reordered", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "A", "B", "C")
+		for _, r := range rs {
+			_, _ = repo.Assign(ctx, "2026-08-24", "dinner", r.ID)
+		}
+		if err := repo.Reorder(ctx, "2026-08-24", "dinner", []string{rs[1].ID, rs[2].ID, rs[0].ID}); err != nil {
+			t.Fatalf("Reorder: %v", err)
+		}
+
+		if err := repo.Remove(ctx, "2026-08-24", "dinner", 0); err != nil {
+			t.Fatalf("Remove: %v", err)
+		}
+		got, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
+		assertMealOrder(t, got, rs[2].ID, rs[0].ID)
+	})
+}
+
+// assertMealOrder は 1 セルの行が wantRecipeIDs の順で position 0 から隙間なく並ぶことを確かめる。
+func assertMealOrder(t *testing.T, got []mealplan.Entry, wantRecipeIDs ...string) {
+	t.Helper()
+	if len(got) != len(wantRecipeIDs) {
+		t.Fatalf("want %d rows, got %d: %+v", len(wantRecipeIDs), len(got), got)
+	}
+	for i, want := range wantRecipeIDs {
+		if got[i].Position != i || got[i].RecipeID != want {
+			t.Errorf("row %d = (position %d, recipe %s); want (position %d, recipe %s)",
+				i, got[i].Position, got[i].RecipeID, i, want)
+		}
+	}
 }
 
 func TestMealPlanRepo_MoveEntry(t *testing.T) {
@@ -278,6 +309,25 @@ func TestMealPlanRepo_MoveEntry(t *testing.T) {
 		if src[0].RecipeID != rs[0].ID || src[1].RecipeID != rs[2].ID {
 			t.Errorf("recipeIDs = %s, %s; want %s, %s", src[0].RecipeID, src[1].RecipeID, rs[0].ID, rs[2].ID)
 		}
+	})
+
+	t.Run("MoveEntry should succeed and keep the remaining source order when the source meal was reversed", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "A", "B", "C")
+		for _, r := range rs {
+			_, _ = repo.Assign(ctx, "2026-08-24", "dinner", r.ID)
+		}
+		if err := repo.Reorder(ctx, "2026-08-24", "dinner", []string{rs[2].ID, rs[1].ID, rs[0].ID}); err != nil {
+			t.Fatalf("Reorder: %v", err)
+		}
+
+		if err := repo.MoveEntry(ctx, "2026-08-24", "dinner", 0, "2026-08-25", "dinner"); err != nil {
+			t.Fatalf("MoveEntry: %v", err)
+		}
+		src, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
+		assertMealOrder(t, src, rs[1].ID, rs[0].ID)
+		dst, _ := repo.MealEntries(ctx, "2026-08-25", "dinner")
+		assertMealOrder(t, dst, rs[2].ID)
 	})
 
 	t.Run("MoveEntry should preserve batch_id when moving a row from a leftover batch", func(t *testing.T) {
@@ -605,6 +655,47 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		if !found {
 			t.Errorf("other batch row was removed. got %+v", got)
 		}
+	})
+
+	t.Run("SplitBatch should succeed and keep the remaining order when the sibling's meal was reordered", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "カレー", "サラダ", "スープ")
+		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+		source, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
+		_ = repo.CopyLeftover(ctx, "dinner", []string{"2026-08-25"}, source,
+			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover)
+		_, _ = repo.Assign(ctx, "2026-08-25", "dinner", rs[1].ID)
+		_, _ = repo.Assign(ctx, "2026-08-25", "dinner", rs[2].ID)
+		if err := repo.Reorder(ctx, "2026-08-25", "dinner", []string{rs[0].ID, rs[2].ID, rs[1].ID}); err != nil {
+			t.Fatalf("Reorder: %v", err)
+		}
+
+		if _, err := repo.SplitBatch(ctx, "2026-08-24", "dinner", 0); err != nil {
+			t.Fatalf("SplitBatch: %v", err)
+		}
+		got, _ := repo.MealEntries(ctx, "2026-08-25", "dinner")
+		assertMealOrder(t, got, rs[2].ID, rs[1].ID)
+	})
+
+	t.Run("SplitBatch should delete every sibling when one meal holds two rows of the same batch", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "カレー", "サラダ")
+		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+		source, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
+		_ = repo.CopyLeftover(ctx, "dinner", []string{"2026-08-25", "2026-08-26"}, source,
+			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover)
+		if err := repo.MoveEntry(ctx, "2026-08-26", "dinner", 0, "2026-08-25", "dinner"); err != nil {
+			t.Fatalf("MoveEntry: %v", err)
+		}
+		_, _ = repo.Assign(ctx, "2026-08-25", "dinner", rs[1].ID)
+
+		if _, err := repo.SplitBatch(ctx, "2026-08-24", "dinner", 0); err != nil {
+			t.Fatalf("SplitBatch: %v", err)
+		}
+		origin, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
+		assertMealOrder(t, origin, rs[0].ID)
+		got, _ := repo.MealEntries(ctx, "2026-08-25", "dinner")
+		assertMealOrder(t, got, rs[1].ID)
 	})
 
 	t.Run("MergeBatch re-tags target row to the specified batch_id", func(t *testing.T) {

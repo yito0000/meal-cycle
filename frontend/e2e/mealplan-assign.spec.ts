@@ -125,6 +125,31 @@ test.describe("時間帯内の並び替え", () => {
   });
 });
 
+test.describe("並べ替えたあとの品の削除と移動", () => {
+  test("並べ替えたセルで先頭の品を削除できる", async ({ page }) => {
+    await seedDinner(page, dateAfter(0), ["肉じゃが", "みそ汁", "ほうれん草の胡麻和え"]);
+    await openMealCalendar(page);
+    await expect(allItemRows(page)).toHaveText(["肉じゃが", "みそ汁", "ほうれん草の胡麻和え"]);
+
+    for (const expected of [
+      ["みそ汁", "肉じゃが", "ほうれん草の胡麻和え"],
+      ["みそ汁", "ほうれん草の胡麻和え", "肉じゃが"],
+    ]) {
+      await openItemMenu(page, "肉じゃが");
+      await page.getByRole("menuitem", { name: t.item_menu.move_down }).click();
+      await expect(allItemRows(page)).toHaveText(expected);
+    }
+
+    await openItemMenu(page, "みそ汁");
+    await page.getByRole("menuitem", { name: t.item_menu.remove }).click();
+
+    await expect(allItemRows(page)).toHaveText(["ほうれん草の胡麻和え", "肉じゃが"]);
+    for (const message of Object.values(t.errors)) {
+      await expect(page.getByText(message, { exact: true })).toHaveCount(0);
+    }
+  });
+});
+
 test.describe("期間切替", () => {
   test("期間切替の既定は 1 週", async ({ page }) => {
     await openMealCalendar(page);
