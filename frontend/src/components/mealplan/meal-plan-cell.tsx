@@ -11,10 +11,12 @@ export type EntryAction =
   | "replace"
   | "remove"
   | "view-detail"
+  | "move-up"
+  | "move-down"
   | "spread"
   | "split-batch"
   | "merge-batch";
-export type MealAction = "clear" | "copy-days" | "reorder";
+export type MealAction = "clear" | "copy-days";
 
 export type DragSource = { date: string; meal: string; position: number };
 export type DropTarget = { date: string; meal: string; position?: number };
@@ -223,9 +225,13 @@ export function MealPlanCell({
                 menuButtonRef.current?.focus();
               }}
               batchMemberCount={entry.batchMemberCount}
+              position={entry.position}
+              cellItemCount={entries.length}
               onReplace={() => onEntryAction("replace", entry)}
               onRemove={() => onEntryAction("remove", entry)}
               onViewDetail={() => onEntryAction("view-detail", entry)}
+              onMoveUp={() => onEntryAction("move-up", entry)}
+              onMoveDown={() => onEntryAction("move-down", entry)}
               onSpread={() => onEntryAction("spread", entry)}
               onSplitBatch={() => onEntryAction("split-batch", entry)}
               onMergeBatch={() => onEntryAction("merge-batch", entry)}
@@ -242,7 +248,6 @@ export function MealPlanCell({
         <MealMenu
           onClear={() => onMealAction("clear")}
           onCopyDays={(days) => onMealAction("copy-days", days)}
-          onReorder={() => onMealAction("reorder")}
         />
       </div>
     </div>

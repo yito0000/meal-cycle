@@ -2,10 +2,12 @@ import ja from "../src/locales/ja.json" with { type: "json" };
 import { expect, test } from "./fixtures.js";
 import {
   assignRecipe,
+  copyLeftover,
   createRecipe,
   createRecipeWithIngredients,
   dateAfter,
   detailBreadcrumb,
+  mealPlanItemRows,
   openItemMenu,
 } from "./helpers.js";
 
@@ -17,6 +19,19 @@ async function openMealCalendar(page: import("@playwright/test").Page) {
   }
   // 初期ルートが献立カレンダーなので、遷移操作は不要。ヘッダで到達確認する。
   await expect(page.getByRole("heading", { name: t.title })).toBeVisible();
+}
+
+// seedDinner は UI を経由せず、date の夕食に names の順で品を割り当てる。
+async function seedDinner(page: import("@playwright/test").Page, date: string, names: string[]) {
+  for (const name of names) {
+    const id = await createRecipeWithIngredients(page, name, []);
+    await assignRecipe(page, date, "dinner", id);
+  }
+}
+
+// 画面上の全品行を DOM 順 (= 日付順、セル内は position 順) で取る。
+function allItemRows(page: import("@playwright/test").Page) {
+  return page.locator('[role="listitem"]');
 }
 
 // shiftIsoDate は "YYYY-MM-DD" を days 日ぶんシフトする。UTC ではなくローカル日付として扱う。
@@ -32,6 +47,81 @@ function shiftIsoDate(iso: string, days: number): string {
 test.describe("セル内の品表示", () => {
   test.skip("品数超過は省略表示になる", async () => {
     // MealPlanCell は overflow 表示済み。E2E は Group 10 の次イテレーションで有効化する。
+  });
+
+  test("時間帯全体の `⋯` メニューには動かない項目を置かない", async ({ page }) => {
+    await seedDinner(page, dateAfter(0), ["肉じゃが", "みそ汁"]);
+    await openMealCalendar(page);
+
+    await page.getByRole("button", { name: t.cell_actions.meal_menu }).click();
+
+    const items = page.getByRole("menuitem");
+    await expect(items).toHaveText([
+      t.meal_menu.clear,
+      t.meal_menu.copy_days.replace("{{days}}", "N"),
+    ]);
+    await expect(page.getByRole("menuitem", { name: "並び替え" })).toHaveCount(0);
+  });
+});
+
+test.describe("時間帯内の並び替え", () => {
+  test("2 品目を上に動かすと 1 品目と入れ替わる", async ({ page }) => {
+    await seedDinner(page, dateAfter(0), ["肉じゃが", "みそ汁"]);
+    await openMealCalendar(page);
+    await expect(allItemRows(page)).toHaveText(["肉じゃが", "みそ汁"]);
+
+    await openItemMenu(page, "みそ汁");
+    await page.getByRole("menuitem", { name: t.item_menu.move_up }).click();
+
+    await expect(allItemRows(page)).toHaveText(["みそ汁", "肉じゃが"]);
+  });
+
+  test("先頭の品は上へ、末尾の品は下へ移動できない", async ({ page }) => {
+    await seedDinner(page, dateAfter(0), ["肉じゃが", "みそ汁", "ごはん"]);
+    await openMealCalendar(page);
+    const moveUp = page.getByRole("menuitem", { name: t.item_menu.move_up });
+    const moveDown = page.getByRole("menuitem", { name: t.item_menu.move_down });
+
+    await openItemMenu(page, "肉じゃが");
+    await expect(moveUp).toBeDisabled();
+    await expect(moveDown).toBeEnabled();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("menu")).toHaveCount(0);
+
+    await openItemMenu(page, "ごはん");
+    await expect(moveDown).toBeDisabled();
+    await expect(moveUp).toBeEnabled();
+  });
+
+  test("1 品だけのセルには移動の項目を出さない", async ({ page }) => {
+    await seedDinner(page, dateAfter(0), ["肉じゃが"]);
+    await openMealCalendar(page);
+
+    await openItemMenu(page, "肉じゃが");
+
+    await expect(page.getByRole("menuitem", { name: t.item_menu.view_detail })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: t.item_menu.move_up })).toHaveCount(0);
+    await expect(page.getByRole("menuitem", { name: t.item_menu.move_down })).toHaveCount(0);
+  });
+
+  test("作り置きに属する品も移動できる", async ({ page }) => {
+    await seedDinner(page, dateAfter(0), ["みそ汁", "肉じゃが"]);
+    await copyLeftover(page, dateAfter(0), "dinner", 3, true, 1);
+    await openMealCalendar(page);
+    // 今日が週末だと 2〜3 日目が翌週になるので、2 週表示で 3 日分を画面に入れる。
+    await page.getByTestId("period-weeks-2").click();
+    await expect(allItemRows(page)).toHaveText(["みそ汁", "肉じゃが", "肉じゃが", "肉じゃが"]);
+
+    await openItemMenu(page, "肉じゃが", 0);
+    await page.getByRole("menuitem", { name: t.item_menu.move_up }).click();
+
+    await expect(allItemRows(page)).toHaveText(["肉じゃが", "みそ汁", "肉じゃが", "肉じゃが"]);
+    const batchRows = mealPlanItemRows(page, "肉じゃが");
+    const batchId = await batchRows.nth(0).getAttribute("data-batch-id");
+    for (const i of [0, 1, 2]) {
+      await expect(batchRows.nth(i)).toHaveAttribute("data-batch-member-count", "3");
+      await expect(batchRows.nth(i)).toHaveAttribute("data-batch-id", batchId ?? "");
+    }
   });
 });
 

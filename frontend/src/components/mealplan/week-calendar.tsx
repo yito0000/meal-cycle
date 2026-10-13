@@ -363,6 +363,13 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
           search: { back: { to: "mealplan", start: formatDate(periodStart) } },
         });
         break;
+      case "move-up":
+        reorderWithinCell(date, meal, entry.position, entry.position - 1);
+        break;
+      case "move-down":
+        // reorderWithinCell は source を target の前に差し込むので、1 つ下の品を上に動かす形で渡す。
+        reorderWithinCell(date, meal, entry.position + 1, entry.position);
+        break;
       case "spread":
         setSpreadState({
           kind: "open",
@@ -442,10 +449,6 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
         break;
       case "copy-days":
         if (days) startCopy(date, meal, days, -1);
-        break;
-      case "reorder":
-        // 上下ボタン UI は後続タスクで足す。現状は unknown 表示。
-        setErrorKey("pages.meal_plan.errors.unknown");
         break;
     }
   };

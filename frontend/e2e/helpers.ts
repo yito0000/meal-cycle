@@ -142,16 +142,18 @@ export async function assignRecipe(page: Page, date: string, meal: string, recip
   }
 }
 
-// copyLeftover は (date, meal) の 1 品目を days 日分に広げる。shareBatch=true で作り置き、false で別調理。
+// copyLeftover は (date, meal) の position 番目の品 (既定は 1 品目) を days 日分に広げる。
+// shareBatch=true で作り置き、false で別調理。
 export async function copyLeftover(
   page: Page,
   date: string,
   meal: string,
   days: number,
   shareBatch: boolean,
+  position = 0,
 ) {
   const res = await page.request.post("/api/MealPlanService/CopyLeftover", {
-    data: [date, meal, days, 0, "append", shareBatch],
+    data: [date, meal, days, position, "append", shareBatch],
   });
   if (!res.ok()) {
     throw new Error(`copy leftover ${date} failed: ${res.status()} ${await res.text()}`);

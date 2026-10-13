@@ -57,19 +57,15 @@
         "replace": "Replace",
         "remove": "Remove this dish",
         "view_detail": "View recipe detail",
+        "move_up": "Move up",
+        "move_down": "Move down",
         "spread": "Spread this batch",
         "split_batch": "Detach from batch",
         "merge_batch": "Merge into another batch"
       },
       "meal_menu": {
         "clear": "Clear this meal",
-        "copy_days": "Copy this meal for {{days}} days",
-        "reorder": "Reorder"
-      },
-      "reorder": {
-        "move_up": "Up",
-        "move_down": "Down",
-        "done": "Done"
+        "copy_days": "Copy this meal for {{days}} days"
       },
       "copy": {
         "title": "Copy across days",

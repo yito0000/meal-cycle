@@ -57,19 +57,15 @@
         "replace": "入れ替え",
         "remove": "この品を削除",
         "view_detail": "この品のレシピ詳細を見る",
+        "move_up": "上へ移動",
+        "move_down": "下へ移動",
         "spread": "作り置きを広げる",
         "split_batch": "作り置きから外す",
         "merge_batch": "他の作り置きにまとめる"
       },
       "meal_menu": {
         "clear": "時間帯全体をクリア",
-        "copy_days": "時間帯全体を連続 {{days}} 日コピー",
-        "reorder": "並び替え"
-      },
-      "reorder": {
-        "move_up": "上へ",
-        "move_down": "下へ",
-        "done": "完了"
+        "copy_days": "時間帯全体を連続 {{days}} 日コピー"
       },
       "copy": {
         "title": "連続コピー",

@@ -83,10 +83,9 @@ S06 の追加行はレシピの材料名を候補に出すが、S04 の材料行
 
 ### R5. 押せるのに動かないメニューがある
 
-- [ ] 対応済み
+- [x] 対応済み（`revise-mealplan-reorder-menu` で時間帯のメニューから「並び替え」を外し、品のメニューに「上へ移動」「下へ移動」を足した）
 
 > `add-recipe-details` で「この品のレシピ詳細を見る」は S03 ドロワーを開くようになった（add-recipe-details の design.md D8）。
-> 「並び替え」は未対応のため、チェックは付けていない。
 
 S01 の `WeekCalendar` で、次の 2 つのメニューは押すと汎用エラー（`pages.meal_plan.errors.unknown`）を出す。
 

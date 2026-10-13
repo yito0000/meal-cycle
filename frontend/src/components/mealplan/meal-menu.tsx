@@ -3,7 +3,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -14,11 +13,10 @@ import { MEALPLAN_DEFAULTS } from "./mealplan-config";
 interface Props {
   onClear: () => void;
   onCopyDays: (days: number) => void;
-  onReorder: () => void;
 }
 
-// 時間帯右下の `⋯` メニュー: 全クリア / 全体連続 N 日コピー / 並び替え。
-export function MealMenu({ onClear, onCopyDays, onReorder }: Props) {
+// 時間帯右下の `⋯` メニュー: 全クリア / 全体連続 N 日コピー。
+export function MealMenu({ onClear, onCopyDays }: Props) {
   const { t } = useTranslation();
   return (
     <DropdownMenu>
@@ -44,10 +42,6 @@ export function MealMenu({ onClear, onCopyDays, onReorder }: Props) {
             ))}
           </DropdownMenuSubContent>
         </DropdownMenuSub>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={onReorder}>
-          {t("pages.meal_plan.meal_menu.reorder")}
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
