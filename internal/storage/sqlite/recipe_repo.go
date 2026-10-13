@@ -115,37 +115,54 @@ func (r *RecipeRepo) GetByID(ctx context.Context, id string) (recipe.Recipe, err
 
 // Create は ID / CreatedAt / UpdatedAt を Repository 側で発行して返す。
 func (r *RecipeRepo) Create(ctx context.Context, input recipe.Recipe) (recipe.Recipe, error) {
-	if input.Name == "" {
-		return recipe.Recipe{}, ErrRecipeNameEmpty
-	}
-	id, err := uuid.NewV7()
+	created, err := r.CreateMany(ctx, []recipe.Recipe{input})
 	if err != nil {
-		return recipe.Recipe{}, fmt.Errorf("generate recipe id: %w", err)
+		return recipe.Recipe{}, err
+	}
+	return created[0], nil
+}
+
+// CreateMany は全件を 1 トランザクションで登録する。全件が入るか 1 件も入らないかのどちらか (add-recipe-bulk-import D7)。
+func (r *RecipeRepo) CreateMany(ctx context.Context, inputs []recipe.Recipe) ([]recipe.Recipe, error) {
+	out := make([]recipe.Recipe, 0, len(inputs))
+	if len(inputs) == 0 {
+		return out, nil
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
-
-	rec := input
-	rec.ID = id.String()
-	rec.CreatedAt = now
-	rec.UpdatedAt = now
-	rec.IngredientCount = len(rec.Ingredients)
+	for _, input := range inputs {
+		if input.Name == "" {
+			return nil, ErrRecipeNameEmpty
+		}
+		id, err := uuid.NewV7()
+		if err != nil {
+			return nil, fmt.Errorf("generate recipe id: %w", err)
+		}
+		rec := input
+		rec.ID = id.String()
+		rec.CreatedAt = now
+		rec.UpdatedAt = now
+		rec.IngredientCount = len(rec.Ingredients)
+		out = append(out, rec)
+	}
 
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return recipe.Recipe{}, fmt.Errorf("begin tx: %w", err)
+		return nil, fmt.Errorf("begin tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	if err := insertRecipeRow(ctx, tx, rec); err != nil {
-		return recipe.Recipe{}, err
-	}
-	if err := insertRecipeIngredients(ctx, tx, rec.ID, rec.Ingredients); err != nil {
-		return recipe.Recipe{}, err
+	for _, rec := range out {
+		if err := insertRecipeRow(ctx, tx, rec); err != nil {
+			return nil, err
+		}
+		if err := insertRecipeIngredients(ctx, tx, rec.ID, rec.Ingredients); err != nil {
+			return nil, err
+		}
 	}
 	if err := tx.Commit(); err != nil {
-		return recipe.Recipe{}, fmt.Errorf("commit tx: %w", err)
+		return nil, fmt.Errorf("commit tx: %w", err)
 	}
-	return rec, nil
+	return out, nil
 }
 
 // Update は上書き。該当 ID が無ければ ErrRecipeNotFound、name 空なら ErrRecipeNameEmpty。

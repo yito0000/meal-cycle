@@ -1,10 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSearch } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { router } from "@/router";
+import type { ImportFile } from "../../bindings/github.com/yito0000/meal-cycle/internal/domain/recipe/models";
 import { RecipeService } from "../../bindings/github.com/yito0000/meal-cycle/internal/service";
+import { RecipeImportButton } from "../components/recipe/recipe-import-button";
+import { RecipeImportDialog } from "../components/recipe/recipe-import-dialog";
 import { RecipeSearchInput } from "../components/recipe/recipe-search-input";
 import { compareRecipes, DEFAULT_RECIPE_SORT } from "../components/recipe/recipe-sort";
 import { RecipeSortSelect } from "../components/recipe/recipe-sort-select";
@@ -20,6 +23,11 @@ export function RecipesPage() {
   const sortKey = sort ?? DEFAULT_RECIPE_SORT;
   // 入力欄を URL の値で直接制御すると、ルータの更新待ちの間に IME の変換中の文字が崩れうる (revise-recipe-detail-page D3)。
   const [search, setSearch] = useState(q ?? "");
+  const [importRequest, setImportRequest] = useState<{ id: number; files: ImportFile[] } | null>(
+    null,
+  );
+  // 閉じても数え続け、読み直すたびに PreviewImport のクエリを別物にする。
+  const importSeq = useRef(0);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["recipes", "list"],
@@ -46,9 +54,17 @@ export function RecipesPage() {
     <div className="flex h-full flex-col gap-4 p-6">
       <header className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{t("pages.recipes.title")}</h1>
-        <Button type="button" onClick={() => router.navigate({ to: "/recipes/new" })}>
-          {t("pages.recipes.new_button")}
-        </Button>
+        <div className="flex items-center gap-2">
+          <RecipeImportButton
+            onRead={(files) => {
+              importSeq.current += 1;
+              setImportRequest({ id: importSeq.current, files });
+            }}
+          />
+          <Button type="button" onClick={() => router.navigate({ to: "/recipes/new" })}>
+            {t("pages.recipes.new_button")}
+          </Button>
+        </div>
       </header>
 
       <div className="flex items-center justify-between gap-4">
@@ -94,6 +110,15 @@ export function RecipesPage() {
               search: { back: { to: "recipes", q, sort } },
             })
           }
+        />
+      )}
+
+      {importRequest && (
+        <RecipeImportDialog
+          key={importRequest.id}
+          requestId={importRequest.id}
+          files={importRequest.files}
+          onClose={() => setImportRequest(null)}
         />
       )}
     </div>

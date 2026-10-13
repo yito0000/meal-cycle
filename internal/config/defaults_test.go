@@ -21,6 +21,7 @@ func TestDefaults(t *testing.T) {
 		{"ExpiryAlertRedDays", c.ExpiryAlertRedDays, 3},
 		{"ExpiryAlertYellowDays", c.ExpiryAlertYellowDays, 7},
 		{"ShoppingDefaultPeriodDays", c.ShoppingDefaultPeriodDays, 7},
+		{"RecipeImportDefaultServings", c.RecipeImportDefaultServings, 2},
 	}
 	for _, tc := range cases {
 		if tc.got != tc.want {
@@ -48,6 +49,10 @@ func TestDefaults(t *testing.T) {
 
 	if got, want := c.MeasuringUnits, []string{"大さじ", "小さじ", "カップ"}; !equalStrings(got, want) {
 		t.Errorf("MeasuringUnits: got %v, want %v", got, want)
+	}
+
+	if got, want := c.UnquantifiedWords, []string{"少々", "適量", "適宜", "少量", "ひとつまみ", "お好みで"}; !equalStrings(got, want) {
+		t.Errorf("UnquantifiedWords: got %v, want %v", got, want)
 	}
 
 	if got, want := c.DefaultVisibleMeals, []string{"dinner"}; !equalStrings(got, want) {

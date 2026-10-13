@@ -40,6 +40,7 @@ meal-cycle の各画面のワイヤーフレーム。ここに置いた drawio �
 - `S01_meal_calendar.drawio.svg`
 - `S01a_recipe_picker_dialog.drawio.svg` — レシピ選択ダイアログ（**候補セクション付き / MVP 後拡張**、[../product.md](../product.md) #5）
 - `S02_recipe_list.drawio.svg`
+- `S02a_recipe_import_dialog.drawio.svg` — レシピのインポートダイアログ。1 件のプレビューと 2 件以上の一覧の 2 状態（add-recipe-bulk-import）
 - `S03_recipe_detail.drawio.svg`
 - `S03_recipe_detail.v2.drawio.svg` — ドロワーをやめ、メインエリア全体に表示してパンくずで開いた元へ戻す構成（revise-recipe-detail-page）
 - `S04_recipe_edit.drawio.svg`

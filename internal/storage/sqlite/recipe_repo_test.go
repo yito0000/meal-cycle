@@ -498,3 +498,63 @@ func TestRecipeRepo_Archive(t *testing.T) {
 		}
 	})
 }
+
+func TestRecipeRepo_CreateMany(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("creates every recipe with its ingredients when two are given", func(t *testing.T) {
+		repo := newRecipeRepoForTest(t)
+		created, err := repo.CreateMany(ctx, []recipe.Recipe{
+			{Name: "肉じゃが", Servings: 3, Ingredients: []recipe.RecipeIngredient{{Name: "じゃがいも", Amount: 3, Unit: "個"}}},
+			{Name: "カレー", Servings: 2, Ingredients: []recipe.RecipeIngredient{{Name: "玉ねぎ", Amount: 1}, {Name: "人参", Amount: 1}}},
+		})
+		if err != nil {
+			t.Fatalf("CreateMany: %v", err)
+		}
+		if len(created) != 2 {
+			t.Fatalf("want 2, got %d", len(created))
+		}
+		for i, want := range []struct {
+			name string
+			ings int
+		}{{"肉じゃが", 1}, {"カレー", 2}} {
+			got, err := repo.GetByID(ctx, created[i].ID)
+			if err != nil {
+				t.Fatalf("GetByID %s: %v", want.name, err)
+			}
+			if got.Name != want.name || len(got.Ingredients) != want.ings {
+				t.Errorf("got %q with %d ingredients, want %q with %d", got.Name, len(got.Ingredients), want.name, want.ings)
+			}
+			if created[i].IngredientCount != want.ings {
+				t.Errorf("IngredientCount: got %d, want %d", created[i].IngredientCount, want.ings)
+			}
+		}
+	})
+
+	t.Run("returns empty without writing when no recipes are given", func(t *testing.T) {
+		repo := newRecipeRepoForTest(t)
+		created, err := repo.CreateMany(ctx, nil)
+		if err != nil {
+			t.Fatalf("CreateMany: %v", err)
+		}
+		if len(created) != 0 {
+			t.Errorf("want empty, got %d", len(created))
+		}
+		list, _ := repo.List(ctx)
+		if len(list) != 0 {
+			t.Errorf("want no recipes, got %d", len(list))
+		}
+	})
+
+	t.Run("creates nothing when the second recipe has an empty name", func(t *testing.T) {
+		repo := newRecipeRepoForTest(t)
+		_, err := repo.CreateMany(ctx, []recipe.Recipe{{Name: "肉じゃが", Servings: 1}, {Name: "", Servings: 1}})
+		if !errors.Is(err, ErrRecipeNameEmpty) {
+			t.Fatalf("want ErrRecipeNameEmpty, got %v", err)
+		}
+		list, _ := repo.List(ctx)
+		if len(list) != 0 {
+			t.Errorf("want no recipes, got %d", len(list))
+		}
+	})
+}

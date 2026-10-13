@@ -383,3 +383,216 @@ func TestRecipeService_Delete(t *testing.T) {
 		}
 	})
 }
+
+func importFile(name, recipeName string) recipe.ImportFile {
+	return recipe.ImportFile{Name: name, Content: "---\nname: \"" + recipeName + "\"\nservings: 1\n---\n## 手順\n煮る\n"}
+}
+
+func TestRecipeService_PreviewImport(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("should return candidates sorted by file name when multiple files are given", func(t *testing.T) {
+		svc := newRecipeServiceForTest(t)
+		got, err := svc.PreviewImport(ctx, []recipe.ImportFile{importFile("c.md", "C"), importFile("a.md", "A"), importFile("b.md", "B")})
+		if err != nil {
+			t.Fatalf("PreviewImport: %v", err)
+		}
+		var names []string
+		for _, c := range got {
+			names = append(names, c.FileName)
+		}
+		if strings.Join(names, ",") != "a.md,b.md,c.md" {
+			t.Errorf("order: got %v", names)
+		}
+	})
+
+	t.Run("should fill servings with the default when servings is omitted", func(t *testing.T) {
+		svc := newRecipeServiceForTest(t)
+		got, err := svc.PreviewImport(ctx, []recipe.ImportFile{{Name: "a.md", Content: "---\nname: カレー\n---\n"}})
+		if err != nil {
+			t.Fatalf("PreviewImport: %v", err)
+		}
+		if got[0].Issue != "" || got[0].Recipe.Servings != svc.cfg.RecipeImportDefaultServings {
+			t.Errorf("got issue %q servings %d", got[0].Issue, got[0].Recipe.Servings)
+		}
+	})
+
+	t.Run("should return ErrRecipeImportTooManyFiles when more than 100 files are given", func(t *testing.T) {
+		svc := newRecipeServiceForTest(t)
+		files := make([]recipe.ImportFile, recipeImportMaxFiles+1)
+		for i := range files {
+			files[i] = importFile("x.md", "x")
+		}
+		if _, err := svc.PreviewImport(ctx, files); !errors.Is(err, ErrRecipeImportTooManyFiles) {
+			t.Errorf("want ErrRecipeImportTooManyFiles, got %v", err)
+		}
+	})
+
+	t.Run("should mark too_large when a file exceeds 64 KB", func(t *testing.T) {
+		svc := newRecipeServiceForTest(t)
+		f := importFile("big.md", "big")
+		f.Content += strings.Repeat("a", recipeImportMaxBytes)
+		got, err := svc.PreviewImport(ctx, []recipe.ImportFile{f})
+		if err != nil {
+			t.Fatalf("PreviewImport: %v", err)
+		}
+		if got[0].Issue != recipe.ImportIssueTooLarge {
+			t.Errorf("issue: got %q", got[0].Issue)
+		}
+	})
+
+	t.Run("should mark name_empty when the name is missing", func(t *testing.T) {
+		svc := newRecipeServiceForTest(t)
+		got, err := svc.PreviewImport(ctx, []recipe.ImportFile{{Name: "a.md", Content: "---\nservings: 2\n---\n"}})
+		if err != nil {
+			t.Fatalf("PreviewImport: %v", err)
+		}
+		if got[0].Issue != recipe.ImportIssueNameEmpty {
+			t.Errorf("issue: got %q", got[0].Issue)
+		}
+	})
+
+	t.Run("should mark steps_too_long when the steps exceed 4000 characters", func(t *testing.T) {
+		svc := newRecipeServiceForTest(t)
+		content := "---\nname: x\n---\n" + strings.Repeat("あ", recipeStepsMaxRunes+1)
+		got, err := svc.PreviewImport(ctx, []recipe.ImportFile{{Name: "a.md", Content: content}})
+		if err != nil {
+			t.Fatalf("PreviewImport: %v", err)
+		}
+		if got[0].Issue != recipe.ImportIssueStepsTooLong {
+			t.Errorf("issue: got %q", got[0].Issue)
+		}
+	})
+
+	t.Run("should mark ingredient_name_empty with the ingredient position when an ingredient has no name", func(t *testing.T) {
+		svc := newRecipeServiceForTest(t)
+		content := "---\nname: x\ningredients:\n  - name: 玉ねぎ\n    amount: 1\n  - amount: 2\n---\n"
+		got, err := svc.PreviewImport(ctx, []recipe.ImportFile{{Name: "a.md", Content: content}})
+		if err != nil {
+			t.Fatalf("PreviewImport: %v", err)
+		}
+		if got[0].Issue != recipe.ImportIssueIngredientNameEmpty || got[0].IssueArg != "2" {
+			t.Errorf("got issue %q arg %q", got[0].Issue, got[0].IssueArg)
+		}
+	})
+
+	t.Run("should mark duplicate when the name matches an existing recipe", func(t *testing.T) {
+		svc := newRecipeServiceForTest(t)
+		if _, err := svc.Create(ctx, validRecipe("肉じゃが")); err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		got, err := svc.PreviewImport(ctx, []recipe.ImportFile{importFile("a.md", "肉じゃが"), importFile("b.md", "カレー")})
+		if err != nil {
+			t.Fatalf("PreviewImport: %v", err)
+		}
+		if !got[0].Duplicate || got[1].Duplicate {
+			t.Errorf("duplicate: got %v, %v", got[0].Duplicate, got[1].Duplicate)
+		}
+	})
+
+	t.Run("should not mark duplicate when the name matches only an archived recipe", func(t *testing.T) {
+		svc := newRecipeServiceForTest(t)
+		created, err := svc.Create(ctx, validRecipe("肉じゃが"))
+		if err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		if err := svc.Delete(ctx, created.ID); err != nil {
+			t.Fatalf("Delete: %v", err)
+		}
+		got, err := svc.PreviewImport(ctx, []recipe.ImportFile{importFile("a.md", "肉じゃが")})
+		if err != nil {
+			t.Fatalf("PreviewImport: %v", err)
+		}
+		if got[0].Duplicate {
+			t.Error("want not duplicate")
+		}
+	})
+
+	t.Run("should mark both candidates duplicate when two files share a name", func(t *testing.T) {
+		svc := newRecipeServiceForTest(t)
+		got, err := svc.PreviewImport(ctx, []recipe.ImportFile{importFile("a.md", "カレー"), importFile("b.md", " カレー ")})
+		if err != nil {
+			t.Fatalf("PreviewImport: %v", err)
+		}
+		if !got[0].Duplicate || !got[1].Duplicate {
+			t.Errorf("duplicate: got %v, %v", got[0].Duplicate, got[1].Duplicate)
+		}
+	})
+
+	t.Run("should not mark duplicate against a candidate that has an issue", func(t *testing.T) {
+		svc := newRecipeServiceForTest(t)
+		bad := recipe.ImportFile{Name: "b.md", Content: "---\nname: カレー\nservings: 0\n---\n"}
+		got, err := svc.PreviewImport(ctx, []recipe.ImportFile{importFile("a.md", "カレー"), bad})
+		if err != nil {
+			t.Fatalf("PreviewImport: %v", err)
+		}
+		if got[0].Duplicate {
+			t.Error("want a.md not duplicate")
+		}
+		if got[1].Issue != recipe.ImportIssueServingsOutOfRange {
+			t.Errorf("b.md issue: got %q", got[1].Issue)
+		}
+	})
+
+	t.Run("should not write anything to the database when previewing", func(t *testing.T) {
+		svc := newRecipeServiceForTest(t)
+		if _, err := svc.PreviewImport(ctx, []recipe.ImportFile{importFile("a.md", "カレー")}); err != nil {
+			t.Fatalf("PreviewImport: %v", err)
+		}
+		list, _ := svc.List(ctx)
+		if len(list) != 0 {
+			t.Errorf("want no recipes, got %d", len(list))
+		}
+	})
+}
+
+func TestRecipeService_Import(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("should create all recipes when every input is valid", func(t *testing.T) {
+		svc := newRecipeServiceForTest(t)
+		created, err := svc.Import(ctx, []recipe.Recipe{validRecipe("肉じゃが"), validRecipe("カレー")})
+		if err != nil {
+			t.Fatalf("Import: %v", err)
+		}
+		list, _ := svc.List(ctx)
+		if len(created) != 2 || len(list) != 2 {
+			t.Errorf("want 2 created and listed, got %d / %d", len(created), len(list))
+		}
+	})
+
+	t.Run("should create a separate recipe when the name matches an existing recipe", func(t *testing.T) {
+		svc := newRecipeServiceForTest(t)
+		original := validRecipe("肉じゃが")
+		original.Notes = "元の内容"
+		existing, err := svc.Create(ctx, original)
+		if err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		if _, err := svc.Import(ctx, []recipe.Recipe{validRecipe("肉じゃが")}); err != nil {
+			t.Fatalf("Import: %v", err)
+		}
+		list, _ := svc.List(ctx)
+		if len(list) != 2 {
+			t.Errorf("want 2 recipes, got %d", len(list))
+		}
+		got, _ := svc.GetByID(ctx, existing.ID)
+		if got.Notes != "元の内容" {
+			t.Errorf("existing notes changed: %q", got.Notes)
+		}
+	})
+
+	t.Run("should create nothing when one input violates a constraint", func(t *testing.T) {
+		svc := newRecipeServiceForTest(t)
+		bad := validRecipe("カレー")
+		bad.Servings = 0
+		_, err := svc.Import(ctx, []recipe.Recipe{validRecipe("肉じゃが"), bad})
+		if !errors.Is(err, ErrRecipeServingsOutOfRange) {
+			t.Fatalf("want ErrRecipeServingsOutOfRange, got %v", err)
+		}
+		list, _ := svc.List(ctx)
+		if len(list) != 0 {
+			t.Errorf("want no recipes, got %d", len(list))
+		}
+	})
+}

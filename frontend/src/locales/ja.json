@@ -231,6 +231,49 @@
         "confirm": "削除",
         "error": "削除できませんでした。もう一度お試しください。",
         "done": "「{{name}}」を削除しました"
+      },
+      "import": {
+        "button": "インポート",
+        "choose_files": "ファイルを選ぶ",
+        "choose_folder": "フォルダを選ぶ",
+        "title": "レシピのインポート",
+        "loading": "読み込み中...",
+        "load_error": "ファイルを読み込めませんでした",
+        "submit": "取り込む",
+        "submit_count": "取り込む ({{count}} 件)",
+        "cancel": "キャンセル",
+        "select_all": "すべて選択",
+        "deselect_all": "すべて解除",
+        "select_row": "{{name}} を取り込む",
+        "column": {
+          "file_name": "ファイル名",
+          "recipe_name": "レシピ名",
+          "ingredient_count": "材料数",
+          "status": "状態"
+        },
+        "status": {
+          "ready": "取り込める",
+          "duplicate": "同名あり"
+        },
+        "duplicate_warning": "同じ名前のレシピがあります。取り込むと別のレシピとして追加します。",
+        "issue_title": "このファイルは取り込めません",
+        "issue": {
+          "too_large": "ファイルが 64 KB を超えています",
+          "no_frontmatter": "形式を読み取れません (先頭が --- で始まる frontmatter がありません)",
+          "invalid_yaml": "frontmatter を YAML として読めません",
+          "name_empty": "名前がありません",
+          "name_too_long": "名前が 200 字を超えています",
+          "servings_out_of_range": "人数は 1〜99 にしてください",
+          "steps_too_long": "手順が 4000 字を超えています",
+          "notes_too_long": "メモが 2000 字を超えています",
+          "tag_too_long": "30 字を超えるタグがあります",
+          "ingredient_name_empty": "{{arg}} 番目の材料に名前がありません",
+          "amount_invalid": "材料「{{arg}}」の量を読み取れません"
+        },
+        "done": "{{count}} 件のレシピを取り込みました",
+        "no_files": "読み込める Markdown ファイルがありませんでした",
+        "too_many_files": "一度に読み込めるファイルは {{max}} 件までです",
+        "error": "取り込めませんでした。もう一度お試しください。"
       }
     },
     "fridge": {

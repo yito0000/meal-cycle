@@ -37,6 +37,15 @@ type Config struct {
 	// (design.md D6)。
 	RecipeListHighlightMs int `json:"recipeListHighlightMs"`
 
+	// レシピ -----------------------------------------------------------
+
+	// 量を持たない言葉。インポートで量 0 として読み、言葉を単位に残す。S09 で語彙を足せるよう可変値にする
+	// (add-recipe-bulk-import design.md D5)。
+	UnquantifiedWords []string `json:"unquantifiedWords"`
+
+	// インポートするファイルが人数を省略したときの人数。世帯の人数に合わせたい値 (add-recipe-bulk-import design.md D9)。
+	RecipeImportDefaultServings int `json:"recipeImportDefaultServings"`
+
 	// 提案軸の閾値 -----------------------------------------------------
 
 	// 「久しぶりに」軸から除外する直近利用日数。作り置き (同レシピを 2〜3 日
@@ -86,20 +95,22 @@ type CellSizePreset struct {
 // された既定値を返す (docs/product.md §1)。
 func Defaults() Config {
 	return Config{
-		DefaultVisibleMeals:       []string{"dinner"},
-		WeeklyFillPattern:         "mon-fri-dinner",
-		ItemsPerMealHint:          [2]int{1, 3},
-		MealPlanCellVisibleItems:  4,
-		RecipeListHighlightMs:     2000,
-		RecencyThresholdDays:      10,
-		LeftoverCopyPresets:       []int{2, 3, 4},
-		WeeklyPresetRecipeCount:   [2]int{2, 3},
-		ExpiryAlertRedDays:        3,
-		ExpiryAlertYellowDays:     7,
-		MealPlanCellSizePresets:   defaultCellSizePresets(),
-		ShoppingPeriodDayPresets:  []int{3, 4, 7, 14, 28},
-		ShoppingDefaultPeriodDays: 7,
-		MeasuringUnits:            []string{"大さじ", "小さじ", "カップ"},
+		DefaultVisibleMeals:         []string{"dinner"},
+		WeeklyFillPattern:           "mon-fri-dinner",
+		ItemsPerMealHint:            [2]int{1, 3},
+		MealPlanCellVisibleItems:    4,
+		RecipeListHighlightMs:       2000,
+		RecencyThresholdDays:        10,
+		LeftoverCopyPresets:         []int{2, 3, 4},
+		WeeklyPresetRecipeCount:     [2]int{2, 3},
+		ExpiryAlertRedDays:          3,
+		ExpiryAlertYellowDays:       7,
+		MealPlanCellSizePresets:     defaultCellSizePresets(),
+		ShoppingPeriodDayPresets:    []int{3, 4, 7, 14, 28},
+		ShoppingDefaultPeriodDays:   7,
+		MeasuringUnits:              []string{"大さじ", "小さじ", "カップ"},
+		UnquantifiedWords:           []string{"少々", "適量", "適宜", "少量", "ひとつまみ", "お好みで"},
+		RecipeImportDefaultServings: 2,
 	}
 }
 

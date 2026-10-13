@@ -231,6 +231,49 @@
         "confirm": "Delete",
         "error": "Could not delete the recipe. Please try again.",
         "done": "Deleted \"{{name}}\""
+      },
+      "import": {
+        "button": "Import",
+        "choose_files": "Choose files",
+        "choose_folder": "Choose folder",
+        "title": "Import recipes",
+        "loading": "Loading...",
+        "load_error": "Could not read the files",
+        "submit": "Import",
+        "submit_count": "Import ({{count}})",
+        "cancel": "Cancel",
+        "select_all": "Select all",
+        "deselect_all": "Deselect all",
+        "select_row": "Import {{name}}",
+        "column": {
+          "file_name": "File",
+          "recipe_name": "Recipe",
+          "ingredient_count": "Ingredients",
+          "status": "Status"
+        },
+        "status": {
+          "ready": "Ready",
+          "duplicate": "Same name exists"
+        },
+        "duplicate_warning": "A recipe with the same name exists. Importing adds it as a separate recipe.",
+        "issue_title": "This file cannot be imported",
+        "issue": {
+          "too_large": "The file is larger than 64 KB",
+          "no_frontmatter": "Unrecognized format (no frontmatter starting with ---)",
+          "invalid_yaml": "The frontmatter is not valid YAML",
+          "name_empty": "The name is missing",
+          "name_too_long": "The name is longer than 200 characters",
+          "servings_out_of_range": "Servings must be between 1 and 99",
+          "steps_too_long": "Steps are longer than 4000 characters",
+          "notes_too_long": "Notes are longer than 2000 characters",
+          "tag_too_long": "A tag is longer than 30 characters",
+          "ingredient_name_empty": "Ingredient #{{arg}} has no name",
+          "amount_invalid": "Could not read the amount of \"{{arg}}\""
+        },
+        "done": "Imported {{count}} recipes",
+        "no_files": "No Markdown files to read",
+        "too_many_files": "You can read up to {{max}} files at once",
+        "error": "Could not import. Please try again."
       }
     },
     "fridge": {

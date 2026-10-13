@@ -5,8 +5,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 
+	"github.com/yito0000/meal-cycle/internal/config"
 	"github.com/yito0000/meal-cycle/internal/domain/recipe"
 	"github.com/yito0000/meal-cycle/internal/storage/sqlite"
 )
@@ -22,6 +25,12 @@ const (
 	recipeTagMaxRunes   = 30
 )
 
+// インポートの上限。異常なフォルダを選んだときの歯止めで、ユーザーが変える値ではない (add-recipe-bulk-import D2)。
+const (
+	recipeImportMaxFiles = 100
+	recipeImportMaxBytes = 64 * 1024
+)
+
 // 入力バリデーションエラー。フロントで i18n key に対応付ける (design.md D12)。
 var (
 	ErrRecipeNameTooLong         = errors.New("recipe name too long")
@@ -30,17 +39,36 @@ var (
 	ErrRecipeStepsTooLong        = errors.New("recipe steps too long")
 	ErrRecipeNotesTooLong        = errors.New("recipe notes too long")
 	ErrRecipeTagTooLong          = errors.New("recipe tag too long")
+	ErrRecipeImportTooManyFiles  = errors.New("recipe import too many files")
 )
+
+// validateRecipeInput のエラーをインポートの問題コードに引く (add-recipe-bulk-import D4)。
+var recipeImportIssueByErr = []struct {
+	err   error
+	issue recipe.ImportIssue
+}{
+	{sqlite.ErrRecipeNameEmpty, recipe.ImportIssueNameEmpty},
+	{ErrRecipeNameTooLong, recipe.ImportIssueNameTooLong},
+	{ErrRecipeServingsOutOfRange, recipe.ImportIssueServingsOutOfRange},
+	{ErrRecipeStepsTooLong, recipe.ImportIssueStepsTooLong},
+	{ErrRecipeNotesTooLong, recipe.ImportIssueNotesTooLong},
+	{ErrRecipeTagTooLong, recipe.ImportIssueTagTooLong},
+	{ErrRecipeIngredientNameEmpty, recipe.ImportIssueIngredientNameEmpty},
+}
 
 // RecipeService はレシピの List / GetByID / Create / Update / Delete をフロントに公開する。
 // Create / Update は保存前に validateRecipeInput を走らせ、違反時は Repository
 // に到達せず型付きエラーを返す。
 type RecipeService struct {
 	repo *sqlite.RecipeRepo
+	cfg  config.Config
 }
 
 func NewRecipeService(db *sql.DB) *RecipeService {
-	return &RecipeService{repo: sqlite.NewRecipeRepo(db)}
+	return &RecipeService{
+		repo: sqlite.NewRecipeRepo(db),
+		cfg:  config.Defaults(),
+	}
 }
 
 // List は S02 一覧向けの projection。Ingredients / Steps / Notes は空値で、
@@ -77,6 +105,96 @@ func (s *RecipeService) Update(ctx context.Context, id string, input recipe.Reci
 // 削除済みのレシピに対しては何もせず nil を返す。
 func (s *RecipeService) Delete(ctx context.Context, id string) error {
 	return s.repo.Archive(ctx, id)
+}
+
+// PreviewImport はファイルを読んで取り込む前の確認に出す候補を返す。DB には何も書かない (add-recipe-bulk-import D3)。
+func (s *RecipeService) PreviewImport(ctx context.Context, files []recipe.ImportFile) ([]recipe.ImportCandidate, error) {
+	if len(files) > recipeImportMaxFiles {
+		return nil, ErrRecipeImportTooManyFiles
+	}
+
+	out := make([]recipe.ImportCandidate, 0, len(files))
+	for _, f := range files {
+		out = append(out, s.previewImportFile(f))
+	}
+
+	existing, err := s.repo.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	nameCount := make(map[string]int, len(existing)+len(out))
+	for _, r := range existing {
+		nameCount[strings.TrimSpace(r.Name)]++
+	}
+	// 問題のある候補は名前を信用できないので、重複の判定に加えない。
+	for _, c := range out {
+		if c.Issue == recipe.ImportIssueNone {
+			nameCount[c.Recipe.Name]++
+		}
+	}
+	for i := range out {
+		if out[i].Issue == recipe.ImportIssueNone && nameCount[out[i].Recipe.Name] > 1 {
+			out[i].Duplicate = true
+		}
+	}
+
+	sort.SliceStable(out, func(i, j int) bool { return out[i].FileName < out[j].FileName })
+	return out, nil
+}
+
+func (s *RecipeService) previewImportFile(f recipe.ImportFile) recipe.ImportCandidate {
+	c := recipe.ImportCandidate{FileName: f.Name}
+	if len(f.Content) > recipeImportMaxBytes {
+		c.Issue = recipe.ImportIssueTooLarge
+		return c
+	}
+	parsed, issue, arg := recipe.ParseImportFile(f.Content, s.cfg.RecipeImportDefaultServings, s.cfg.MeasuringUnits, s.cfg.UnquantifiedWords)
+	if issue != recipe.ImportIssueNone {
+		c.Issue, c.IssueArg = issue, arg
+		return c
+	}
+	normalized, err := validateRecipeInput(parsed)
+	if err != nil {
+		// 一覧でレシピ名と材料数を見せるため、読めた値は残す。
+		c.Recipe = parsed
+		c.Recipe.IngredientCount = len(parsed.Ingredients)
+		c.Issue, c.IssueArg = importIssueFromErr(err, parsed)
+		return c
+	}
+	normalized.IngredientCount = len(normalized.Ingredients)
+	c.Recipe = normalized
+	return c
+}
+
+func importIssueFromErr(err error, parsed recipe.Recipe) (recipe.ImportIssue, string) {
+	for _, m := range recipeImportIssueByErr {
+		if !errors.Is(err, m.err) {
+			continue
+		}
+		if m.issue == recipe.ImportIssueIngredientNameEmpty {
+			for i, ing := range parsed.Ingredients {
+				if strings.TrimSpace(ing.Name) == "" {
+					return m.issue, strconv.Itoa(i + 1)
+				}
+			}
+		}
+		return m.issue, ""
+	}
+	// 対応表に無いエラーは validateRecipeInput に制約を足したときの取りこぼし。形式の誤りとして見せる。
+	return recipe.ImportIssueInvalidYAML, ""
+}
+
+// Import は選ばれたレシピをまとめて登録する。フロントから来た値なので全件を検証し直し、1 件でも違反があれば何も書かない。
+func (s *RecipeService) Import(ctx context.Context, inputs []recipe.Recipe) ([]recipe.Recipe, error) {
+	normalized := make([]recipe.Recipe, 0, len(inputs))
+	for _, in := range inputs {
+		n, err := validateRecipeInput(in)
+		if err != nil {
+			return nil, err
+		}
+		normalized = append(normalized, n)
+	}
+	return s.repo.CreateMany(ctx, normalized)
 }
 
 // validateRecipeInput は入力を trim (name / ingredient.Name / tags / unit) しつつ

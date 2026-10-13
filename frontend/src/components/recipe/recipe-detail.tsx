@@ -30,7 +30,6 @@ export function RecipeDetailBody({
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const tags = recipe.tags ?? [];
-  const ingredients = recipe.ingredients ?? [];
   const archived = recipe.archivedAt !== "";
 
   const deleteMutation = useMutation({
@@ -87,35 +86,7 @@ export function RecipeDetailBody({
         )}
       </header>
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[20rem_1fr]">
-        <Section title={t("pages.recipes.detail.section.ingredients")}>
-          {ingredients.length === 0 ? (
-            <Empty />
-          ) : (
-            <ul className="flex flex-col gap-1 text-sm">
-              {ingredients.map((ing, i) => (
-                // biome-ignore lint/suspicious/noArrayIndexKey: 材料は ID を持たず同名もありうる。並びは保存順で固定。
-                <li key={i} className="flex gap-3">
-                  <span className="min-w-32">{ing.name}</span>
-                  <span className="text-neutral-700 tabular-nums">
-                    {formatQuantity(ing.amount, ing.unit)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Section>
-
-        <div className="flex max-w-3xl flex-col gap-6">
-          <Section title={t("pages.recipes.detail.section.steps")}>
-            {recipe.steps.trim() === "" ? <Empty /> : <RecipeMarkdown text={recipe.steps} />}
-          </Section>
-
-          <Section title={t("pages.recipes.detail.section.notes")}>
-            {recipe.notes.trim() === "" ? <Empty /> : <RecipeMarkdown text={recipe.notes} />}
-          </Section>
-        </div>
-      </div>
+      <RecipeContentSections recipe={recipe} />
 
       <DeleteRecipeDialog
         open={confirmOpen}
@@ -126,6 +97,43 @@ export function RecipeDetailBody({
         onCancel={() => onConfirmOpenChange(false)}
       />
     </>
+  );
+}
+
+// S03 とインポートのプレビュー (S02a) で同じ表記にするため、材料、手順、メモの欄だけを切り出す (add-recipe-bulk-import D8)。
+export function RecipeContentSections({ recipe }: { recipe: Recipe }) {
+  const { t } = useTranslation();
+  const ingredients = recipe.ingredients ?? [];
+  return (
+    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[20rem_1fr]">
+      <Section title={t("pages.recipes.detail.section.ingredients")}>
+        {ingredients.length === 0 ? (
+          <Empty />
+        ) : (
+          <ul className="flex flex-col gap-1 text-sm">
+            {ingredients.map((ing, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: 材料は ID を持たず同名もありうる。並びは保存順で固定。
+              <li key={i} className="flex gap-3">
+                <span className="min-w-32">{ing.name}</span>
+                <span className="text-neutral-700 tabular-nums">
+                  {formatQuantity(ing.amount, ing.unit)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+
+      <div className="flex max-w-3xl flex-col gap-6">
+        <Section title={t("pages.recipes.detail.section.steps")}>
+          {recipe.steps.trim() === "" ? <Empty /> : <RecipeMarkdown text={recipe.steps} />}
+        </Section>
+
+        <Section title={t("pages.recipes.detail.section.notes")}>
+          {recipe.notes.trim() === "" ? <Empty /> : <RecipeMarkdown text={recipe.notes} />}
+        </Section>
+      </div>
+    </div>
   );
 }
 
