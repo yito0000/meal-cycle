@@ -67,7 +67,8 @@ Go 側に表示文言を持たない方針 (docs/design.md §7) とぶつかる�
   — Pros: Playwright の `setInputFiles` でファイルとフォルダのどちらも通せる。Go 側はファイルシステムに触れず、純粋な関数でテストできる
   / Cons: `webkitdirectory` は標準外の属性で、WebView の実装に依存する。中身を IPC で 1 回に送るので、件数と大きさに上限が要る
 
-**採用: (b)**。WebView2 (Windows) は Chromium 系で `webkitdirectory` に対応し、WebKitGTK (開発時の WSL) も対応している。
+**採用: (b)**。配布先の WebView2 (Windows) は Chromium 系で `webkitdirectory` に対応する (Windows 実機で確認済み)。
+開発時の WSL で動く WebKitGTK では効かないが、開発環境に限った制限として受け入れる (Risks を参照)。
 上限は 100 件、1 ファイル 64 KB とし (spec の Requirement「S02 からのレシピのインポート」)、合計で 6.4 MB 程度に収める。
 手順 4000 字とメモ 2000 字は UTF-8 で 18 KB 程度なので、64 KB は正しいレシピのファイルを落とさない。
 上限はユーザーが変える値ではなく実装上の上限なので、`recipeNameMaxRunes` と同じく `internal/service/recipe.go` の定数に置く。
@@ -151,7 +152,9 @@ Go 側は日本語のメッセージを持たない (docs/design.md §7)。フ�
 
 文字列の処理の順は次のとおり。
 
-1. `golang.org/x/text/width` の `Narrow` で全角の英数字と記号を半角にし、trim する。「〜」「～」は `~` に揃える
+1. `golang.org/x/text/width` の `Fold` で全角の英数字と記号を半角に、半角カナを全角にし、NFC で濁点を合成してから trim する。
+   「〜」「～」は `~` に揃える。
+   `Narrow` は全角カタカナまで半角カナにして「カップ」が量る単位と一致しなくなるので使わない
 2. 空なら量 0
 3. 量を持たない言葉と一致すれば、量 0、単位は `unit` が空ならその言葉
 4. 先頭が量る単位 (`大さじ` など) なら切り出して単位の候補にする
@@ -213,9 +216,11 @@ S04 の新規登録は人数が空で始まるが、ファイルでは省略さ�
 
 ## Risks / Trade-offs
 
-- [Risk] WebKitGTK や WebView2 の版によって `webkitdirectory` が効かず、フォルダを選べない
+- [Risk] WebView によっては `webkitdirectory` が効かず、フォルダを選べない。
+  WSL (WebKitGTK) では実際に効かず、「フォルダを選ぶ」で通常のファイル選択ダイアログが開いてフォルダを選べないことを確認した。
+  Windows (WebView2) では選べることを実機で確認した
   → Mitigation：「ファイルを選ぶ」は標準の `multiple` だけで動き、フォルダ内のファイルを全選択すれば同じ結果になる。
-  Windows 実機の確認項目に含める
+  Linux は配布先ではなく開発環境なので、Go 側でネイティブのダイアログを開く (D2 の (a)) ほどの手間はかけない
 - [Risk] AI の YAML がコロンや `#` を含む値を引用符で囲まず、読めないファイルが出る
   → Mitigation：`docs/recipe-import.md` のプロンプトで、文字列の値を必ず引用符で囲むよう指示する。読めないファイルは `invalid_yaml` で名指しする
 - [Risk] 100 件 × 64 KB を 1 回の IPC で送ると、WebView と Go の間の受け渡しが重くなる
