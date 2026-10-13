@@ -8,9 +8,10 @@ import {
 } from "../ui/dropdown-menu";
 
 interface Props {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCloseAutoFocus: (e: Event) => void;
   batchMemberCount: number;
-  cooked: boolean;
-  onToggleCooked: () => void;
   onReplace: () => void;
   onRemove: () => void;
   onViewDetail: () => void;
@@ -19,15 +20,17 @@ interface Props {
   onMergeBatch: () => void;
 }
 
-// 1 品行の `⋯` メニュー: 作った / 作った印を外す / 入替 / 削除 / 詳細 / 作り置きを広げる / 作り置きから外す /
-// 他の作り置きにまとめる。表示条件 (spec:「作り置きの外し / まとめ」Requirement 参照):
+// 1 品の品のメニュー: 入替 / 削除 / 詳細 / 作り置きを広げる / 作り置きから外す / 他の作り置きにまとめる。
+// 開閉は品行のレシピ名のボタンが持ち、ここでは `relative` な品行に重なる透明な基準要素と中身だけを描く。
+// 表示条件 (spec:「作り置きの外し / まとめ」Requirement 参照):
 //   isInBatch = batchMemberCount > 1: 複数行の作り置きに属する
 //   - 「作り置きから外す」は isInBatch のときだけ表示 (単独作り置きに外す対象はない)
 //   - 「作り置きを広げる」はどの状態でも表示 (統合ダイアログで対象日 × 時間帯を選ぶ)
 export function CellItemMenu({
+  open,
+  onOpenChange,
+  onCloseAutoFocus,
   batchMemberCount,
-  cooked,
-  onToggleCooked,
   onReplace,
   onRemove,
   onViewDetail,
@@ -38,20 +41,13 @@ export function CellItemMenu({
   const { t } = useTranslation();
   const isInBatch = batchMemberCount > 1;
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        aria-label={t("pages.meal_plan.cell_actions.item_menu")}
-        className="px-1 text-neutral-400 hover:text-neutral-700"
-      >
-        ⋯
+    <DropdownMenu open={open} onOpenChange={onOpenChange}>
+      {/* Radix の Trigger は pointerdown で開くので、ドラッグと区別できない。pointer-events を切って
+          位置の基準にだけ使う (revise-mealplan-item-row design.md D1)。 */}
+      <DropdownMenuTrigger asChild>
+        <span aria-hidden="true" tabIndex={-1} className="pointer-events-none absolute inset-0" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={onToggleCooked}>
-          {cooked
-            ? t("pages.meal_plan.item_menu.unmark_cooked")
-            : t("pages.meal_plan.item_menu.mark_cooked")}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
+      <DropdownMenuContent side="right" align="start" onCloseAutoFocus={onCloseAutoFocus}>
         <DropdownMenuItem onClick={onReplace}>
           {t("pages.meal_plan.item_menu.replace")}
         </DropdownMenuItem>

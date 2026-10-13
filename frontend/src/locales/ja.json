@@ -51,12 +51,9 @@
       "cell_actions": {
         "add_first": "レシピを割り当てる",
         "add_more": "この時間帯に品を追加",
-        "meal_menu": "時間帯メニュー",
-        "item_menu": "品メニュー"
+        "meal_menu": "時間帯メニュー"
       },
       "item_menu": {
-        "mark_cooked": "作った",
-        "unmark_cooked": "作った印を外す",
         "replace": "入れ替え",
         "remove": "この品を削除",
         "view_detail": "この品のレシピ詳細を見る",

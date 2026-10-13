@@ -5,6 +5,7 @@ import {
   assignRecipe,
   copyLeftover,
   createRecipeWithIngredients,
+  mealPlanItemRows,
   openItemMenu,
 } from "./helpers.js";
 
@@ -29,31 +30,22 @@ async function openNextWeek(page: Page) {
   await page.getByTestId("period-next").click();
 }
 
-// 夕食のみ表示ではセルが日付順に並ぶので、同名の品行も DOM 順 = 日付順になる。
-function itemRows(page: Page, recipeName: string) {
-  return page.getByRole("listitem").filter({ has: page.getByText(recipeName, { exact: true }) });
-}
-
-async function openRowMenu(page: Page, recipeName: string, nth: number) {
-  await itemRows(page, recipeName)
-    .nth(nth)
-    .getByRole("button", { name: t.cell_actions.item_menu })
-    .click();
-  await page.getByRole("menu").waitFor();
+function cookedCheckbox(page: Page, recipeName: string, nth: number) {
+  return mealPlanItemRows(page, recipeName).nth(nth).getByRole("checkbox", { name: t.cell.cooked });
 }
 
 async function expectCooked(page: Page, recipeName: string, flags: boolean[]) {
-  const rows = itemRows(page, recipeName);
+  const rows = mealPlanItemRows(page, recipeName);
   await expect(rows).toHaveCount(flags.length);
   for (const [i, cooked] of flags.entries()) {
     await expect(rows.nth(i)).toHaveAttribute("data-cooked", String(cooked));
-    await expect(rows.nth(i).getByRole("img", { name: t.cell.cooked })).toHaveCount(cooked ? 1 : 0);
+    await expect(cookedCheckbox(page, recipeName, i)).toBeChecked({ checked: cooked });
   }
 }
 
-async function markCooked(page: Page, recipeName: string, nth = 0) {
-  await openRowMenu(page, recipeName, nth);
-  await page.getByRole("menuitem", { name: t.item_menu.mark_cooked, exact: true }).click();
+// 印は保存の完了後に反映される (楽観的更新なし) ので、check() ではなく click() で押す。
+async function toggleCooked(page: Page, recipeName: string, nth = 0) {
+  await cookedCheckbox(page, recipeName, nth).click();
 }
 
 test.describe("作った印", () => {
@@ -62,14 +54,10 @@ test.describe("作った印", () => {
     await assignRecipe(page, nextWeekDay(0), "dinner", id);
     await openNextWeek(page);
 
-    await markCooked(page, "肉じゃが");
+    await toggleCooked(page, "肉じゃが");
 
     await expectCooked(page, "肉じゃが", [true]);
-    await openItemMenu(page, "肉じゃが");
-    await expect(page.getByRole("menuitem", { name: t.item_menu.unmark_cooked })).toBeVisible();
-    await expect(
-      page.getByRole("menuitem", { name: t.item_menu.mark_cooked, exact: true }),
-    ).toHaveCount(0);
+    await expect(page.getByRole("menu")).toHaveCount(0);
   });
 
   test("作り置きの 1 行に印を付けると同じ作り置きの全行に印が付く", async ({ page }) => {
@@ -78,7 +66,7 @@ test.describe("作った印", () => {
     await copyLeftover(page, nextWeekDay(0), "dinner", 3, true);
     await openNextWeek(page);
 
-    await markCooked(page, "カレー", 0);
+    await toggleCooked(page, "カレー", 0);
 
     await expectCooked(page, "カレー", [true, true, true]);
   });
@@ -89,7 +77,7 @@ test.describe("作った印", () => {
     await assignRecipe(page, nextWeekDay(2), "dinner", id);
     await openNextWeek(page);
 
-    await markCooked(page, "カレー", 0);
+    await toggleCooked(page, "カレー", 0);
 
     await expectCooked(page, "カレー", [true, false]);
   });
@@ -99,11 +87,10 @@ test.describe("作った印", () => {
     await assignRecipe(page, nextWeekDay(0), "dinner", id);
     await copyLeftover(page, nextWeekDay(0), "dinner", 3, true);
     await openNextWeek(page);
-    await markCooked(page, "カレー", 0);
+    await toggleCooked(page, "カレー", 0);
     await expectCooked(page, "カレー", [true, true, true]);
 
-    await openRowMenu(page, "カレー", 1);
-    await page.getByRole("menuitem", { name: t.item_menu.unmark_cooked }).click();
+    await toggleCooked(page, "カレー", 1);
 
     await expectCooked(page, "カレー", [false, false, false]);
   });
@@ -112,7 +99,7 @@ test.describe("作った印", () => {
     const id = await createRecipeWithIngredients(page, "肉じゃが", []);
     await assignRecipe(page, nextWeekDay(0), "dinner", id);
     await openNextWeek(page);
-    await markCooked(page, "肉じゃが");
+    await toggleCooked(page, "肉じゃが");
     await expectCooked(page, "肉じゃが", [true]);
 
     await page.reload();
@@ -127,9 +114,10 @@ test.describe("作り置きの編集と作った印", () => {
     const id = await createRecipeWithIngredients(page, "カレー", []);
     await assignRecipe(page, nextWeekDay(0), "dinner", id);
     await openNextWeek(page);
-    await markCooked(page, "カレー");
+    await toggleCooked(page, "カレー");
+    await expectCooked(page, "カレー", [true]);
 
-    await openRowMenu(page, "カレー", 0);
+    await openItemMenu(page, "カレー");
     await page.getByRole("menuitem", { name: t.item_menu.spread }).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toContainText(t.spread.title);
@@ -154,7 +142,8 @@ test.describe("作り置きの編集と作った印", () => {
     await createRecipeWithIngredients(page, "カレー", []);
     await assignRecipe(page, nextWeekDay(0), "dinner", nikujaga);
     await openNextWeek(page);
-    await markCooked(page, "肉じゃが");
+    await toggleCooked(page, "肉じゃが");
+    await expectCooked(page, "肉じゃが", [true]);
 
     await openItemMenu(page, "肉じゃが");
     await page.getByRole("menuitem", { name: t.item_menu.replace }).click();

@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Entry } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
 import { colorForBatch } from "./batch-color";
@@ -39,9 +39,9 @@ interface Props {
 // 異エンジンでも parse エラーが起きにくい (Chromium の HTML5 D&D は text/plain を優先する)。
 const DND_MIME = "application/json";
 
-// 1 セル = 1 (date, meal)。0 品なら中央に `＋`、1..N 品ならレシピ名列 + 品ごと `⋯` +
+// 1 セル = 1 (date, meal)。0 品なら中央に `＋`、1..N 品なら品行 (「作った」チェックボックス + レシピ名) +
 // 右上 `＋` + 右下時間帯 `⋯`。品数超過は「他 N 件」で折り畳む。
-// バッチ (batch_id) が複数行に跨る品には枠色 + 🔗 アイコンを描画する (spec の視覚識別要件)。
+// バッチ (batch_id) が複数行に跨る品は枠色だけで示す (spec「作り置きの枠色による識別」)。
 // セル高 / 文字サイズ / 表示件数上限は preset (期間 × 時間帯数) で切り替わる。
 export function MealPlanCell({
   date,
@@ -62,8 +62,11 @@ export function MealPlanCell({
   const limit = preset.visibleItems;
   const heightCls = minHeightClass(preset);
   const fontCls = preset.fontSizeClass;
-  // 4 週表示のときは余白を切り詰める。それ以外は広めに取ってヒットボックスを確保する。
-  const paddingCls = preset.periodWeeks === 4 ? "p-2" : "p-3";
+  const [menuPosition, setMenuPosition] = useState<number | null>(null);
+  const menuButtonRef = useRef<HTMLButtonElement | null>(null);
+  // チェックボックスに draggable={false} を付けても、押したまま動かすと親の品行のドラッグが始まる。
+  // 押し下げた場所を覚えておき、dragstart 側で取り消す (revise-mealplan-item-row design.md D2)。
+  const pressedCheckboxRef = useRef(false);
   // ドラッグ中は全セルに枠強調を出し、drop 可能であることを示す (design.md D5)。
   const dropOutlineCls = isAnyDragging ? "outline outline-2 outline-blue-400" : "";
 
@@ -110,7 +113,7 @@ export function MealPlanCell({
     // biome-ignore lint/a11y/useSemanticElements: セルの drop 領域は <fieldset> にできない (レイアウト用の div)
     <div
       role="group"
-      className={`flex ${heightCls} flex-col gap-1 rounded-md border border-neutral-200 bg-white ${paddingCls} ${dropOutlineCls}`}
+      className={`flex ${heightCls} flex-col gap-1 rounded-md border border-neutral-200 bg-white p-1 ${dropOutlineCls}`}
       aria-label={isAnyDragging ? t("pages.meal_plan.dnd.cell_drop_label") : undefined}
       onDragOver={handleDragOver}
       onDrop={(e) => handleCellDrop(e)}
@@ -128,11 +131,8 @@ export function MealPlanCell({
       {visible.map((entry) => {
         const color = colorForBatch(entry.batchId, entry.batchMemberCount);
         // batchMemberCount > 1 の作り置き行は個別移動を禁止する (design.md D1)。移動したい場合は
-        // ⋯ → 「作り置きから外す」で単独行にしてから D&D する 2 段操作で扱う。
+        // 品のメニューの「作り置きから外す」で単独行にしてから D&D する 2 段操作で扱う。
         const isBatchMember = entry.batchMemberCount > 1;
-        const cursorCls = isBatchMember
-          ? "cursor-not-allowed"
-          : "cursor-grab active:cursor-grabbing";
         // ドラッグ中の source 行はフェードした placeholder として描画する (design.md D5)。
         // ghost 用の一時色は onDragStart で DOM に直接付けて browser にキャプチャさせ、rAF で剥がした
         // 後で setDragSource → 元の位置の source 行だけが薄い灰色に置き換わる (時間差の塗り分け):
@@ -149,18 +149,25 @@ export function MealPlanCell({
           <div
             key={entry.position}
             role="listitem"
-            className={`flex items-center justify-between gap-1 rounded-sm border px-1 py-0.5 ${fontCls} text-neutral-800 ${cursorCls} ${dragSourceCls} ${
+            className={`relative flex cursor-pointer items-start gap-1 rounded-sm border px-0.5 py-0.5 hover:bg-blue-100 ${fontCls} text-neutral-800 ${dragSourceCls} ${
               color ? `${color}` : "border-transparent"
             }`}
             data-batch-id={entry.batchId}
             data-batch-member-count={entry.batchMemberCount}
             data-cooked={entry.cooked}
             draggable={!isBatchMember}
+            onMouseDown={(e) => {
+              pressedCheckboxRef.current = e.target instanceof HTMLInputElement;
+            }}
             aria-label={isBatchMember ? undefined : t("pages.meal_plan.dnd.item_grabbable_label")}
             onDragStart={
               isBatchMember
                 ? undefined
                 : (e) => {
+                    if (pressedCheckboxRef.current) {
+                      e.preventDefault();
+                      return;
+                    }
                     const source: DragSource = { date, meal, position: entry.position };
                     e.dataTransfer.effectAllowed = "move";
                     e.dataTransfer.setData(DND_MIME, JSON.stringify(source));
@@ -169,7 +176,8 @@ export function MealPlanCell({
                     // source 側のフェード placeholder に置き換える。
                     // 結果: ghost = 薄い緑 (掴んで動く方) / source = 灰色フェード (元の位置に残る方)。
                     const target = e.currentTarget;
-                    const ghostCls = ["bg-emerald-100", "ring-2", "ring-emerald-400"];
+                    // 掴んだ時点の品行は hover 中なので、hover の背景色に負けないよう important にする。
+                    const ghostCls = ["bg-emerald-100!", "ring-2", "ring-emerald-400"];
                     target.classList.add(...ghostCls);
                     requestAnimationFrame(() => {
                       target.classList.remove(...ghostCls);
@@ -187,27 +195,34 @@ export function MealPlanCell({
                   }
             }
           >
-            <span className="flex min-w-0 items-center gap-1">
-              {color && (
-                <span aria-hidden="true" className="text-xs">
-                  🔗
-                </span>
-              )}
-              {entry.cooked && (
-                <span
-                  role="img"
-                  aria-label={t("pages.meal_plan.cell.cooked")}
-                  className="shrink-0 text-emerald-600"
-                >
-                  <Check aria-hidden="true" className="size-3.5" />
-                </span>
-              )}
-              <span className="truncate">{entry.recipeName}</span>
-            </span>
+            <input
+              type="checkbox"
+              className="mt-[0.2em] size-[0.9em] shrink-0 cursor-pointer accent-emerald-600"
+              aria-label={t("pages.meal_plan.cell.cooked")}
+              checked={entry.cooked}
+              onChange={() => onEntryAction("toggle-cooked", entry)}
+            />
+            {/* click はドラッグが始まると発火しないので、クリックとドラッグをここで区別できる (design.md D1)。 */}
+            <button
+              type="button"
+              className="min-w-0 flex-1 cursor-pointer text-left"
+              aria-haspopup="menu"
+              aria-expanded={menuPosition === entry.position}
+              onClick={(e) => {
+                menuButtonRef.current = e.currentTarget;
+                setMenuPosition(entry.position);
+              }}
+            >
+              <span className="line-clamp-2 [overflow-wrap:anywhere]">{entry.recipeName}</span>
+            </button>
             <CellItemMenu
+              open={menuPosition === entry.position}
+              onOpenChange={(next) => setMenuPosition(next ? entry.position : null)}
+              onCloseAutoFocus={(e) => {
+                e.preventDefault();
+                menuButtonRef.current?.focus();
+              }}
               batchMemberCount={entry.batchMemberCount}
-              cooked={entry.cooked}
-              onToggleCooked={() => onEntryAction("toggle-cooked", entry)}
               onReplace={() => onEntryAction("replace", entry)}
               onRemove={() => onEntryAction("remove", entry)}
               onViewDetail={() => onEntryAction("view-detail", entry)}

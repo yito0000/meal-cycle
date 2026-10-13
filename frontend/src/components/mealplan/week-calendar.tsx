@@ -481,7 +481,7 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
               key={blockKey}
               className="grid gap-1 text-sm"
               style={{
-                gridTemplateColumns: `6rem repeat(${columnsPerBlock}, minmax(0, 1fr))`,
+                gridTemplateColumns: `2.5rem repeat(${columnsPerBlock}, minmax(0, 1fr))`,
               }}
             >
               <div />

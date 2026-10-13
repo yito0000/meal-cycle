@@ -222,16 +222,22 @@ export async function openRecipeDetail(page: Page, name: string) {
   await detailBreadcrumb(page).getByText(name, { exact: true }).waitFor();
 }
 
-// S01 の品行の `⋯` を押してメニューを開く。DropdownMenu の中身は body 直下の Portal に出るが、
-// page 起点で getByRole("menuitem") を探せば DOM の親子関係に縛られずに届く (add-recipe-details D9)。
-export async function openItemMenu(page: Page, recipeName: string) {
-  const trigger = page.getByRole("button", { name: ja.pages.meal_plan.cell_actions.item_menu });
-  const row = page
-    .locator("div")
-    .filter({ has: page.getByText(recipeName, { exact: true }) })
-    .filter({ has: trigger })
-    .last();
-  await row.getByRole("button", { name: ja.pages.meal_plan.cell_actions.item_menu }).click();
+// S01 の品行。夕食のみ表示ではセルが日付順に並ぶので、同名の品行も DOM 順 = 日付順になる。
+// 品のメニューが開いている間は Radix が品行に aria-hidden を付けるので、role ではなく属性で探す。
+export function mealPlanItemRows(page: Page, recipeName: string) {
+  return page
+    .locator('[role="listitem"]')
+    .filter({ has: page.getByText(recipeName, { exact: true }) });
+}
+
+// S01 の品行のレシピ名を押して品のメニューを開く。同名の品が複数あるときは nth で何番目の行かを選ぶ。
+// DropdownMenu の中身は body 直下の Portal に出るが、page 起点で getByRole("menuitem") を探せば
+// DOM の親子関係に縛られずに届く (add-recipe-details D9)。
+export async function openItemMenu(page: Page, recipeName: string, nth = 0) {
+  await mealPlanItemRows(page, recipeName)
+    .nth(nth)
+    .getByRole("button", { name: recipeName, exact: true })
+    .click();
   await page.getByRole("menu").waitFor();
 }
 

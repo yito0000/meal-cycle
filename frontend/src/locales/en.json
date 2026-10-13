@@ -51,12 +51,9 @@
       "cell_actions": {
         "add_first": "Assign a recipe",
         "add_more": "Add another dish",
-        "meal_menu": "Meal menu",
-        "item_menu": "Dish menu"
+        "meal_menu": "Meal menu"
       },
       "item_menu": {
-        "mark_cooked": "Mark as cooked",
-        "unmark_cooked": "Unmark as cooked",
         "replace": "Replace",
         "remove": "Remove this dish",
         "view_detail": "View recipe detail",
