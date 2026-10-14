@@ -7,10 +7,8 @@ import {
   Settings,
   ShoppingCart,
 } from "lucide-react";
-import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { HealthService } from "../../../bindings/github.com/yito0000/meal-cycle/internal/service";
-import type { Health } from "../../../bindings/github.com/yito0000/meal-cycle/internal/service/models";
+import { useHealth } from "./use-health";
 
 type NavItem = {
   to: "/" | "/recipes" | "/fridge" | "/shopping";
@@ -28,11 +26,7 @@ const items: NavItem[] = [
 
 export function Sidebar() {
   const { t } = useTranslation();
-  const [health, setHealth] = useState<Health | null>(null);
-
-  useEffect(() => {
-    HealthService.Ping().then(setHealth).catch(console.error);
-  }, []);
+  const { data: health } = useHealth();
 
   return (
     <nav
@@ -59,7 +53,7 @@ export function Sidebar() {
 
       <div className="mt-auto flex flex-col gap-2 border-t border-neutral-100 pt-3">
         <div className="px-3 text-xs" title={health?.dbError ?? ""}>
-          {health === null ? (
+          {health == null ? (
             <span className="text-neutral-400">{t("health.loading")}</span>
           ) : health.dbConnected ? (
             <span className="text-green-700">● {t("health.db_ok_short")}</span>

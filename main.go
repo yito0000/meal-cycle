@@ -1,7 +1,9 @@
 package main
 
 import (
+	"database/sql"
 	"embed"
+	"errors"
 	"log"
 	"time"
 
@@ -16,32 +18,29 @@ import (
 var assets embed.FS
 
 func main() {
-	dbPath, err := sqlite.DefaultPath()
-	if err != nil {
-		log.Fatalf("resolve db path: %v", err)
+	db, startup := openDatabase()
+	if db != nil {
+		defer db.Close()
 	}
-	log.Printf("meal-cycle: database at %s", dbPath)
 
-	db, err := sqlite.Open(dbPath)
-	if err != nil {
-		log.Fatalf("open db: %v", err)
+	// 配布用ビルドにはコンソールが無いので、起動に失敗しても終了せずエラー画面を出す (design.md D2)。
+	// DB が無いとほかのサービスは作れないため HealthService だけを登録する。
+	services := []application.Service{
+		application.NewService(service.NewHealthService(db, startup)),
 	}
-	defer db.Close()
-
-	if err := sqlite.Migrate(db); err != nil {
-		log.Fatalf("migrate db: %v", err)
+	if startup.Stage == "" {
+		services = append(services,
+			application.NewService(service.NewMealPlanService(sqlite.NewMealPlanRepo(db))),
+			application.NewService(service.NewRecipeService(db)),
+			application.NewService(service.NewFridgeService(db)),
+			application.NewService(service.NewShoppingService(db)),
+		)
 	}
 
 	app := application.New(application.Options{
 		Name:        "meal-cycle",
 		Description: "献立・冷蔵庫・レシピを一元管理するデスクトップアプリ",
-		Services: []application.Service{
-			application.NewService(service.NewHealthService(db)),
-			application.NewService(service.NewMealPlanService(sqlite.NewMealPlanRepo(db))),
-			application.NewService(service.NewRecipeService(db)),
-			application.NewService(service.NewFridgeService(db)),
-			application.NewService(service.NewShoppingService(db)),
-		},
+		Services:    services,
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
 		},
@@ -62,8 +61,8 @@ func main() {
 	// screen 検出が使えないケース (ヘッドレス CI 等) は 1440 × 900 に fallback する
 	// (1920 × 1080 に余裕、1366 × 768 でも操作可)。
 	//
-	// Zoom は 1.5 のまま。高 DPI モニタで UI を読みやすくするため、CSS の font-size は
-	// 意図的に触らず、dev / preview / packaged で見た目を揃える。
+	// Zoom は 1.5 のまま。高 DPI モニタで UI を読みやすくするため WebView zoom で拡大し、
+	// dev / preview / packaged で見た目を揃える。CSS 側の基準は index.css の html { font-size: 18px }。
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
 		// GetPrimary() を短くポーリングする。Wails v3 beta.12 は application-event を
 		// 並列 goroutine で dispatch するため、Linux では本ハンドラが
@@ -118,4 +117,28 @@ func main() {
 	if err := app.Run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func openDatabase() (*sql.DB, service.StartupState) {
+	dbPath, err := sqlite.DefaultPath()
+	if err != nil {
+		log.Printf("meal-cycle: %v", err)
+		return nil, service.StartupState{Stage: string(sqlite.StageOpen), Detail: err.Error()}
+	}
+	log.Printf("meal-cycle: database at %s", dbPath)
+
+	state := service.StartupState{DBPath: dbPath, BackupDir: sqlite.BackupDir(dbPath)}
+	db, err := sqlite.OpenAndMigrate(dbPath)
+	if err != nil {
+		log.Printf("meal-cycle: startup failed: %v", err)
+		state.Stage = string(sqlite.StageOpen)
+		var se *sqlite.StartupError
+		if errors.As(err, &se) {
+			state.Stage = string(se.Stage)
+			err = se.Err
+		}
+		state.Detail = err.Error()
+		return nil, state
+	}
+	return db, state
 }

@@ -201,6 +201,22 @@ PRIMARY KEY (batchId, recipeId)
 - macOS: `~/Library/Application Support/meal-cycle/`
 - Linux: `~/.local/share/meal-cycle/`
 
+### 更新前の控え
+
+スキーマを更新する起動では、更新を当てる前に DB の控えを 1 つ作る (`add-shell-startup-safety`)。
+
+- 場所: DB と同じフォルダの `backups/` (例: Windows は `%APPDATA%\meal-cycle\backups\`)
+- ファイル名: `meal-cycle-v<更新前の版>-<YYYYMMDD-HHMMSS>.db`
+- 作り方: `VACUUM INTO` で WAL の中身も含めた 1 ファイルに書き出す。`.partial` で書いてから改名する
+- 作らない起動: DB がまだ無い初回と、更新が無い起動
+- 残す個数: 新しいものから 5 個 (`internal/storage/sqlite/backup.go` の定数。設定で変える値ではない)
+- 控えを作れなかったときは更新を当てず、起動時のエラー画面を出す
+
+復元はファイルのコピーで行う。
+アプリを終了し、`backups/` の控えを DB の場所へ `meal-cycle.db` という名前でコピーする。
+同じフォルダに `meal-cycle.db-wal` / `meal-cycle.db-shm` が残っていれば、先に消す。
+画面からの復元と任意のタイミングでの書き出しは S09 (設定) で扱う。
+
 ---
 
 ## 6. アーキテクチャ

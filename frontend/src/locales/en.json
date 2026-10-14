@@ -421,5 +421,17 @@
     "loading": "Checking...",
     "db_ok_short": "DB connected",
     "db_error_short": "DB error"
+  },
+  "startup_error": {
+    "title": "meal-cycle could not start",
+    "stage": {
+      "open": "Could not open the database",
+      "backup": "Could not back up the database",
+      "migrate": "Failed to update the database"
+    },
+    "detail": "Details",
+    "db_path": "Database location",
+    "backup_dir": "Backup location",
+    "hint": "To restore the state before the update, quit the app and copy a .db file from the backup location to the database location under the same name."
   }
 }

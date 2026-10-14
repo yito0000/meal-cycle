@@ -75,7 +75,7 @@ func main() {
 // 片方だけ増えると E2E が本番と食い違うので、dispatch_test.go で件数を突き合わせる。
 func newRegistry(db *sql.DB, recipeSvc *service.RecipeService) serviceRegistry {
 	return serviceRegistry{
-		"HealthService":   service.NewHealthService(db),
+		"HealthService":   service.NewHealthService(db, service.StartupState{}),
 		"MealPlanService": service.NewMealPlanService(sqlite.NewMealPlanRepo(db)),
 		"RecipeService":   recipeSvc,
 		"FridgeService":   service.NewFridgeService(db),

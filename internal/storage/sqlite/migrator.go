@@ -15,9 +15,8 @@ var migrationsFS embed.FS
 // バイナリに埋め込み (上の go:embed)、適用バージョンは goose が goose_db_version
 // テーブルで管理する。
 func Migrate(db *sql.DB) error {
-	goose.SetBaseFS(migrationsFS)
-	if err := goose.SetDialect("sqlite3"); err != nil {
-		return fmt.Errorf("set goose dialect: %w", err)
+	if err := setupGoose(); err != nil {
+		return err
 	}
 	if err := goose.Up(db, "migrations"); err != nil {
 		return fmt.Errorf("apply migrations: %w", err)

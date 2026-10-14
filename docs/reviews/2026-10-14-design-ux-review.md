@@ -87,7 +87,7 @@ MVP の 4 機能（レシピ、献立、冷蔵庫、買い物リスト）が一�
 
 ### R24. OS がダークモードだと文字が読めなくなるおそれがある
 
-- [ ] 対応済み
+- [x] 対応済み（proposal: add-shell-startup-safety）
 
 `index.css` は `prefers-color-scheme: dark` のとき `body` の背景を黒、文字を白に変える。
 一方、画面の部品はすべて白や薄いグレーの背景を Tailwind のクラスで固定している。
@@ -121,7 +121,7 @@ UUID の `id` 列を足し、`position` は並べ替え用のただの列にす�
 
 ### R26. 起動時の失敗が利用者に見えない
 
-- [ ] 対応済み
+- [x] 対応済み（proposal: add-shell-startup-safety）
 
 DB を開けない、マイグレーションが失敗する、といった場合、`main.go` は `log.Fatalf` で終了する。
 配布用ビルド（`-H windowsgui`）にはコンソールが無いので、利用者から見ると「ダブルクリックしても何も起きない」になる。
