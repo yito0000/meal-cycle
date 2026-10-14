@@ -2,36 +2,45 @@
 
 1〜4 週間分の献立を計画し、レシピと冷蔵庫の在庫を一元管理するデスクトップアプリ。
 
-すべてのデータはアプリを動かす PC 上に保存され、外部サーバーやクラウドとは通信しません。当面は開発者本人の個人利用を想定しています。
+すべてのデータはアプリを動かす PC 上の SQLite に保存され、外部サーバーやクラウドとは通信しません。
+開発者本人の個人利用のために作ったもので、UI は日本語のみです。
+配布用のバイナリは用意していないので、使う場合はソースからビルドしてください。
 
-## 主な機能（想定）
+## 主な機能
 
-- **レシピ管理**: 自分が作れるレシピの登録・編集・検索
-- **献立カレンダー**: 1〜4 週間先までの献立を日単位で計画
-- **冷蔵庫在庫管理**: 食材の在庫・賞味期限を記録
-- **買い物リスト**: 献立に必要な食材のうち在庫に無いものを自動集計
+- **献立カレンダー**：1〜4 週間分の献立を日と時間帯ごとに計画する。1 食に主菜、副菜、汁物など複数の品を並べられる
+- **レシピ管理**：レシピを登録、編集、検索する。手順は Markdown で書ける
+- **レシピのインポート**：決まった形式の Markdown ファイルからレシピをまとめて登録する。形式は [docs/recipe-import.md](docs/recipe-import.md) を参照
+- **冷蔵庫在庫**：食材の在庫量と賞味期限を記録し、期限が近いものを目立たせる
+- **買い物リスト**：指定した期間の献立で使う材料を集計し、在庫の有無と並べて表示する
 
-- **プロダクト設計**（ユーザーシナリオ、画面、Gherkin）: [docs/product.md](docs/product.md)
-- **技術設計**（アーキテクチャ、ストレージ、スタック、OpenSpec 運用）: [docs/design.md](docs/design.md)
-- **ワイヤーフレーム**（drawio ファイル群）: [docs/wireframes/](docs/wireframes/)
+## ドキュメント
+
+- **プロダクト設計**（利用シナリオ、画面、遷移）：[docs/product.md](docs/product.md)
+- **技術設計**（アーキテクチャ、ストレージ、スタック、OpenSpec 運用）：[docs/design.md](docs/design.md)
+- **ワイヤーフレーム**（drawio ファイル群）：[docs/wireframes/](docs/wireframes/)
+- **振る舞いの仕様**（capability ごとの Requirement と Scenario）：[openspec/specs/](openspec/specs/)
+- **開発規約**（テスト方針、コメント方針、コミット規約など）：[CLAUDE.md](CLAUDE.md)
 
 ## 技術スタック
 
-- **フレームワーク**: [Wails v3](https://v3.wails.io/)（Go + Web フロントエンドでデスクトップアプリを作る）
-- **バックエンド**: Go
-- **フロントエンド**: TypeScript + Vite
-- **タスクランナー**: [Task](https://taskfile.dev/)
+- **フレームワーク**：[Wails v3](https://v3.wails.io/)（Go と Web フロントエンドで単一バイナリのデスクトップアプリを作る）
+- **バックエンド**：Go、SQLite（[modernc.org/sqlite](https://gitlab.com/cznic/sqlite)、Cgo 不要）、[goose](https://github.com/pressly/goose)（マイグレーション）
+- **フロントエンド**：React、TypeScript、Vite、TanStack Router / Query、Tailwind CSS v4、shadcn/ui、i18next
+- **テスト**：Go 標準 `testing`、Playwright（E2E）
+- **lint / format**：golangci-lint、Biome
+- **タスクランナー**：[Task](https://taskfile.dev/)
 
-## 開発環境セットアップ
+## セットアップ
 
-前提として以下がインストールされていること：
+次のツールが必要です。
 
-- Go 1.25 以上
+- Go 1.27 以上
 - Node.js（npm 同梱）
 - [Wails CLI v3](https://v3.wails.io/getting-started/installation/)
 - [Task](https://taskfile.dev/installation/)
 
-初回のみ依存関係を取得：
+初回のみ、依存関係を取得します。
 
 ```bash
 go mod download
@@ -43,69 +52,105 @@ cd frontend && npm install
 
 ## よく使うコマンド
 
-開発モード（ホットリロード）で起動：
+開発モード（ホットリロード）で起動します。
 
 ```bash
 task dev
 ```
 
-本番ビルド：
+本番ビルドと配布用パッケージの作成は、それぞれ次のとおりです。
 
 ```bash
 task build
 ```
 
-配布用パッケージ作成：
-
 ```bash
 task package
 ```
 
-その他のタスク一覧：
+動作確認用のサンプルレシピを DB に投入できます（同名のレシピがあればスキップします）。
 
 ```bash
-task --list
+task seed
 ```
 
-## 動作確認の 2 階建て構成
-
-開発は WSL2 (AlmaLinux 10) を想定していますが、WSLg + WebKit2GTK の IME 連携が不安定なため、`task dev` の webview では日本語入力ができません。動作確認を次のように分けています。
-
-- **開発時**: WSL 上で `task dev`。ホットリロード。日本語入力を伴わない観点 (レイアウト、遷移、バリデーション発火など) の確認。
-- **日本語入力を含む確認**: Windows 向けにクロスビルドして Windows ホストから `.exe` を起動。IME・Markdown・日本語保存の確認。
-
-Windows 向けクロスビルド (WSL 側で実行):
+テストと lint は次のコマンドで走ります。
+Go のテストを `./...` で走らせると、`build/ios` に `main` が無いため失敗します。
 
 ```bash
-cd frontend && npm run build && cd ..
-wails3 generate bindings
-GOOS=windows GOARCH=amd64 go build -tags production -trimpath -ldflags="-w -s" -o meal-cycle.exe ./
-cp meal-cycle.exe /mnt/c/Users/<Windows のユーザー名>/Desktop/
+go test ./internal/... ./cmd/...
 ```
 
-生成された `meal-cycle.exe` を Windows のデスクトップから起動します。DB は WSL 側 (`~/.local/share/meal-cycle/`) と Windows 側 (`%APPDATA%\meal-cycle\`) で別ファイルになる点に注意してください。詳細は [CLAUDE.md § 動作確認の 2 階建て構成](CLAUDE.md#動作確認の-2-階建て構成) を参照。
+```bash
+task test:e2e
+```
+
+```bash
+task lint
+```
+
+その他のタスクは `task --list` で一覧できます。
+
+## データの保存先
+
+DB は OS 標準のデータディレクトリに作られます。
+
+- **Windows**：`%APPDATA%\meal-cycle\meal-cycle.db`
+- **macOS**：`~/Library/Application Support/meal-cycle/meal-cycle.db`
+- **Linux**：`~/.local/share/meal-cycle/meal-cycle.db`
+
+バックアップや移行は、このファイルをコピーすれば済みます。
+
+## WSL2 で開発する場合の動作確認
+
+開発は WSL2 (AlmaLinux 10) で行っています。
+ただし WSLg と WebKit2GTK の IME 連携が不安定で、`task dev` の webview には日本語を入力できません。
+そのため、動作確認を次のように分けています。
+
+- **開発時**：WSL 上で `task dev` を使い、レイアウト、遷移、バリデーションなど日本語入力を伴わない観点を確かめる
+- **日本語入力を含む確認**：Windows 向けにクロスビルドした `.exe` を Windows 側で起動し、IME、Markdown、日本語の保存を確かめる
+
+Windows 向けのクロスビルドは WSL 側で実行します。
+`WIN_DEST` を渡すと、ビルド後に指定先へコピーします。
+
+```bash
+task build:win WIN_DEST=/mnt/c/Users/<Windows のユーザー名>/Desktop/
+```
+
+WSL 側と Windows 側では DB が別ファイルになるので、片方で登録したデータはもう片方には出てきません。
+詳細は [CLAUDE.md の「動作確認の 2 階建て構成」](CLAUDE.md#動作確認の-2-階建て構成) を参照してください。
 
 ## ディレクトリ構成
 
 ```
 .
 ├── main.go                          # エントリポイント
+├── cmd/
+│   ├── e2e-server/                  # E2E 用に Go サービスを HTTP で公開するサーバ
+│   └── seed/                        # サンプルレシピ投入ツール
 ├── internal/
 │   ├── service/                     # Wails サービス (package service, 1 capability = 1 ファイル)
-│   ├── domain/<capability>/         # ドメイン層 (recipe, mealplan, ...)
+│   ├── domain/<capability>/         # ドメイン層 (recipe, mealplan, fridge, ...)
 │   ├── storage/sqlite/              # SQLite Repository + migrations
+│   ├── sampledata/                  # サンプルレシピ
 │   └── config/                      # 可変値の集約 (defaults.go)
 ├── frontend/                        # React + Vite フロントエンド (TypeScript)
+│   └── e2e/                         # Playwright E2E
 ├── build/                           # 各 OS 向けビルド設定
-├── docs/                            # 設計ドキュメント
-│   ├── product.md
-│   ├── design.md
-│   └── wireframes/                  # 各画面の .drawio.svg
-├── openspec/                        # OpenSpec の change proposal / archive
-├── CLAUDE.md                        # プロジェクト規約 (Claude 向け・実装ワークフロー)
+├── docs/                            # 設計ドキュメントとワイヤーフレーム
+├── openspec/                        # OpenSpec の仕様、change proposal、archive
+├── CLAUDE.md                        # プロジェクト規約 (Claude Code 向け、実装ワークフロー)
 └── README.md
 ```
 
+## 開発の進め方
+
+機能の追加は [OpenSpec](https://github.com/Fission-AI/OpenSpec) の change proposal を経由し、[Claude Code](https://claude.com/claude-code) の支援を受けて実装しています。
+AI の支援を受けたコミットには `Co-Authored-By` trailer を付けています。
+
+個人で使うためのプロジェクトなので、Issue や Pull Request に対応できるとは限りません。
+fork して自由に改変してください。
+
 ## ライセンス
 
-未定（個人利用のため当面は非公開）。
+[MIT License](LICENSE)
