@@ -112,7 +112,7 @@
         "confirm": "反映",
         "cancel": "キャンセル",
         "show_more": "さらに {{count}} 日表示",
-        "partial_failure": "{{count}} 件の反映に失敗しました"
+        "same_batch_cell_label": "すでに同じ作り置きが入っています"
       },
       "dnd": {
         "item_grabbable_label": "ドラッグして別セルへ移動",
@@ -130,6 +130,7 @@
         "batch_target_not_found": "まとめ先の作り置きが見つかりません",
         "batch_merge_denied": "その作り置きにはまとめられません",
         "invalid_period_weeks": "選択できない期間長です",
+        "invalid_spread_target": "広げる先に選べないセルが含まれています",
         "unknown": "処理に失敗しました"
       },
       "shopping_cta": "この期間の買い物リストを見る"

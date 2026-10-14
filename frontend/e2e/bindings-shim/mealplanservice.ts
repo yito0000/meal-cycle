@@ -63,23 +63,23 @@ export function ListMergeCandidates(date: string, meal: string, recipeID: string
   );
 }
 
-export function CopyToOtherMeal(
-  sourceDate: string,
-  sourceMeal: string,
-  sourcePosition: number,
-  targetDate: string,
-  targetMeal: string,
+export function SpreadEntry(
+  date: string,
+  meal: string,
+  position: number,
+  targets: mealplan$0.SpreadTarget[] | null,
   mode: string,
+  shareBatch: boolean,
 ) {
   return call<void>(
     "MealPlanService",
-    "CopyToOtherMeal",
-    sourceDate,
-    sourceMeal,
-    sourcePosition,
-    targetDate,
-    targetMeal,
+    "SpreadEntry",
+    date,
+    meal,
+    position,
+    targets,
     mode,
+    shareBatch,
   );
 }
 

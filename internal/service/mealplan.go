@@ -22,8 +22,8 @@ type mealPlanRepo interface {
 	SplitBatch(ctx context.Context, date, meal string, position int) (string, error)
 	MergeBatch(ctx context.Context, date, meal string, position int, targetBatchID string) error
 	ListMergeCandidates(ctx context.Context, date, meal, recipeID string) ([]mealplan.BatchSummary, error)
-	CopyToOtherMeal(ctx context.Context, sourceDate, sourceMeal string, sourcePosition int,
-		targetDate, targetMeal string, mode mealplan.CopyMode) error
+	Spread(ctx context.Context, date, meal string, position int,
+		targets []mealplan.SpreadTarget, mode mealplan.CopyMode, shareBatch mealplan.ShareBatch) error
 	MoveEntry(ctx context.Context, sourceDate, sourceMeal string, sourcePosition int,
 		targetDate, targetMeal string) error
 	SetCooked(ctx context.Context, date, meal string, position int, cooked bool) error
@@ -227,29 +227,27 @@ func (s *MealPlanService) ListMergeCandidates(
 	return s.repo.ListMergeCandidates(ctx, date, meal, recipeID)
 }
 
-// CopyToOtherMeal は起点行 (sourceDate, sourceMeal, sourcePosition) の作り置きを、別時間帯 (targetMeal)
-// の targetDate に持ち越す (同一 batch_id + 同一 recipe の新行を挿入する)。
-// mode は CopyLeftover と同じ意味で、既存衝突の解決方針を選ぶ ("append" / "overwrite")。
-// 同一 meal / 日付レンジ外 / 未知の mode はすべて型付きエラーで弾き、DB に到達しない。
-func (s *MealPlanService) CopyToOtherMeal(
-	ctx context.Context,
-	sourceDate, sourceMeal string, sourcePosition int,
-	targetDate, targetMeal, mode string,
+// SpreadEntry は起点行 (date, meal, position) の品を、targets で選んだセルだけに 1 回の操作で入れる。
+// 1 セルでも反映できなければどのセルにも入れない (revise-mealplan-spread-api design.md D1)。
+// shareBatch=true は起点と同じ作り置き、false は各セルを独立した作り置きにする。
+func (s *MealPlanService) SpreadEntry(
+	ctx context.Context, date, meal string, position int,
+	targets []mealplan.SpreadTarget, mode string, shareBatch bool,
 ) error {
-	if err := s.validateMealAddress(sourceDate, sourceMeal); err != nil {
+	if err := s.validateMealAddress(date, meal); err != nil {
 		return err
 	}
-	if err := s.validateMealAddress(targetDate, targetMeal); err != nil {
-		return err
-	}
-	if err := mealplan.ValidatePosition(sourcePosition); err != nil {
+	if err := mealplan.ValidatePosition(position); err != nil {
 		return err
 	}
 	cm := mealplan.CopyMode(mode)
 	if cm != mealplan.CopyModeAppend && cm != mealplan.CopyModeOverwrite {
 		return mealplan.ErrInvalidCopyMode
 	}
-	return s.repo.CopyToOtherMeal(ctx, sourceDate, sourceMeal, sourcePosition, targetDate, targetMeal, cm)
+	if err := mealplan.ValidateSpreadTargets(date, mealplan.Meal(meal), targets, s.maxSpreadOffsetDays()); err != nil {
+		return err
+	}
+	return s.repo.Spread(ctx, date, meal, position, targets, cm, mealplan.ShareBatch(shareBatch))
 }
 
 // MoveEntry は 1 行を別セル (targetDate, targetMeal) の末尾に移す (D&D による移動)。
@@ -290,4 +288,16 @@ func (s *MealPlanService) isAllowedCopyDays(days int) bool {
 		}
 	}
 	return false
+}
+
+// maxSpreadOffsetDays は「作り置きを広げる」の対象日の上限 (起点日から何日後まで)。
+// 格子の行数を「連続 N 日コピー」の最大日数にそろえる (起点日を含むので -1)。
+func (s *MealPlanService) maxSpreadOffsetDays() int {
+	max := 0
+	for _, d := range s.cfg.LeftoverCopyPresets {
+		if d > max {
+			max = d
+		}
+	}
+	return max - 1
 }

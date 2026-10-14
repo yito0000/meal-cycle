@@ -8,7 +8,7 @@ import type {
 } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
 import { Meal } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
 import { MealPlanService } from "../../../bindings/github.com/yito0000/meal-cycle/internal/service";
-import { planSpread, type SpreadSelection } from "../../lib/spread-batch-selection";
+import type { SpreadSelection } from "../../lib/spread-batch-selection";
 import { BatchMergeDialog } from "./batch-merge-dialog";
 import { CopyConflictDialog, type CopyConflictMode } from "./copy-conflict-dialog";
 import { CopyModeDialog } from "./copy-mode-dialog";
@@ -61,13 +61,13 @@ type SpreadState =
       sourceMeal: string;
       sourcePosition: number;
       sourceRecipeName: string;
+      sourceRecipeId: string;
+      sourceBatchId: string;
     };
 
 // 統合ダイアログの対象日は起点日 + 未来 (max(LeftoverCopyPresets) - 1) 日 = 4 行 (実装時点)。
-// 上限が max(presets)-1 なのは、CopyLeftover の days が LeftoverCopyPresets の要素のみ受け付ける
-// ため (最大オフセット = max(presets) - 1 = 3)。過去方向は「作り置きは翌日以降に伸ばす」意図に
-// 反するため対象外。expandStep=0 は「展開ボタンを出さない」意味 (backend 側 presets を拡張する
-// 別 proposal で対応する予定)。
+// SpreadEntry が同じ上限で検証するので、ここを広げると Go 側で拒否される。
+// expandStep=0 は「展開ボタンを出さない」意味 (範囲の拡張は別 proposal で扱う)。
 const SPREAD_INITIAL_FUTURE_DAYS = Math.max(...MEALPLAN_DEFAULTS.leftoverCopyPresets) - 1;
 const SPREAD_EXPAND_STEP = 0;
 const SPREAD_PRESET_DAYS = Math.min(...MEALPLAN_DEFAULTS.leftoverCopyPresets);
@@ -83,25 +83,6 @@ function mealLabelKey(meal: string): string {
   }
 }
 
-// 「連続 N 日」の N (起点日を含む合計日数) を、CopyLeftover の呼び出し形式に合わせて算出する。
-// spread 選択の同 meal 対象日群は起点日 +1..+K の連続 K 日ではなく、任意のとびとびの可能性がある。
-// CopyLeftover は「起点日を含む合計 N 日」の連続日を仮定するので、選択日群の最大オフセット + 1 を N に採る。
-// 選択されなかった中間日は今回追加されないため、UI 側でとびとび選択されても「起点 +max オフセットまで
-// 連続に追加された」ことになる (中間空セルは自動的に埋まる)。ここは統合ダイアログの D1 リスクを踏まえた
-// 意図的挙動: 「連続 N 日」相当のセマンティクスに揃える (design.md D2)。
-function computeCopyDays(sourceDate: string, sameMealDates: string[]): number {
-  let maxOffset = 0;
-  for (const d of sameMealDates) {
-    const [sy, sm, sd] = sourceDate.split("-").map(Number);
-    const [dy, dm, dd] = d.split("-").map(Number);
-    const gap = Math.round(
-      (new Date(dy, dm - 1, dd).getTime() - new Date(sy, sm - 1, sd).getTime()) / 86_400_000,
-    );
-    if (gap > maxOffset) maxOffset = gap;
-  }
-  return maxOffset + 1;
-}
-
 export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }: Props) {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
@@ -109,10 +90,7 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
   const [pendingCopy, setPendingCopy] = useState<PendingCopy | null>(null);
   const [mergeDialog, setMergeDialog] = useState<MergeDialogState>({ kind: "closed" });
   const [spreadState, setSpreadState] = useState<SpreadState>({ kind: "closed" });
-  const [errorState, setErrorState] = useState<{
-    key: string;
-    params?: Record<string, unknown>;
-  } | null>(null);
+  const [errorState, setErrorState] = useState<{ key: string } | null>(null);
   const [dragSource, setDragSource] = useState<DragSource | null>(null);
   const navigate = useNavigate();
 
@@ -164,6 +142,19 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
     }) =>
       withHandlers(
         MealPlanService.CopyLeftover(v.date, v.meal, v.days, v.position, v.mode, v.shareBatch),
+      ),
+  });
+  const spreadMut = useMutation({
+    mutationFn: (v: { date: string; meal: string; position: number; selection: SpreadSelection }) =>
+      withHandlers(
+        MealPlanService.SpreadEntry(
+          v.date,
+          v.meal,
+          v.position,
+          v.selection.targets.map((c) => ({ date: c.date, meal: c.meal as Meal })),
+          v.selection.conflictMode,
+          v.selection.shareBatch,
+        ),
       ),
   });
   const cookedMut = useMutation({
@@ -276,73 +267,15 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
     }
   };
 
-  // 統合ダイアログの OK 押下: 選択セル群を「同 meal (CopyLeftover)」と「別 meal (CopyToOtherMeal)」に
-  // 分けて逐次反映する。SQLite への同時書き込みは modernc.org ドライバの busy_timeout に頼れば
-  // 通ることが多いが、Wails IPC 経由で並列に投げると片方が確定前に他方の invalidate と競って
-  // 起点行が見えなくなるケースがある。今は件数が少ない (最大 3 * 4 = 12) ので逐次で十分。
-  const submitSpread = async (selection: SpreadSelection) => {
+  const submitSpread = (selection: SpreadSelection) => {
     if (spreadState.kind !== "open") return;
-    const source = {
+    setSpreadState({ kind: "closed" });
+    spreadMut.mutate({
       date: spreadState.sourceDate,
       meal: spreadState.sourceMeal,
       position: spreadState.sourcePosition,
-    };
-    const { sameMealDates, crossMeal } = planSpread(source, selection);
-    setSpreadState({ kind: "closed" });
-
-    const conflictMode = selection.conflictMode;
-    const shareBatch = selection.shareBatch;
-    const tasks: (() => Promise<void>)[] = [];
-    if (sameMealDates.length > 0) {
-      const days = computeCopyDays(source.date, sameMealDates);
-      tasks.push(async () => {
-        await MealPlanService.CopyLeftover(
-          source.date,
-          source.meal,
-          days,
-          source.position,
-          conflictMode,
-          shareBatch,
-        );
-      });
-    }
-    for (const target of crossMeal) {
-      tasks.push(async () => {
-        await MealPlanService.CopyToOtherMeal(
-          source.date,
-          source.meal,
-          source.position,
-          target.date,
-          target.meal,
-          conflictMode,
-        );
-      });
-    }
-
-    let failed = 0;
-    let firstErrKey: string | null = null;
-    for (const run of tasks) {
-      try {
-        await run();
-      } catch (err) {
-        failed++;
-        if (firstErrKey === null) firstErrKey = errorI18nKey(err);
-        // 統合ダイアログの失敗は分類が難しい (source/target 組み合わせが混ざる) ので、
-        // devtools console に生 error を残して個別に追えるようにする。
-        console.error("spread submit: task failed", err);
-      }
-    }
-    invalidate();
-    if (failed > 0) {
-      // 全部同じ理由で失敗した場合はその key を、混在するときは partial_failure に集約する。
-      setErrorState(
-        failed === tasks.length && firstErrKey !== null
-          ? { key: firstErrKey }
-          : { key: "pages.meal_plan.spread.partial_failure", params: { count: failed } },
-      );
-    } else {
-      setErrorState(null);
-    }
+      selection,
+    });
   };
 
   const handleEntryAction = (date: string, meal: string, action: EntryAction, entry: Entry) => {
@@ -377,6 +310,8 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
           sourceMeal: meal,
           sourcePosition: entry.position,
           sourceRecipeName: entry.recipeName,
+          sourceRecipeId: entry.recipeId,
+          sourceBatchId: entry.batchId,
         });
         break;
       case "split-batch":
@@ -469,7 +404,7 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
     <div className="flex flex-col gap-2">
       {errorState && (
         <p className="rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">
-          {t(errorState.key, errorState.params)}
+          {t(errorState.key)}
         </p>
       )}
       <div
@@ -610,6 +545,8 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
             position: spreadState.sourcePosition,
           }}
           sourceRecipeName={spreadState.sourceRecipeName}
+          sourceRecipeId={spreadState.sourceRecipeId}
+          sourceBatchId={spreadState.sourceBatchId}
           existingEntries={entries}
           initialFutureDays={SPREAD_INITIAL_FUTURE_DAYS}
           expandStepDays={SPREAD_EXPAND_STEP}
@@ -618,7 +555,7 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
             if (!next) setSpreadState({ kind: "closed" });
           }}
           onConfirm={(selection) => {
-            void submitSpread(selection);
+            submitSpread(selection);
           }}
         />
       )}

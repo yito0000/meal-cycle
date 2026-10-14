@@ -112,7 +112,7 @@
         "confirm": "Apply",
         "cancel": "Cancel",
         "show_more": "Show {{count}} more day(s)",
-        "partial_failure": "Failed to apply {{count}} cell(s)"
+        "same_batch_cell_label": "Already in this batch"
       },
       "dnd": {
         "item_grabbable_label": "Drag to move to another cell",
@@ -130,6 +130,7 @@
         "batch_target_not_found": "Target batch not found",
         "batch_merge_denied": "Cannot merge into that batch",
         "invalid_period_weeks": "Unsupported period length",
+        "invalid_spread_target": "Some selected cells cannot be used",
         "unknown": "Something went wrong"
       },
       "shopping_cta": "View shopping list for this period"

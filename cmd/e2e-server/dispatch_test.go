@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/yito0000/meal-cycle/internal/domain/mealplan"
 	"github.com/yito0000/meal-cycle/internal/domain/recipe"
 	"github.com/yito0000/meal-cycle/internal/service"
 	"github.com/yito0000/meal-cycle/internal/storage/sqlite"
@@ -163,6 +164,35 @@ func TestDispatchHandler(t *testing.T) {
 		}
 		if got.Ingredients[2].Name != "味噌" || got.Ingredients[2].Unit != "大さじ" {
 			t.Errorf("nested field lost: %+v", got.Ingredients[2])
+		}
+	})
+
+	t.Run("should return 200 when a method takes a slice of structs and a bool arg", func(t *testing.T) {
+		h := setup(t)
+		id := createRecipe(t, h, "肉じゃが")
+		if rec := call(t, h, "/api/MealPlanService/AssignRecipe", `["2026-08-24","dinner","`+id+`"]`); rec.Code != http.StatusOK {
+			t.Fatalf("assign failed: %d %s", rec.Code, rec.Body.String())
+		}
+		body := `["2026-08-24","dinner",0,[{"date":"2026-08-25","meal":"dinner"},{"date":"2026-08-26","meal":"lunch"}],"append",false]`
+		rec := call(t, h, "/api/MealPlanService/SpreadEntry", body)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("want 200, got %d (%s)", rec.Code, rec.Body.String())
+		}
+
+		list := call(t, h, "/api/MealPlanService/ListPeriod", `["2026-08-24",1]`)
+		var got []mealplan.Entry
+		if err := json.Unmarshal(list.Body.Bytes(), &got); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		cells := map[string]string{}
+		for _, e := range got {
+			cells[e.Date+"/"+string(e.Meal)] = e.BatchID
+		}
+		if len(got) != 3 || cells["2026-08-25/dinner"] == "" || cells["2026-08-26/lunch"] == "" {
+			t.Fatalf("want rows in the two target cells, got %+v", got)
+		}
+		if cells["2026-08-25/dinner"] == cells["2026-08-24/dinner"] {
+			t.Errorf("shareBatch=false should mint a new batch, got the source batch")
 		}
 	})
 

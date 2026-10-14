@@ -15,6 +15,8 @@ interface Props {
   open: boolean;
   source: { date: string; meal: string; position: number };
   sourceRecipeName: string;
+  sourceRecipeId: string;
+  sourceBatchId: string;
   existingEntries: Entry[];
   // 初期表示する未来日数 (起点日を除く)。起点日 + initialFutureDays の合計行が最初に見える。
   initialFutureDays: number;
@@ -52,11 +54,13 @@ function targetKey(date: string, meal: string): string {
 // 対象日レンジ = 起点日 + 未来 futureDays 日 × 時間帯 3 列の格子で複数選択させる統合ダイアログ。
 // 過去方向は「作り置きは翌日以降に伸ばす」意図に反するため対象外。行が足りない場合は
 // 下部の「もっと表示」で expandStepDays ずつ伸ばす。
-// 起点セル自身は選択不可、既存割当セルは warning tone で示唆する。
+// 起点セル自身と、起点と同じ作り置きの同じレシピが入っているセルは選択不可。既存割当セルは warning tone で示唆する。
 export function SpreadBatchDialog({
   open,
   source,
   sourceRecipeName,
+  sourceRecipeId,
+  sourceBatchId,
   existingEntries,
   initialFutureDays,
   expandStepDays,
@@ -88,15 +92,27 @@ export function SpreadBatchDialog({
     return set;
   }, [existingEntries]);
 
+  // 期間外 (翌週) の日は entries に無いので漏れるが、反映側の追加は同じレシピを二重に入れない (design.md D5)。
+  const sameBatchCells = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of existingEntries) {
+      if (e.batchId === sourceBatchId && e.recipeId === sourceRecipeId) {
+        set.add(targetKey(e.date, e.meal));
+      }
+    }
+    return set;
+  }, [existingEntries, sourceBatchId, sourceRecipeId]);
+
   const defaultSelection = useMemo(() => {
     const set = new Set<string>();
     // presetDays は起点日を含む合計日数 (旧「連続 2 日」= 起点 + 1 日ぶん)。
     // ここでは起点日以降 1..presetDays-1 の同 meal をチェック済みにする。
     for (let i = 1; i < presetDays; i++) {
-      set.add(targetKey(addDaysISO(source.date, i), source.meal));
+      const key = targetKey(addDaysISO(source.date, i), source.meal);
+      if (!sameBatchCells.has(key)) set.add(key);
     }
     return set;
-  }, [source.date, source.meal, presetDays]);
+  }, [source.date, source.meal, presetDays, sameBatchCells]);
 
   const [selected, setSelected] = useState<Set<string>>(defaultSelection);
   const [shareBatch, setShareBatch] = useState(true);
@@ -187,9 +203,11 @@ export function SpreadBatchDialog({
                   {MEAL_RENDER_ORDER.map((meal) => {
                     const isSource = date === source.date && meal === source.meal;
                     const key = targetKey(date, meal);
+                    const isSameBatch = !isSource && sameBatchCells.has(key);
                     const checked = selected.has(key);
                     const isOccupied = occupancy.has(key);
-                    const conflictCls = isOccupied && !isSource ? "bg-amber-50" : "";
+                    const conflictCls =
+                      isOccupied && !isSource && !isSameBatch ? "bg-amber-50" : "";
                     return (
                       <td
                         key={key}
@@ -197,10 +215,14 @@ export function SpreadBatchDialog({
                         data-date={date}
                         data-meal={meal}
                       >
-                        {isSource ? (
+                        {isSource || isSameBatch ? (
                           <span
                             role="img"
-                            aria-label={t("pages.meal_plan.spread.source_cell_label")}
+                            aria-label={t(
+                              isSource
+                                ? "pages.meal_plan.spread.source_cell_label"
+                                : "pages.meal_plan.spread.same_batch_cell_label",
+                            )}
                             className="text-neutral-400"
                           >
                             ●

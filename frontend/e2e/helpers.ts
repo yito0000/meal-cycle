@@ -259,3 +259,19 @@ export async function deleteRecipe(page: Page, id: string) {
     throw new Error(`delete ${id} failed: ${res.status()} ${await res.text()}`);
   }
 }
+
+// 品のメニューから「作り置きを広げる」の統合ダイアログを開き、ダイアログの locator を返す。
+export async function openSpreadDialog(page: Page, recipeName: string, nth = 0) {
+  await openItemMenu(page, recipeName, nth);
+  await page.getByRole("menuitem", { name: ja.pages.meal_plan.item_menu.spread }).click();
+  const dialog = page.getByRole("dialog", { name: ja.pages.meal_plan.spread.title });
+  await dialog.waitFor();
+  return dialog;
+}
+
+// 統合ダイアログの格子の (date, meal) セル。選べるセルにはチェックボックスが、選べないセルには印が入る。
+export function spreadCell(page: Page, date: string, meal: string) {
+  return page
+    .getByRole("dialog", { name: ja.pages.meal_plan.spread.title })
+    .locator(`td[data-date="${date}"][data-meal="${meal}"]`);
+}

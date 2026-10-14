@@ -868,97 +868,51 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		}
 	})
 
-	t.Run("CopyToOtherMeal inserts new row sharing batch_id + recipe_id in target meal", func(t *testing.T) {
+	t.Run("should return one candidate when a batch spans lunch and dinner on the same date", func(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "肉じゃが")
-		src, _ := repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+		monLunch, _ := repo.Assign(ctx, "2026-08-24", "lunch", rs[0].ID)
+		if err := repo.Spread(ctx, "2026-08-24", "lunch", 0,
+			[]mealplan.SpreadTarget{{Date: "2026-08-24", Meal: mealplan.MealDinner}},
+			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover); err != nil {
+			t.Fatalf("Spread: %v", err)
+		}
+		_, _ = repo.Assign(ctx, "2026-08-25", "dinner", rs[0].ID)
 
-		if err := repo.CopyToOtherMeal(ctx, "2026-08-24", "dinner", 0, "2026-08-25", "lunch", mealplan.CopyModeAppend); err != nil {
-			t.Fatalf("CopyToOtherMeal: %v", err)
+		got, err := repo.ListMergeCandidates(ctx, "2026-08-25", "dinner", rs[0].ID)
+		if err != nil {
+			t.Fatalf("ListMergeCandidates: %v", err)
 		}
-		lunch, _ := repo.MealEntries(ctx, "2026-08-25", "lunch")
-		if len(lunch) != 1 {
-			t.Fatalf("want 1 row in 2026-08-25/lunch, got %d: %+v", len(lunch), lunch)
+		if len(got) != 1 {
+			t.Fatalf("want 1 candidate, got %d: %+v", len(got), got)
 		}
-		if lunch[0].RecipeID != rs[0].ID {
-			t.Errorf("recipeID = %q, want %q", lunch[0].RecipeID, rs[0].ID)
-		}
-		if lunch[0].BatchID != src.BatchID {
-			t.Errorf("batchID = %q, want %q (shared with source)", lunch[0].BatchID, src.BatchID)
+		if got[0].BatchID != monLunch.BatchID || got[0].MemberCount != 2 {
+			t.Errorf("candidate = %+v, want batch %q with 2 members", got[0], monLunch.BatchID)
 		}
 	})
 
-	t.Run("CopyToOtherMeal returns ErrBatchMergeDenied when target date is beyond ±4 days", func(t *testing.T) {
-		repo, rr := newMealPlanRepoForTest(t)
-		rs := seedRecipes(t, rr, "肉じゃが")
-		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
-		err := repo.CopyToOtherMeal(ctx, "2026-08-24", "dinner", 0, "2026-09-05", "lunch", mealplan.CopyModeAppend)
-		if !errors.Is(err, mealplan.ErrBatchMergeDenied) {
-			t.Errorf("err = %v, want ErrBatchMergeDenied", err)
-		}
-	})
-
-	t.Run("CopyToOtherMeal returns ErrBatchMergeDenied when target meal is the same as source", func(t *testing.T) {
-		repo, rr := newMealPlanRepoForTest(t)
-		rs := seedRecipes(t, rr, "肉じゃが")
-		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
-		err := repo.CopyToOtherMeal(ctx, "2026-08-24", "dinner", 0, "2026-08-25", "dinner", mealplan.CopyModeAppend)
-		if !errors.Is(err, mealplan.ErrBatchMergeDenied) {
-			t.Errorf("err = %v, want ErrBatchMergeDenied", err)
-		}
-	})
-
-	t.Run("CopyToOtherMeal append keeps existing rows and appends the new one at the end", func(t *testing.T) {
+	t.Run("should pick the earliest row by date, meal order and position as the representative", func(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "肉じゃが", "みそ汁")
-		src, _ := repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
-		_, _ = repo.Assign(ctx, "2026-08-25", "lunch", rs[1].ID) // 既存 (別レシピ)
-
-		if err := repo.CopyToOtherMeal(ctx, "2026-08-24", "dinner", 0, "2026-08-25", "lunch", mealplan.CopyModeAppend); err != nil {
-			t.Fatalf("CopyToOtherMeal append: %v", err)
-		}
-		lunch, _ := repo.MealEntries(ctx, "2026-08-25", "lunch")
-		if len(lunch) != 2 {
-			t.Fatalf("want 2 rows (existing + copied), got %d: %+v", len(lunch), lunch)
-		}
-		if lunch[1].RecipeID != rs[0].ID || lunch[1].BatchID != src.BatchID {
-			t.Errorf("appended row = %+v, want recipeID=%q batchID=%q", lunch[1], rs[0].ID, src.BatchID)
-		}
-	})
-
-	t.Run("CopyToOtherMeal overwrite clears existing rows and inserts at position 0", func(t *testing.T) {
-		repo, rr := newMealPlanRepoForTest(t)
-		rs := seedRecipes(t, rr, "肉じゃが", "みそ汁")
-		src, _ := repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
-		_, _ = repo.Assign(ctx, "2026-08-25", "lunch", rs[1].ID) // 既存 (別レシピ、消える)
-
-		if err := repo.CopyToOtherMeal(ctx, "2026-08-24", "dinner", 0, "2026-08-25", "lunch", mealplan.CopyModeOverwrite); err != nil {
-			t.Fatalf("CopyToOtherMeal overwrite: %v", err)
-		}
-		lunch, _ := repo.MealEntries(ctx, "2026-08-25", "lunch")
-		if len(lunch) != 1 {
-			t.Fatalf("want 1 row after overwrite, got %d: %+v", len(lunch), lunch)
-		}
-		if lunch[0].RecipeID != rs[0].ID || lunch[0].BatchID != src.BatchID || lunch[0].Position != 0 {
-			t.Errorf("overwrite result = %+v, want recipeID=%q batchID=%q pos=0", lunch[0], rs[0].ID, src.BatchID)
-		}
-	})
-
-	t.Run("CopyToOtherMeal append skips when target already has the same recipe (dedup)", func(t *testing.T) {
-		repo, rr := newMealPlanRepoForTest(t)
-		rs := seedRecipes(t, rr, "肉じゃが")
+		// 夕食の position 0 と昼食の position 1 を作り、position だけで選ぶと夕食が選ばれる並びにする。
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
-		existing, _ := repo.Assign(ctx, "2026-08-25", "lunch", rs[0].ID) // 既存に同レシピ
+		_, _ = repo.Assign(ctx, "2026-08-24", "lunch", rs[1].ID)
+		if err := repo.Spread(ctx, "2026-08-24", "dinner", 0,
+			[]mealplan.SpreadTarget{{Date: "2026-08-24", Meal: mealplan.MealLunch}, {Date: "2026-08-25", Meal: mealplan.MealBreakfast}},
+			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover); err != nil {
+			t.Fatalf("Spread: %v", err)
+		}
+		_, _ = repo.Assign(ctx, "2026-08-26", "dinner", rs[0].ID)
 
-		if err := repo.CopyToOtherMeal(ctx, "2026-08-24", "dinner", 0, "2026-08-25", "lunch", mealplan.CopyModeAppend); err != nil {
-			t.Fatalf("CopyToOtherMeal append dedup: %v", err)
+		got, err := repo.ListMergeCandidates(ctx, "2026-08-26", "dinner", rs[0].ID)
+		if err != nil {
+			t.Fatalf("ListMergeCandidates: %v", err)
 		}
-		lunch, _ := repo.MealEntries(ctx, "2026-08-25", "lunch")
-		if len(lunch) != 1 {
-			t.Fatalf("want 1 row (dedup skips insert), got %d: %+v", len(lunch), lunch)
+		if len(got) != 1 {
+			t.Fatalf("want 1 candidate, got %d: %+v", len(got), got)
 		}
-		if lunch[0].BatchID != existing.BatchID {
-			t.Errorf("existing row was touched: got batchID %q, want %q", lunch[0].BatchID, existing.BatchID)
+		if got[0].Date != "2026-08-24" || got[0].Meal != mealplan.MealLunch {
+			t.Errorf("representative = %s/%s, want 2026-08-24/lunch", got[0].Date, got[0].Meal)
 		}
 	})
 
@@ -1256,6 +1210,175 @@ func TestMealPlanRepo_Cooked(t *testing.T) {
 		}
 		if n := countCookedMarks(t, repo); n != 0 {
 			t.Errorf("want 0 marks, got %d", n)
+		}
+	})
+}
+
+func TestMealPlanRepo_Spread(t *testing.T) {
+	ctx := context.Background()
+	cell := func(date string, meal mealplan.Meal) mealplan.SpreadTarget {
+		return mealplan.SpreadTarget{Date: date, Meal: meal}
+	}
+
+	t.Run("should insert rows only into the given cells when targets skip a day", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが")
+		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+
+		if err := repo.Spread(ctx, "2026-08-24", "dinner", 0,
+			[]mealplan.SpreadTarget{cell("2026-08-25", mealplan.MealDinner), cell("2026-08-27", mealplan.MealDinner)},
+			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover); err != nil {
+			t.Fatalf("Spread: %v", err)
+		}
+		for date, want := range map[string]int{"2026-08-25": 1, "2026-08-26": 0, "2026-08-27": 1} {
+			got, _ := repo.MealEntries(ctx, date, "dinner")
+			if len(got) != want {
+				t.Errorf("%s dinner: want %d rows, got %d", date, want, len(got))
+			}
+		}
+	})
+
+	t.Run("should share the source batch across same-meal and cross-meal targets when shareBatch is true", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが")
+		src, _ := repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+
+		if err := repo.Spread(ctx, "2026-08-24", "dinner", 0,
+			[]mealplan.SpreadTarget{cell("2026-08-25", mealplan.MealDinner), cell("2026-08-26", mealplan.MealLunch)},
+			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover); err != nil {
+			t.Fatalf("Spread: %v", err)
+		}
+		for _, c := range []mealplan.SpreadTarget{cell("2026-08-25", mealplan.MealDinner), cell("2026-08-26", mealplan.MealLunch)} {
+			got, _ := repo.MealEntries(ctx, c.Date, string(c.Meal))
+			if len(got) != 1 || got[0].BatchID != src.BatchID || got[0].RecipeID != rs[0].ID {
+				t.Errorf("%s/%s = %+v, want 1 row of batch %q", c.Date, c.Meal, got, src.BatchID)
+			}
+		}
+	})
+
+	t.Run("should give every target its own batch and leave the source batch single when shareBatch is false", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが")
+		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+
+		if err := repo.Spread(ctx, "2026-08-24", "dinner", 0,
+			[]mealplan.SpreadTarget{cell("2026-08-25", mealplan.MealDinner), cell("2026-08-26", mealplan.MealLunch)},
+			mealplan.CopyModeAppend, mealplan.ShareBatchDistinct); err != nil {
+			t.Fatalf("Spread: %v", err)
+		}
+		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
+		if len(got) != 3 {
+			t.Fatalf("want 3 rows, got %d", len(got))
+		}
+		seen := map[string]bool{}
+		for _, e := range got {
+			if e.BatchMemberCount != 1 {
+				t.Errorf("%s/%s batch_member_count = %d, want 1", e.Date, e.Meal, e.BatchMemberCount)
+			}
+			seen[e.BatchID] = true
+		}
+		if len(seen) != 3 {
+			t.Errorf("want 3 distinct batches, got %d", len(seen))
+		}
+	})
+
+	t.Run("should append after existing rows when mode is append", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが", "みそ汁")
+		src, _ := repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+		_, _ = repo.Assign(ctx, "2026-08-25", "lunch", rs[1].ID)
+
+		if err := repo.Spread(ctx, "2026-08-24", "dinner", 0,
+			[]mealplan.SpreadTarget{cell("2026-08-25", mealplan.MealLunch)},
+			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover); err != nil {
+			t.Fatalf("Spread: %v", err)
+		}
+		got, _ := repo.MealEntries(ctx, "2026-08-25", "lunch")
+		if len(got) != 2 {
+			t.Fatalf("want 2 rows, got %d: %+v", len(got), got)
+		}
+		if got[0].RecipeID != rs[1].ID || got[1].RecipeID != rs[0].ID || got[1].BatchID != src.BatchID {
+			t.Errorf("rows = %+v, want [みそ汁, 肉じゃが(batch %q)]", got, src.BatchID)
+		}
+	})
+
+	t.Run("should skip a cell that already has the same recipe when mode is append", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが")
+		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+		existing, _ := repo.Assign(ctx, "2026-08-25", "lunch", rs[0].ID)
+
+		if err := repo.Spread(ctx, "2026-08-24", "dinner", 0,
+			[]mealplan.SpreadTarget{cell("2026-08-25", mealplan.MealLunch), cell("2026-08-25", mealplan.MealDinner)},
+			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover); err != nil {
+			t.Fatalf("Spread: %v", err)
+		}
+		lunch, _ := repo.MealEntries(ctx, "2026-08-25", "lunch")
+		if len(lunch) != 1 || lunch[0].BatchID != existing.BatchID {
+			t.Errorf("lunch = %+v, want the existing row only", lunch)
+		}
+		dinner, _ := repo.MealEntries(ctx, "2026-08-25", "dinner")
+		if len(dinner) != 1 {
+			t.Errorf("dinner: want 1 row, got %d", len(dinner))
+		}
+	})
+
+	t.Run("should replace existing rows when mode is overwrite", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが", "みそ汁")
+		src, _ := repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+		_, _ = repo.Assign(ctx, "2026-08-25", "dinner", rs[1].ID)
+
+		if err := repo.Spread(ctx, "2026-08-24", "dinner", 0,
+			[]mealplan.SpreadTarget{cell("2026-08-25", mealplan.MealDinner)},
+			mealplan.CopyModeOverwrite, mealplan.ShareBatchLeftover); err != nil {
+			t.Fatalf("Spread: %v", err)
+		}
+		got, _ := repo.MealEntries(ctx, "2026-08-25", "dinner")
+		if len(got) != 1 || got[0].RecipeID != rs[0].ID || got[0].BatchID != src.BatchID || got[0].Position != 0 {
+			t.Errorf("rows = %+v, want only 肉じゃが at position 0", got)
+		}
+	})
+
+	t.Run("should carry the cooked mark to shared rows and not to distinct rows", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが")
+		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+		_ = repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+
+		if err := repo.Spread(ctx, "2026-08-24", "dinner", 0,
+			[]mealplan.SpreadTarget{cell("2026-08-25", mealplan.MealDinner)},
+			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover); err != nil {
+			t.Fatalf("Spread shared: %v", err)
+		}
+		if err := repo.Spread(ctx, "2026-08-24", "dinner", 0,
+			[]mealplan.SpreadTarget{cell("2026-08-26", mealplan.MealLunch)},
+			mealplan.CopyModeAppend, mealplan.ShareBatchDistinct); err != nil {
+			t.Fatalf("Spread distinct: %v", err)
+		}
+		got := cookedByCell(t, repo, "2026-08-24")
+		if !got["2026-08-25/dinner/肉じゃが"] {
+			t.Error("2026-08-25 dinner: want cooked (shared batch)")
+		}
+		if got["2026-08-26/lunch/肉じゃが"] {
+			t.Error("2026-08-26 lunch: want not cooked (distinct batch)")
+		}
+	})
+
+	t.Run("should return ErrEntryNotFound and change nothing when the source row does not exist", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "みそ汁")
+		_, _ = repo.Assign(ctx, "2026-08-25", "dinner", rs[0].ID)
+
+		err := repo.Spread(ctx, "2026-08-24", "dinner", 0,
+			[]mealplan.SpreadTarget{cell("2026-08-25", mealplan.MealDinner)},
+			mealplan.CopyModeOverwrite, mealplan.ShareBatchLeftover)
+		if !errors.Is(err, mealplan.ErrEntryNotFound) {
+			t.Fatalf("err = %v, want ErrEntryNotFound", err)
+		}
+		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
+		if len(got) != 1 || got[0].RecipeID != rs[0].ID {
+			t.Errorf("rows = %+v, want untouched みそ汁 only", got)
 		}
 	})
 }

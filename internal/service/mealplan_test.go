@@ -18,6 +18,16 @@ import (
 type fakeMealPlanRepo struct {
 	entries      []mealplan.Entry
 	knownRecipes map[string]string // id → name
+	spreadCalls  []spreadCall
+}
+
+type spreadCall struct {
+	date       string
+	meal       string
+	position   int
+	targets    []mealplan.SpreadTarget
+	mode       mealplan.CopyMode
+	shareBatch mealplan.ShareBatch
 }
 
 func newFakeMealPlanRepo(recipes map[string]string) *fakeMealPlanRepo {
@@ -352,60 +362,16 @@ func (r *fakeMealPlanRepo) ListMergeCandidates(
 	return out, nil
 }
 
-func (r *fakeMealPlanRepo) CopyToOtherMeal(
+// Spread は呼び出しを記録するだけにする。反映の中身は sqlite/mealplan_repo_test.go で確かめる。
+func (r *fakeMealPlanRepo) Spread(
 	_ context.Context,
-	sourceDate, sourceMeal string, sourcePosition int,
-	targetDate, targetMeal string,
+	date, meal string, position int,
+	targets []mealplan.SpreadTarget,
 	mode mealplan.CopyMode,
+	shareBatch mealplan.ShareBatch,
 ) error {
-	if mode != mealplan.CopyModeAppend && mode != mealplan.CopyModeOverwrite {
-		return mealplan.ErrInvalidCopyMode
-	}
-	if sourceMeal == targetMeal {
-		return mealplan.ErrBatchMergeDenied
-	}
-	if absDayGap(sourceDate, targetDate) > r.mergeDayRange() {
-		return mealplan.ErrBatchMergeDenied
-	}
-	var sourceRecipeID, sourceBatchID, sourceRecipeName string
-	found := false
-	for _, e := range r.entries {
-		if e.Date == sourceDate && string(e.Meal) == sourceMeal && e.Position == sourcePosition {
-			sourceRecipeID = e.RecipeID
-			sourceBatchID = e.BatchID
-			sourceRecipeName = e.RecipeName
-			found = true
-			break
-		}
-	}
-	if !found {
-		return mealplan.ErrEntryNotFound
-	}
-	if mode == mealplan.CopyModeOverwrite {
-		kept := r.entries[:0]
-		for _, e := range r.entries {
-			if e.Date == targetDate && string(e.Meal) == targetMeal {
-				continue
-			}
-			kept = append(kept, e)
-		}
-		r.entries = kept
-	} else {
-		for _, e := range r.entries {
-			if e.Date == targetDate && string(e.Meal) == targetMeal && e.RecipeID == sourceRecipeID {
-				return nil
-			}
-		}
-	}
-	pos := 0
-	for _, e := range r.entries {
-		if e.Date == targetDate && string(e.Meal) == targetMeal && e.Position >= pos {
-			pos = e.Position + 1
-		}
-	}
-	r.entries = append(r.entries, mealplan.Entry{
-		Date: targetDate, Meal: mealplan.Meal(targetMeal), Position: pos,
-		RecipeID: sourceRecipeID, RecipeName: sourceRecipeName, BatchID: sourceBatchID,
+	r.spreadCalls = append(r.spreadCalls, spreadCall{
+		date: date, meal: meal, position: position, targets: targets, mode: mode, shareBatch: shareBatch,
 	})
 	return nil
 }
@@ -1008,110 +974,96 @@ func TestMealPlanService_MergeBatch_ConstraintChecks(t *testing.T) {
 	})
 }
 
-func TestMealPlanService_CopyToOtherMeal(t *testing.T) {
+func TestMealPlanService_SpreadEntry(t *testing.T) {
 	ctx := context.Background()
+	cell := func(date string, meal mealplan.Meal) mealplan.SpreadTarget {
+		return mealplan.SpreadTarget{Date: date, Meal: meal}
+	}
 
-	t.Run("copies leftover to another meal on adjacent day sharing the same batch_id", func(t *testing.T) {
-		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが"})
+	t.Run("should pass the given targets to the repository unchanged when all targets are valid", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(nil)
 		svc := newMealPlanServiceWithRepo(repo)
-		src, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
+		targets := []mealplan.SpreadTarget{cell("2026-08-25", mealplan.MealDinner), cell("2026-08-27", mealplan.MealLunch)}
 
-		if err := svc.CopyToOtherMeal(ctx, "2026-08-24", "dinner", 0, "2026-08-25", "lunch", "append"); err != nil {
-			t.Fatalf("CopyToOtherMeal: %v", err)
+		if err := svc.SpreadEntry(ctx, "2026-08-24", "dinner", 1, targets, "overwrite", false); err != nil {
+			t.Fatalf("SpreadEntry: %v", err)
 		}
-		found := false
-		for _, e := range repo.entries {
-			if e.Date == "2026-08-25" && e.Meal == mealplan.MealLunch && e.RecipeID == "r1" {
-				if e.BatchID != src.BatchID {
-					t.Errorf("target batchID = %q, want %q", e.BatchID, src.BatchID)
-				}
-				found = true
-			}
+		if len(repo.spreadCalls) != 1 {
+			t.Fatalf("want 1 repo call, got %d", len(repo.spreadCalls))
 		}
-		if !found {
-			t.Errorf("expected new row at 2026-08-25/lunch, entries=%+v", repo.entries)
+		got := repo.spreadCalls[0]
+		if got.date != "2026-08-24" || got.meal != "dinner" || got.position != 1 ||
+			got.mode != mealplan.CopyModeOverwrite || got.shareBatch.IsShared() {
+			t.Errorf("call = %+v", got)
+		}
+		if len(got.targets) != 2 || got.targets[0] != targets[0] || got.targets[1] != targets[1] {
+			t.Errorf("targets = %+v, want %+v", got.targets, targets)
 		}
 	})
 
-	t.Run("returns ErrBatchMergeDenied when target date is beyond ±4 days", func(t *testing.T) {
-		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが"})
+	t.Run("should return ErrInvalidSpreadTarget and not reach the repository when a target is out of range", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(nil)
 		svc := newMealPlanServiceWithRepo(repo)
-		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
-		err := svc.CopyToOtherMeal(ctx, "2026-08-24", "dinner", 0, "2026-09-05", "lunch", "append")
-		if !errors.Is(err, mealplan.ErrBatchMergeDenied) {
-			t.Errorf("err = %v, want ErrBatchMergeDenied", err)
+		targets := []mealplan.SpreadTarget{cell("2026-08-25", mealplan.MealDinner), cell("2026-08-31", mealplan.MealDinner)}
+
+		err := svc.SpreadEntry(ctx, "2026-08-24", "dinner", 0, targets, "append", true)
+		if !errors.Is(err, mealplan.ErrInvalidSpreadTarget) {
+			t.Errorf("err = %v, want ErrInvalidSpreadTarget", err)
+		}
+		if len(repo.spreadCalls) != 0 {
+			t.Errorf("repo should not be called, got %d calls", len(repo.spreadCalls))
 		}
 	})
 
-	t.Run("returns ErrBatchMergeDenied when target meal is the same as source", func(t *testing.T) {
-		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが"})
+	t.Run("should return ErrInvalidSpreadTarget and not reach the repository when targets is empty", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(nil)
 		svc := newMealPlanServiceWithRepo(repo)
-		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
-		err := svc.CopyToOtherMeal(ctx, "2026-08-24", "dinner", 0, "2026-08-25", "dinner", "append")
-		if !errors.Is(err, mealplan.ErrBatchMergeDenied) {
-			t.Errorf("err = %v, want ErrBatchMergeDenied", err)
+
+		err := svc.SpreadEntry(ctx, "2026-08-24", "dinner", 0, nil, "append", true)
+		if !errors.Is(err, mealplan.ErrInvalidSpreadTarget) {
+			t.Errorf("err = %v, want ErrInvalidSpreadTarget", err)
+		}
+		if len(repo.spreadCalls) != 0 {
+			t.Errorf("repo should not be called, got %d calls", len(repo.spreadCalls))
 		}
 	})
 
-	t.Run("returns ErrInvalidCopyMode for unknown mode", func(t *testing.T) {
-		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが"})
+	t.Run("should return ErrInvalidCopyMode when mode is neither append nor overwrite", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(nil)
 		svc := newMealPlanServiceWithRepo(repo)
-		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
-		err := svc.CopyToOtherMeal(ctx, "2026-08-24", "dinner", 0, "2026-08-25", "lunch", "unknown")
+
+		err := svc.SpreadEntry(ctx, "2026-08-24", "dinner", 0,
+			[]mealplan.SpreadTarget{cell("2026-08-25", mealplan.MealDinner)}, "unknown", true)
 		if !errors.Is(err, mealplan.ErrInvalidCopyMode) {
 			t.Errorf("err = %v, want ErrInvalidCopyMode", err)
 		}
 	})
 
-	t.Run("append keeps existing rows and appends the new one at the end", func(t *testing.T) {
-		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが", "r2": "みそ汁"})
+	t.Run("should return ErrInvalidPosition when the source position is negative", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(nil)
 		svc := newMealPlanServiceWithRepo(repo)
-		src, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
-		_, _ = svc.AssignRecipe(ctx, "2026-08-25", "lunch", "r2") // 既存 (別レシピ)
 
-		if err := svc.CopyToOtherMeal(ctx, "2026-08-24", "dinner", 0, "2026-08-25", "lunch", "append"); err != nil {
-			t.Fatalf("CopyToOtherMeal: %v", err)
-		}
-		lunch := make([]mealplan.Entry, 0)
-		for _, e := range repo.entries {
-			if e.Date == "2026-08-25" && e.Meal == mealplan.MealLunch {
-				lunch = append(lunch, e)
-			}
-		}
-		if len(lunch) != 2 {
-			t.Fatalf("want 2 rows in 2026-08-25/lunch (existing + copied), got %d: %+v", len(lunch), lunch)
-		}
-		hasCopied := false
-		for _, e := range lunch {
-			if e.RecipeID == "r1" && e.BatchID == src.BatchID {
-				hasCopied = true
-			}
-		}
-		if !hasCopied {
-			t.Errorf("expected copied row with source batchID, got %+v", lunch)
+		err := svc.SpreadEntry(ctx, "2026-08-24", "dinner", -1,
+			[]mealplan.SpreadTarget{cell("2026-08-25", mealplan.MealDinner)}, "append", true)
+		if !errors.Is(err, mealplan.ErrInvalidPosition) {
+			t.Errorf("err = %v, want ErrInvalidPosition", err)
 		}
 	})
 
-	t.Run("overwrite deletes existing rows then appends the new one at position 0", func(t *testing.T) {
-		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが", "r2": "みそ汁"})
+	t.Run("should derive the range from LeftoverCopyPresets when presets change", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(nil)
 		svc := newMealPlanServiceWithRepo(repo)
-		src, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
-		_, _ = svc.AssignRecipe(ctx, "2026-08-25", "lunch", "r2") // 既存 (別レシピ)
+		svc.cfg.LeftoverCopyPresets = []int{2, 6}
+		far := []mealplan.SpreadTarget{cell("2026-08-29", mealplan.MealDinner)}
 
-		if err := svc.CopyToOtherMeal(ctx, "2026-08-24", "dinner", 0, "2026-08-25", "lunch", "overwrite"); err != nil {
-			t.Fatalf("CopyToOtherMeal: %v", err)
+		if err := svc.SpreadEntry(ctx, "2026-08-24", "dinner", 0, far, "append", true); err != nil {
+			t.Errorf("5 days later with presets {2, 6}: err = %v, want nil", err)
 		}
-		lunch := make([]mealplan.Entry, 0)
-		for _, e := range repo.entries {
-			if e.Date == "2026-08-25" && e.Meal == mealplan.MealLunch {
-				lunch = append(lunch, e)
-			}
-		}
-		if len(lunch) != 1 {
-			t.Fatalf("want 1 row in 2026-08-25/lunch after overwrite, got %d: %+v", len(lunch), lunch)
-		}
-		if lunch[0].RecipeID != "r1" || lunch[0].BatchID != src.BatchID {
-			t.Errorf("overwrite result = %+v, want recipeID=r1 batchID=%q", lunch[0], src.BatchID)
+		svc.cfg.LeftoverCopyPresets = []int{2}
+		err := svc.SpreadEntry(ctx, "2026-08-24", "dinner", 0,
+			[]mealplan.SpreadTarget{cell("2026-08-26", mealplan.MealDinner)}, "append", true)
+		if !errors.Is(err, mealplan.ErrInvalidSpreadTarget) {
+			t.Errorf("2 days later with presets {2}: err = %v, want ErrInvalidSpreadTarget", err)
 		}
 	})
 }

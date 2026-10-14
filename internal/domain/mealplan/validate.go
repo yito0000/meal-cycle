@@ -19,6 +19,7 @@ var (
 	ErrBatchTargetNotFound = errors.New("mealplan: batch target not found")
 	ErrBatchMergeDenied    = errors.New("mealplan: batch merge denied")
 	ErrInvalidPeriodWeeks  = errors.New("mealplan: invalid period weeks")
+	ErrInvalidSpreadTarget = errors.New("mealplan: invalid spread target")
 )
 
 // AllowedPeriodWeeks は S01 で受け付ける期間長 (単位: 週) の集合。
