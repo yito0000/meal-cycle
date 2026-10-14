@@ -10,6 +10,7 @@ import {
   openItemMenu,
   openSpreadDialog,
   spreadCell,
+  spreadEntry,
 } from "./helpers.js";
 
 const t = ja.pages.meal_plan;
@@ -68,10 +69,12 @@ async function setCheck(page: Page, date: string, meal: string, checked: boolean
 
 // spreadLeftover は MON の夕食の 1 品目を、days に挙げた日の夕食へ作り置きとして広げる。
 async function spreadLeftover(page: Page, days: string[]) {
-  const res = await page.request.post("/api/MealPlanService/SpreadEntry", {
-    data: [MON, "dinner", 0, days.map((date) => ({ date, meal: "dinner" })), "append", true],
-  });
-  if (!res.ok()) throw new Error(`spread failed: ${res.status()} ${await res.text()}`);
+  await spreadEntry(
+    page,
+    { date: MON, meal: "dinner", position: 0 },
+    days.map((date) => ({ date, meal: "dinner" })),
+    true,
+  );
 }
 
 function dissolveDialog(page: Page) {
@@ -352,10 +355,12 @@ test.describe("まとめ候補の一意性", () => {
   test("同じ日の昼食と夕食にまたがる作り置きは候補に 1 行だけ出る", async ({ page }) => {
     const id = await createRecipeWithIngredients(page, "肉じゃが", []);
     await assignRecipe(page, MON, "lunch", id);
-    const res = await page.request.post("/api/MealPlanService/SpreadEntry", {
-      data: [MON, "lunch", 0, [{ date: MON, meal: "dinner" }], "append", true],
-    });
-    if (!res.ok()) throw new Error(`spread failed: ${res.status()} ${await res.text()}`);
+    await spreadEntry(
+      page,
+      { date: MON, meal: "lunch", position: 0 },
+      [{ date: MON, meal: "dinner" }],
+      true,
+    );
     await assignRecipe(page, TUE, "dinner", id);
     await openNextWeek(page);
 

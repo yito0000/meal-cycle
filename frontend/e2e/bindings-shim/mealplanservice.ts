@@ -9,12 +9,12 @@ export function AssignRecipe(date: string, meal: string, recipeID: string) {
   return call<mealplan$0.Entry>("MealPlanService", "AssignRecipe", date, meal, recipeID);
 }
 
-export function ReplaceEntry(date: string, meal: string, position: number, recipeID: string) {
-  return call<void>("MealPlanService", "ReplaceEntry", date, meal, position, recipeID);
+export function ReplaceEntry(entryID: string, recipeID: string) {
+  return call<void>("MealPlanService", "ReplaceEntry", entryID, recipeID);
 }
 
-export function RemoveEntry(date: string, meal: string, position: number) {
-  return call<mealplan$0.RemovedEntry>("MealPlanService", "RemoveEntry", date, meal, position);
+export function RemoveEntry(entryID: string) {
+  return call<mealplan$0.RemovedEntry>("MealPlanService", "RemoveEntry", entryID);
 }
 
 export function ClearMeal(date: string, meal: string) {
@@ -25,86 +25,45 @@ export function RestoreEntries(entries: mealplan$0.RemovedEntry[] | null) {
   return call<void>("MealPlanService", "RestoreEntries", entries);
 }
 
-export function ReorderMeal(date: string, meal: string, orderedRecipeIDs: string[] | null) {
-  return call<void>("MealPlanService", "ReorderMeal", date, meal, orderedRecipeIDs);
+export function ReorderMeal(date: string, meal: string, orderedEntryIDs: string[] | null) {
+  return call<void>("MealPlanService", "ReorderMeal", date, meal, orderedEntryIDs);
 }
 
 export function CopyLeftover(
   date: string,
   meal: string,
   days: number,
-  position: number,
   mode: string,
   shareBatch: boolean,
 ) {
-  return call<void>(
-    "MealPlanService",
-    "CopyLeftover",
-    date,
-    meal,
-    days,
-    position,
-    mode,
-    shareBatch,
-  );
+  return call<void>("MealPlanService", "CopyLeftover", date, meal, days, mode, shareBatch);
 }
 
-export function SplitBatch(date: string, meal: string, position: number) {
-  return call<string>("MealPlanService", "SplitBatch", date, meal, position);
+export function SplitBatch(entryID: string) {
+  return call<string>("MealPlanService", "SplitBatch", entryID);
 }
 
-export function MergeBatch(date: string, meal: string, position: number, targetBatchID: string) {
-  return call<void>("MealPlanService", "MergeBatch", date, meal, position, targetBatchID);
+export function MergeBatch(entryID: string, targetBatchID: string) {
+  return call<void>("MealPlanService", "MergeBatch", entryID, targetBatchID);
 }
 
-export function ListMergeCandidates(date: string, meal: string, recipeID: string) {
-  return call<mealplan$0.BatchSummary[]>(
-    "MealPlanService",
-    "ListMergeCandidates",
-    date,
-    meal,
-    recipeID,
-  );
+export function ListMergeCandidates(entryID: string) {
+  return call<mealplan$0.BatchSummary[]>("MealPlanService", "ListMergeCandidates", entryID);
 }
 
 export function SpreadEntry(
-  date: string,
-  meal: string,
-  position: number,
+  entryID: string,
   targets: mealplan$0.SpreadTarget[] | null,
   mode: string,
   shareBatch: boolean,
 ) {
-  return call<void>(
-    "MealPlanService",
-    "SpreadEntry",
-    date,
-    meal,
-    position,
-    targets,
-    mode,
-    shareBatch,
-  );
+  return call<void>("MealPlanService", "SpreadEntry", entryID, targets, mode, shareBatch);
 }
 
-export function MoveEntry(
-  sourceDate: string,
-  sourceMeal: string,
-  sourcePosition: number,
-  targetDate: string,
-  targetMeal: string,
-) {
-  return call<void>(
-    "MealPlanService",
-    "MoveEntry",
-    sourceDate,
-    sourceMeal,
-    sourcePosition,
-    targetDate,
-    targetMeal,
-  );
+export function MoveEntry(entryID: string, targetDate: string, targetMeal: string) {
+  return call<void>("MealPlanService", "MoveEntry", entryID, targetDate, targetMeal);
 }
 
-export function SetCooked(date: string, meal: string, position: number, cooked: boolean) {
-  return call<void>("MealPlanService", "SetCooked", date, meal, position, cooked);
+export function SetCooked(entryID: string, cooked: boolean) {
+  return call<void>("MealPlanService", "SetCooked", entryID, cooked);
 }

@@ -13,22 +13,22 @@ import (
 type mealPlanRepo interface {
 	ListPeriod(ctx context.Context, periodStart string, periodDays int) ([]mealplan.Entry, error)
 	Assign(ctx context.Context, date, meal, recipeID string) (mealplan.Entry, error)
-	Replace(ctx context.Context, date, meal string, position int, recipeID string) error
-	Remove(ctx context.Context, date, meal string, position int) (mealplan.RemovedEntry, error)
+	Entry(ctx context.Context, entryID string) (mealplan.Entry, error)
+	Replace(ctx context.Context, entryID, recipeID string) error
+	Remove(ctx context.Context, entryID string) (mealplan.RemovedEntry, error)
 	ClearMeal(ctx context.Context, date, meal string) ([]mealplan.RemovedEntry, error)
 	RestoreEntries(ctx context.Context, entries []mealplan.RemovedEntry) error
-	Reorder(ctx context.Context, date, meal string, orderedRecipeIDs []string) error
+	Reorder(ctx context.Context, date, meal string, orderedEntryIDs []string) error
 	CopyLeftover(ctx context.Context, meal string, targets []string,
 		sourceEntries []mealplan.Entry, mode mealplan.CopyMode, shareBatch mealplan.ShareBatch) error
 	MealEntries(ctx context.Context, date, meal string) ([]mealplan.Entry, error)
-	SplitBatch(ctx context.Context, date, meal string, position int) (string, error)
-	MergeBatch(ctx context.Context, date, meal string, position int, targetBatchID string) error
-	ListMergeCandidates(ctx context.Context, date, meal, recipeID string) ([]mealplan.BatchSummary, error)
-	Spread(ctx context.Context, date, meal string, position int,
+	SplitBatch(ctx context.Context, entryID string) (string, error)
+	MergeBatch(ctx context.Context, entryID, targetBatchID string) error
+	ListMergeCandidates(ctx context.Context, entryID string) ([]mealplan.BatchSummary, error)
+	Spread(ctx context.Context, entryID string,
 		targets []mealplan.SpreadTarget, mode mealplan.CopyMode, shareBatch mealplan.ShareBatch) error
-	MoveEntry(ctx context.Context, sourceDate, sourceMeal string, sourcePosition int,
-		targetDate, targetMeal string) error
-	SetCooked(ctx context.Context, date, meal string, position int, cooked bool) error
+	MoveEntry(ctx context.Context, entryID, targetDate, targetMeal string) error
+	SetCooked(ctx context.Context, entryID string, cooked bool) error
 }
 
 // MealPlanService は S01 献立カレンダーのデータをフロントに公開する。
@@ -70,29 +70,21 @@ func (s *MealPlanService) AssignRecipe(
 	return s.repo.Assign(ctx, date, meal, recipeID)
 }
 
-func (s *MealPlanService) ReplaceEntry(
-	ctx context.Context, date, meal string, position int, recipeID string,
-) error {
-	if err := s.validateMealAddress(date, meal); err != nil {
-		return err
+// ReplaceEntry は 1 品のレシピを差し替える。1 品に対する操作は、並び順ではなく行の ID で指す
+// (add-mealplan-entry-id design.md D3)。
+func (s *MealPlanService) ReplaceEntry(ctx context.Context, entryID, recipeID string) error {
+	if entryID == "" {
+		return mealplan.ErrEntryNotFound
 	}
-	if err := mealplan.ValidatePosition(position); err != nil {
-		return err
-	}
-	return s.repo.Replace(ctx, date, meal, position, recipeID)
+	return s.repo.Replace(ctx, entryID, recipeID)
 }
 
 // RemoveEntry は 1 品を削除し、「元に戻す」で RestoreEntries に渡すための削除した行の内容を返す。
-func (s *MealPlanService) RemoveEntry(
-	ctx context.Context, date, meal string, position int,
-) (mealplan.RemovedEntry, error) {
-	if err := s.validateMealAddress(date, meal); err != nil {
-		return mealplan.RemovedEntry{}, err
+func (s *MealPlanService) RemoveEntry(ctx context.Context, entryID string) (mealplan.RemovedEntry, error) {
+	if entryID == "" {
+		return mealplan.RemovedEntry{}, mealplan.ErrEntryNotFound
 	}
-	if err := mealplan.ValidatePosition(position); err != nil {
-		return mealplan.RemovedEntry{}, err
-	}
-	return s.repo.Remove(ctx, date, meal, position)
+	return s.repo.Remove(ctx, entryID)
 }
 
 // ClearMeal は時間帯の全品を削除し、削除した行を position 昇順で返す。
@@ -117,7 +109,7 @@ func (s *MealPlanService) RestoreEntries(ctx context.Context, entries []mealplan
 		if err := mealplan.ValidatePosition(e.Position); err != nil {
 			return err
 		}
-		if e.RecipeID == "" || e.BatchID == "" {
+		if e.ID == "" || e.RecipeID == "" || e.BatchID == "" {
 			return mealplan.ErrInvalidRestore
 		}
 		if _, err := time.Parse(time.RFC3339, e.CreatedAt); err != nil {
@@ -132,22 +124,24 @@ func (s *MealPlanService) RestoreEntries(ctx context.Context, entries []mealplan
 	return s.repo.RestoreEntries(ctx, entries)
 }
 
+// ReorderMeal はセル内の品を orderedEntryIDs の順に並べ直す。同じレシピの品が 2 つあっても区別できるよう、
+// レシピ ID ではなく行の ID で並びを受け取る。
 func (s *MealPlanService) ReorderMeal(
-	ctx context.Context, date, meal string, orderedRecipeIDs []string,
+	ctx context.Context, date, meal string, orderedEntryIDs []string,
 ) error {
 	if err := s.validateMealAddress(date, meal); err != nil {
 		return err
 	}
-	return s.repo.Reorder(ctx, date, meal, orderedRecipeIDs)
+	return s.repo.Reorder(ctx, date, meal, orderedEntryIDs)
 }
 
-// CopyLeftover は起点 (date, meal) を含む days 日連続の同 meal にコピーを反映する。
-// position < 0 は meal 全体、position >= 0 はその 1 品だけをコピー元とする。
+// CopyLeftover は起点 (date, meal) の全品を、起点を含む days 日連続の同 meal にコピーする。
+// 1 品だけを広げる経路は SpreadEntry に一本化している (add-mealplan-entry-id design.md D4)。
 // days は config.LeftoverCopyPresets に含まれる値のみ許容 (call site に閾値を書かない)。
 // shareBatch=true (作り置き) は同一レシピの全 target 行が起点行と同じ BatchID を共有する。
 // shareBatch=false (別調理) は 1 行ごとに独立した新 BatchID を割り振る (design.md D3)。
 func (s *MealPlanService) CopyLeftover(
-	ctx context.Context, date, meal string, days int, position int, mode string, shareBatch bool,
+	ctx context.Context, date, meal string, days int, mode string, shareBatch bool,
 ) error {
 	if err := s.validateMealAddress(date, meal); err != nil {
 		return err
@@ -160,23 +154,9 @@ func (s *MealPlanService) CopyLeftover(
 		return mealplan.ErrInvalidCopyMode
 	}
 
-	sourceMeal, err := s.repo.MealEntries(ctx, date, meal)
+	source, err := s.repo.MealEntries(ctx, date, meal)
 	if err != nil {
 		return err
-	}
-	var source []mealplan.Entry
-	if position < 0 {
-		source = sourceMeal
-	} else {
-		for _, e := range sourceMeal {
-			if e.Position == position {
-				source = []mealplan.Entry{e}
-				break
-			}
-		}
-		if len(source) == 0 {
-			return mealplan.ErrEntryNotFound
-		}
 	}
 
 	targets, err := mealplan.CopyDates(date, days)
@@ -199,109 +179,84 @@ func (s *MealPlanService) CopyLeftover(
 }
 
 // SplitBatch は 1 行を単独バッチに分離する。新 BatchID を返し、フロントの UI 更新に使う。
-func (s *MealPlanService) SplitBatch(
-	ctx context.Context, date, meal string, position int,
-) (string, error) {
-	if err := s.validateMealAddress(date, meal); err != nil {
-		return "", err
+func (s *MealPlanService) SplitBatch(ctx context.Context, entryID string) (string, error) {
+	if entryID == "" {
+		return "", mealplan.ErrEntryNotFound
 	}
-	if err := mealplan.ValidatePosition(position); err != nil {
-		return "", err
-	}
-	return s.repo.SplitBatch(ctx, date, meal, position)
+	return s.repo.SplitBatch(ctx, entryID)
 }
 
 // SetCooked は 1 行が属する (BatchID, RecipeID) の組に作った印を付け外しする。
 // 印は同じ組の全行に効き、別の作り置きには広がらない (add-mealplan-cooked-mark design.md D1)。
-func (s *MealPlanService) SetCooked(
-	ctx context.Context, date, meal string, position int, cooked bool,
-) error {
-	if err := s.validateMealAddress(date, meal); err != nil {
-		return err
+func (s *MealPlanService) SetCooked(ctx context.Context, entryID string, cooked bool) error {
+	if entryID == "" {
+		return mealplan.ErrEntryNotFound
 	}
-	if err := mealplan.ValidatePosition(position); err != nil {
-		return err
-	}
-	return s.repo.SetCooked(ctx, date, meal, position, cooked)
+	return s.repo.SetCooked(ctx, entryID, cooked)
 }
 
 // MergeBatch は 1 行の BatchID を targetBatchID に付け替え、既存の作り置きに合流させる。
 // targetBatchID を持つ他の行が 1 件も無ければ ErrBatchTargetNotFound、2 条件 (同一レシピ /
 // ±LeftoverCopyPresets max 日以内) を満たす行が無ければ ErrBatchMergeDenied。時間帯の一致は
 // 要件から外れており、別時間帯の作り置きにも合流できる (proposal: add-mealplan-cross-meal-leftover)。
-func (s *MealPlanService) MergeBatch(
-	ctx context.Context, date, meal string, position int, targetBatchID string,
-) error {
-	if err := s.validateMealAddress(date, meal); err != nil {
-		return err
-	}
-	if err := mealplan.ValidatePosition(position); err != nil {
-		return err
+func (s *MealPlanService) MergeBatch(ctx context.Context, entryID, targetBatchID string) error {
+	if entryID == "" {
+		return mealplan.ErrEntryNotFound
 	}
 	if targetBatchID == "" {
 		return mealplan.ErrBatchTargetNotFound
 	}
-	return s.repo.MergeBatch(ctx, date, meal, position, targetBatchID)
+	return s.repo.MergeBatch(ctx, entryID, targetBatchID)
 }
 
 // ListMergeCandidates は合流候補ダイアログ用に、2 条件 (同一レシピ / ±日以内) を満たす
-// 他バッチ代表行を返す。recipeID は起点行のレシピ ID (呼び出し側は Entry.RecipeID から渡す)。
+// 他バッチ代表行を返す。レシピは行そのものから読むので、行とレシピの組を取り違えない。
 // 候補には別時間帯の作り置きも含まれ、BatchSummary.Meal で識別できる (proposal:
 // add-mealplan-cross-meal-leftover)。
-func (s *MealPlanService) ListMergeCandidates(
-	ctx context.Context, date, meal, recipeID string,
-) ([]mealplan.BatchSummary, error) {
-	if err := s.validateMealAddress(date, meal); err != nil {
-		return nil, err
+func (s *MealPlanService) ListMergeCandidates(ctx context.Context, entryID string) ([]mealplan.BatchSummary, error) {
+	if entryID == "" {
+		return nil, mealplan.ErrEntryNotFound
 	}
-	if recipeID == "" {
-		return nil, mealplan.ErrUnknownRecipe
-	}
-	return s.repo.ListMergeCandidates(ctx, date, meal, recipeID)
+	return s.repo.ListMergeCandidates(ctx, entryID)
 }
 
-// SpreadEntry は起点行 (date, meal, position) の品を、targets で選んだセルだけに 1 回の操作で入れる。
+// SpreadEntry は起点行の品を、targets で選んだセルだけに 1 回の操作で入れる。
 // 1 セルでも反映できなければどのセルにも入れない (revise-mealplan-spread-api design.md D1)。
 // shareBatch=true は起点と同じ作り置き、false は各セルを独立した作り置きにする。
 func (s *MealPlanService) SpreadEntry(
-	ctx context.Context, date, meal string, position int,
+	ctx context.Context, entryID string,
 	targets []mealplan.SpreadTarget, mode string, shareBatch bool,
 ) error {
-	if err := s.validateMealAddress(date, meal); err != nil {
-		return err
-	}
-	if err := mealplan.ValidatePosition(position); err != nil {
-		return err
+	if entryID == "" {
+		return mealplan.ErrEntryNotFound
 	}
 	cm := mealplan.CopyMode(mode)
 	if cm != mealplan.CopyModeAppend && cm != mealplan.CopyModeOverwrite {
 		return mealplan.ErrInvalidCopyMode
 	}
-	if err := mealplan.ValidateSpreadTargets(date, mealplan.Meal(meal), targets, s.maxSpreadOffsetDays()); err != nil {
+	// 対象セルの範囲は起点のセルから決まるので、起点の住所を先に読む。
+	src, err := s.repo.Entry(ctx, entryID)
+	if err != nil {
 		return err
 	}
-	return s.repo.Spread(ctx, date, meal, position, targets, cm, mealplan.ShareBatch(shareBatch))
+	if err := mealplan.ValidateSpreadTargets(src.Date, src.Meal, targets, s.maxSpreadOffsetDays()); err != nil {
+		return err
+	}
+	return s.repo.Spread(ctx, entryID, targets, cm, mealplan.ShareBatch(shareBatch))
 }
 
 // MoveEntry は 1 行を別セル (targetDate, targetMeal) の末尾に移す (D&D による移動)。
-// batch_id / recipe_id は据え置きで、作り置きに属する行を動かしても batch は解体されない。
+// id / batch_id / recipe_id は据え置きで、作り置きに属する行を動かしても batch は解体されない。
 // 同一セル (source == target) は責務分離のため repo が ErrInvalidPosition を返し、UI 側で
 // ReorderMeal に流させる (design.md D2)。
-func (s *MealPlanService) MoveEntry(
-	ctx context.Context,
-	sourceDate, sourceMeal string, sourcePosition int,
-	targetDate, targetMeal string,
-) error {
-	if err := s.validateMealAddress(sourceDate, sourceMeal); err != nil {
-		return err
-	}
+func (s *MealPlanService) MoveEntry(ctx context.Context, entryID, targetDate, targetMeal string) error {
 	if err := s.validateMealAddress(targetDate, targetMeal); err != nil {
 		return err
 	}
-	if err := mealplan.ValidatePosition(sourcePosition); err != nil {
-		return err
+	if entryID == "" {
+		return mealplan.ErrEntryNotFound
 	}
-	return s.repo.MoveEntry(ctx, sourceDate, sourceMeal, sourcePosition, targetDate, targetMeal)
+	return s.repo.MoveEntry(ctx, entryID, targetDate, targetMeal)
 }
 
 func (s *MealPlanService) validateMealAddress(date, meal string) error {

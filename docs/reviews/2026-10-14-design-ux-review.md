@@ -104,7 +104,7 @@ Windows の WebView2 は既定で OS のテーマに従うので、ダークモ�
 
 ### R25. 献立の行に ID がない
 
-- [ ] 対応済み
+- [x] 対応済み（proposal: add-mealplan-entry-id）
 
 `meal_plans` の主キーは `(date, meal, position)` で、フロントからの操作もこの 3 つ組で行を指す。
 design.md §4 の MealPlan には `id` があるが、実装には入っていない。

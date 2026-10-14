@@ -73,6 +73,7 @@ func PlanCopy(
 			batchID = NewBatchID()
 		}
 		out = append(out, Entry{
+			ID:         NewEntryID(),
 			Date:       target,
 			Meal:       s.Meal,
 			Position:   pos,

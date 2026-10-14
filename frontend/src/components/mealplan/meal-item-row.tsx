@@ -70,6 +70,7 @@ export function MealItemRow({
                 return;
               }
               const source: DragSource = {
+                id: entry.id,
                 date: entry.date,
                 meal: entry.meal,
                 position: entry.position,

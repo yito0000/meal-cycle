@@ -40,6 +40,46 @@ func seedRecipes(t *testing.T, rr *RecipeRepo, names ...string) []recipe.Recipe 
 	return out
 }
 
+// assignID は recipeID を (date, meal) の末尾に置き、その行の ID を返す。
+func assignID(t *testing.T, repo *MealPlanRepo, date, meal, recipeID string) string {
+	t.Helper()
+	e, err := repo.Assign(context.Background(), date, meal, recipeID)
+	if err != nil {
+		t.Fatalf("Assign: %v", err)
+	}
+	return e.ID
+}
+
+// idAt は (date, meal, position) にいまある行の ID を返す。テストの前提を並び順で書くためのもの。
+func idAt(t *testing.T, repo *MealPlanRepo, date, meal string, position int) string {
+	t.Helper()
+	var id string
+	if err := repo.db.QueryRow(`
+		SELECT id FROM meal_plans WHERE date = ? AND meal = ? AND position = ?
+	`, date, meal, position).Scan(&id); err != nil {
+		t.Fatalf("idAt(%s, %s, %d): %v", date, meal, position, err)
+	}
+	return id
+}
+
+// idsByRecipe は (date, meal) の行の ID を、recipeIDs の順に並べて返す。セル内でレシピが重複しない前提。
+func idsByRecipe(t *testing.T, repo *MealPlanRepo, date, meal string, recipeIDs ...string) []string {
+	t.Helper()
+	entries, err := repo.MealEntries(context.Background(), date, meal)
+	if err != nil {
+		t.Fatalf("MealEntries: %v", err)
+	}
+	byRecipe := map[string]string{}
+	for _, e := range entries {
+		byRecipe[e.RecipeID] = e.ID
+	}
+	out := make([]string, 0, len(recipeIDs))
+	for _, r := range recipeIDs {
+		out = append(out, byRecipe[r])
+	}
+	return out
+}
+
 func TestMealPlanRepo_ListPeriod(t *testing.T) {
 	ctx := context.Background()
 
@@ -172,7 +212,7 @@ func TestMealPlanRepo_Replace(t *testing.T) {
 		rs := seedRecipes(t, rr, "A", "B", "C")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[1].ID)
-		if err := repo.Replace(ctx, "2026-08-24", "dinner", 1, rs[2].ID); err != nil {
+		if err := repo.Replace(ctx, idAt(t, repo, "2026-08-24", "dinner", 1), rs[2].ID); err != nil {
 			t.Fatalf("Replace: %v", err)
 		}
 		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
@@ -187,10 +227,10 @@ func TestMealPlanRepo_Replace(t *testing.T) {
 		}
 	})
 
-	t.Run("Replace returns ErrEntryNotFound when position missing", func(t *testing.T) {
+	t.Run("Replace returns ErrEntryNotFound when the entry is missing", func(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "A")
-		err := repo.Replace(ctx, "2026-08-24", "dinner", 0, rs[0].ID)
+		err := repo.Replace(ctx, "no-such-entry", rs[0].ID)
 		if !errors.Is(err, mealplan.ErrEntryNotFound) {
 			t.Errorf("err = %v, want ErrEntryNotFound", err)
 		}
@@ -203,7 +243,7 @@ func TestMealPlanRepo_Replace(t *testing.T) {
 		if err := rr.Archive(ctx, rs[1].ID); err != nil {
 			t.Fatalf("Archive: %v", err)
 		}
-		err := repo.Replace(ctx, "2026-08-24", "dinner", 0, rs[1].ID)
+		err := repo.Replace(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), rs[1].ID)
 		if !errors.Is(err, mealplan.ErrUnknownRecipe) {
 			t.Errorf("err = %v, want ErrUnknownRecipe", err)
 		}
@@ -223,7 +263,7 @@ func TestMealPlanRepo_Remove(t *testing.T) {
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[1].ID)
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[2].ID)
-		if _, err := repo.Remove(ctx, "2026-08-24", "dinner", 1); err != nil {
+		if _, err := repo.Remove(ctx, idAt(t, repo, "2026-08-24", "dinner", 1)); err != nil {
 			t.Fatalf("Remove: %v", err)
 		}
 		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
@@ -244,11 +284,11 @@ func TestMealPlanRepo_Remove(t *testing.T) {
 		for _, r := range rs {
 			_, _ = repo.Assign(ctx, "2026-08-24", "dinner", r.ID)
 		}
-		if err := repo.Reorder(ctx, "2026-08-24", "dinner", []string{rs[1].ID, rs[2].ID, rs[0].ID}); err != nil {
+		if err := repo.Reorder(ctx, "2026-08-24", "dinner", idsByRecipe(t, repo, "2026-08-24", "dinner", rs[1].ID, rs[2].ID, rs[0].ID)); err != nil {
 			t.Fatalf("Reorder: %v", err)
 		}
 
-		if _, err := repo.Remove(ctx, "2026-08-24", "dinner", 0); err != nil {
+		if _, err := repo.Remove(ctx, idAt(t, repo, "2026-08-24", "dinner", 0)); err != nil {
 			t.Fatalf("Remove: %v", err)
 		}
 		got, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
@@ -261,7 +301,7 @@ func TestMealPlanRepo_Remove(t *testing.T) {
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
 		b, _ := repo.Assign(ctx, "2026-08-24", "dinner", rs[1].ID)
 
-		got, err := repo.Remove(ctx, "2026-08-24", "dinner", 1)
+		got, err := repo.Remove(ctx, idAt(t, repo, "2026-08-24", "dinner", 1))
 		if err != nil {
 			t.Fatalf("Remove: %v", err)
 		}
@@ -281,10 +321,10 @@ func TestMealPlanRepo_Remove(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "A")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
-		_ = repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+		_ = repo.SetCooked(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), true)
 		want := cookedAtOf(t, repo, rs[0].ID)
 
-		got, err := repo.Remove(ctx, "2026-08-24", "dinner", 0)
+		got, err := repo.Remove(ctx, idAt(t, repo, "2026-08-24", "dinner", 0))
 		if err != nil {
 			t.Fatalf("Remove: %v", err)
 		}
@@ -330,7 +370,7 @@ func TestMealPlanRepo_MoveEntry(t *testing.T) {
 		rs := seedRecipes(t, rr, "肉じゃが")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
 
-		if err := repo.MoveEntry(ctx, "2026-08-24", "dinner", 0, "2026-08-25", "dinner"); err != nil {
+		if err := repo.MoveEntry(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), "2026-08-25", "dinner"); err != nil {
 			t.Fatalf("MoveEntry: %v", err)
 		}
 		src, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
@@ -350,7 +390,7 @@ func TestMealPlanRepo_MoveEntry(t *testing.T) {
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[1].ID)
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[2].ID)
 
-		if err := repo.MoveEntry(ctx, "2026-08-24", "dinner", 1, "2026-08-25", "dinner"); err != nil {
+		if err := repo.MoveEntry(ctx, idAt(t, repo, "2026-08-24", "dinner", 1), "2026-08-25", "dinner"); err != nil {
 			t.Fatalf("MoveEntry: %v", err)
 		}
 		src, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
@@ -371,11 +411,11 @@ func TestMealPlanRepo_MoveEntry(t *testing.T) {
 		for _, r := range rs {
 			_, _ = repo.Assign(ctx, "2026-08-24", "dinner", r.ID)
 		}
-		if err := repo.Reorder(ctx, "2026-08-24", "dinner", []string{rs[2].ID, rs[1].ID, rs[0].ID}); err != nil {
+		if err := repo.Reorder(ctx, "2026-08-24", "dinner", idsByRecipe(t, repo, "2026-08-24", "dinner", rs[2].ID, rs[1].ID, rs[0].ID)); err != nil {
 			t.Fatalf("Reorder: %v", err)
 		}
 
-		if err := repo.MoveEntry(ctx, "2026-08-24", "dinner", 0, "2026-08-25", "dinner"); err != nil {
+		if err := repo.MoveEntry(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), "2026-08-25", "dinner"); err != nil {
 			t.Fatalf("MoveEntry: %v", err)
 		}
 		src, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
@@ -393,7 +433,7 @@ func TestMealPlanRepo_MoveEntry(t *testing.T) {
 			[]string{"2026-08-25", "2026-08-26"}, source,
 			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover)
 
-		if err := repo.MoveEntry(ctx, "2026-08-26", "dinner", 0, "2026-08-27", "dinner"); err != nil {
+		if err := repo.MoveEntry(ctx, idAt(t, repo, "2026-08-26", "dinner", 0), "2026-08-27", "dinner"); err != nil {
 			t.Fatalf("MoveEntry: %v", err)
 		}
 		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
@@ -414,7 +454,7 @@ func TestMealPlanRepo_MoveEntry(t *testing.T) {
 		rs := seedRecipes(t, rr, "肉じゃが")
 		src, _ := repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
 
-		if err := repo.MoveEntry(ctx, "2026-08-24", "dinner", 0, "2026-08-24", "lunch"); err != nil {
+		if err := repo.MoveEntry(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), "2026-08-24", "lunch"); err != nil {
 			t.Fatalf("MoveEntry: %v", err)
 		}
 		lunch, _ := repo.MealEntries(ctx, "2026-08-24", "lunch")
@@ -428,7 +468,7 @@ func TestMealPlanRepo_MoveEntry(t *testing.T) {
 
 	t.Run("MoveEntry returns ErrEntryNotFound when source row is missing", func(t *testing.T) {
 		repo, _ := newMealPlanRepoForTest(t)
-		err := repo.MoveEntry(ctx, "2026-08-24", "dinner", 0, "2026-08-25", "dinner")
+		err := repo.MoveEntry(ctx, "no-such-entry", "2026-08-25", "dinner")
 		if !errors.Is(err, mealplan.ErrEntryNotFound) {
 			t.Errorf("err = %v, want ErrEntryNotFound", err)
 		}
@@ -438,7 +478,7 @@ func TestMealPlanRepo_MoveEntry(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "肉じゃが")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
-		err := repo.MoveEntry(ctx, "2026-08-24", "dinner", 0, "2026-08-24", "dinner")
+		err := repo.MoveEntry(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), "2026-08-24", "dinner")
 		if !errors.Is(err, mealplan.ErrInvalidPosition) {
 			t.Errorf("err = %v, want ErrInvalidPosition", err)
 		}
@@ -473,7 +513,7 @@ func TestMealPlanRepo_ClearMeal(t *testing.T) {
 		for _, r := range rs {
 			_, _ = repo.Assign(ctx, "2026-08-24", "dinner", r.ID)
 		}
-		_ = repo.Reorder(ctx, "2026-08-24", "dinner", []string{rs[2].ID, rs[0].ID, rs[1].ID})
+		_ = repo.Reorder(ctx, "2026-08-24", "dinner", idsByRecipe(t, repo, "2026-08-24", "dinner", rs[2].ID, rs[0].ID, rs[1].ID))
 
 		got, err := repo.ClearMeal(ctx, "2026-08-24", "dinner")
 		if err != nil {
@@ -510,7 +550,7 @@ func TestMealPlanRepo_RestoreEntries(t *testing.T) {
 		for _, r := range rs {
 			_, _ = repo.Assign(ctx, "2026-08-24", "dinner", r.ID)
 		}
-		removed, err := repo.Remove(ctx, "2026-08-24", "dinner", 1)
+		removed, err := repo.Remove(ctx, idAt(t, repo, "2026-08-24", "dinner", 1))
 		if err != nil {
 			t.Fatalf("Remove: %v", err)
 		}
@@ -528,8 +568,8 @@ func TestMealPlanRepo_RestoreEntries(t *testing.T) {
 		for _, r := range rs {
 			_, _ = repo.Assign(ctx, "2026-08-24", "dinner", r.ID)
 		}
-		removed, _ := repo.Remove(ctx, "2026-08-24", "dinner", 2)
-		_, _ = repo.Remove(ctx, "2026-08-24", "dinner", 0)
+		removed, _ := repo.Remove(ctx, idAt(t, repo, "2026-08-24", "dinner", 2))
+		_, _ = repo.Remove(ctx, idAt(t, repo, "2026-08-24", "dinner", 0))
 
 		if err := repo.RestoreEntries(ctx, []mealplan.RemovedEntry{removed}); err != nil {
 			t.Fatalf("RestoreEntries: %v", err)
@@ -558,7 +598,7 @@ func TestMealPlanRepo_RestoreEntries(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "カレー")
 		src := seedLeftover(t, repo, rs[0].ID, "2026-08-25", "2026-08-26")
-		removed, _ := repo.Remove(ctx, "2026-08-25", "dinner", 0)
+		removed, _ := repo.Remove(ctx, idAt(t, repo, "2026-08-25", "dinner", 0))
 
 		if err := repo.RestoreEntries(ctx, []mealplan.RemovedEntry{removed}); err != nil {
 			t.Fatalf("RestoreEntries: %v", err)
@@ -578,9 +618,9 @@ func TestMealPlanRepo_RestoreEntries(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "肉じゃが")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
-		_ = repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+		_ = repo.SetCooked(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), true)
 		want := cookedAtOf(t, repo, rs[0].ID)
-		removed, _ := repo.Remove(ctx, "2026-08-24", "dinner", 0)
+		removed, _ := repo.Remove(ctx, idAt(t, repo, "2026-08-24", "dinner", 0))
 		if n := countCookedMarks(t, repo); n != 0 {
 			t.Fatalf("precondition: want mark pruned, got %d", n)
 		}
@@ -600,8 +640,8 @@ func TestMealPlanRepo_RestoreEntries(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "カレー")
 		seedLeftover(t, repo, rs[0].ID, "2026-08-25")
-		_ = repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
-		removed, _ := repo.Remove(ctx, "2026-08-25", "dinner", 0)
+		_ = repo.SetCooked(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), true)
+		removed, _ := repo.Remove(ctx, idAt(t, repo, "2026-08-25", "dinner", 0))
 
 		if err := repo.RestoreEntries(ctx, []mealplan.RemovedEntry{removed}); err != nil {
 			t.Fatalf("RestoreEntries: %v", err)
@@ -622,8 +662,8 @@ func TestMealPlanRepo_RestoreEntries(t *testing.T) {
 		for _, r := range rs {
 			_, _ = repo.Assign(ctx, "2026-08-24", "dinner", r.ID)
 		}
-		_ = repo.Reorder(ctx, "2026-08-24", "dinner", []string{rs[2].ID, rs[0].ID, rs[1].ID})
-		removed, err := repo.Remove(ctx, "2026-08-24", "dinner", 0)
+		_ = repo.Reorder(ctx, "2026-08-24", "dinner", idsByRecipe(t, repo, "2026-08-24", "dinner", rs[2].ID, rs[0].ID, rs[1].ID))
+		removed, err := repo.Remove(ctx, idAt(t, repo, "2026-08-24", "dinner", 0))
 		if err != nil {
 			t.Fatalf("Remove: %v", err)
 		}
@@ -640,10 +680,11 @@ func TestMealPlanRepo_RestoreEntries(t *testing.T) {
 		rs := seedRecipes(t, rr, "A", "B")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
 		ok := mealplan.RemovedEntry{
-			Date: "2026-08-24", Meal: mealplan.MealDinner, Position: 0,
+			ID: mealplan.NewEntryID(), Date: "2026-08-24", Meal: mealplan.MealDinner, Position: 0,
 			RecipeID: rs[1].ID, BatchID: mealplan.NewBatchID(), CreatedAt: "2026-08-20T09:00:00Z",
 		}
 		missing := ok
+		missing.ID = mealplan.NewEntryID()
 		missing.Date = "2026-08-25"
 		missing.RecipeID = "no-such-recipe"
 
@@ -661,13 +702,13 @@ func TestMealPlanRepo_RestoreEntries(t *testing.T) {
 func TestMealPlanRepo_Reorder(t *testing.T) {
 	ctx := context.Background()
 
-	t.Run("Reorder should renumber positions according to orderedRecipeIDs", func(t *testing.T) {
+	t.Run("Reorder should renumber positions according to the ordered entry ids", func(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "A", "B", "C")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[1].ID)
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[2].ID)
-		if err := repo.Reorder(ctx, "2026-08-24", "dinner", []string{rs[2].ID, rs[0].ID, rs[1].ID}); err != nil {
+		if err := repo.Reorder(ctx, "2026-08-24", "dinner", idsByRecipe(t, repo, "2026-08-24", "dinner", rs[2].ID, rs[0].ID, rs[1].ID)); err != nil {
 			t.Fatalf("Reorder: %v", err)
 		}
 		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
@@ -678,12 +719,12 @@ func TestMealPlanRepo_Reorder(t *testing.T) {
 		}
 	})
 
-	t.Run("Reorder should return error when orderedRecipeIDs mismatches the current meal content", func(t *testing.T) {
+	t.Run("Reorder should return error when the ordered entry ids miss a row of the meal", func(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "A", "B")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[1].ID)
-		err := repo.Reorder(ctx, "2026-08-24", "dinner", []string{rs[0].ID})
+		err := repo.Reorder(ctx, "2026-08-24", "dinner", idsByRecipe(t, repo, "2026-08-24", "dinner", rs[0].ID))
 		if !errors.Is(err, mealplan.ErrReorderMismatch) {
 			t.Errorf("err = %v, want ErrReorderMismatch", err)
 		}
@@ -821,7 +862,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 			[]string{"2026-08-25", "2026-08-26"}, source,
 			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover)
 
-		newID, err := repo.SplitBatch(ctx, "2026-08-25", "dinner", 0)
+		newID, err := repo.SplitBatch(ctx, idAt(t, repo, "2026-08-25", "dinner", 0))
 		if err != nil {
 			t.Fatalf("SplitBatch: %v", err)
 		}
@@ -849,7 +890,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 			[]string{"2026-08-25", "2026-08-26"}, source,
 			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover)
 
-		newID, err := repo.SplitBatch(ctx, "2026-08-24", "dinner", 0) // 起点行を指す
+		newID, err := repo.SplitBatch(ctx, idAt(t, repo, "2026-08-24", "dinner", 0)) // 起点行を指す
 		if err != nil {
 			t.Fatalf("SplitBatch: %v", err)
 		}
@@ -863,7 +904,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "肉じゃが")
 		src, _ := repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
-		returned, err := repo.SplitBatch(ctx, "2026-08-24", "dinner", 0)
+		returned, err := repo.SplitBatch(ctx, idAt(t, repo, "2026-08-24", "dinner", 0))
 		if err != nil {
 			t.Fatalf("SplitBatch: %v", err)
 		}
@@ -886,7 +927,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover)
 		other, _ := repo.Assign(ctx, "2026-08-25", "dinner", rs[1].ID) // 別バッチ、別レシピ
 
-		if _, err := repo.SplitBatch(ctx, "2026-08-26", "dinner", 0); err != nil {
+		if _, err := repo.SplitBatch(ctx, idAt(t, repo, "2026-08-26", "dinner", 0)); err != nil {
 			t.Fatalf("SplitBatch: %v", err)
 		}
 		got, _ := repo.MealEntries(ctx, "2026-08-25", "dinner")
@@ -910,11 +951,11 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover)
 		_, _ = repo.Assign(ctx, "2026-08-25", "dinner", rs[1].ID)
 		_, _ = repo.Assign(ctx, "2026-08-25", "dinner", rs[2].ID)
-		if err := repo.Reorder(ctx, "2026-08-25", "dinner", []string{rs[0].ID, rs[2].ID, rs[1].ID}); err != nil {
+		if err := repo.Reorder(ctx, "2026-08-25", "dinner", idsByRecipe(t, repo, "2026-08-25", "dinner", rs[0].ID, rs[2].ID, rs[1].ID)); err != nil {
 			t.Fatalf("Reorder: %v", err)
 		}
 
-		if _, err := repo.SplitBatch(ctx, "2026-08-24", "dinner", 0); err != nil {
+		if _, err := repo.SplitBatch(ctx, idAt(t, repo, "2026-08-24", "dinner", 0)); err != nil {
 			t.Fatalf("SplitBatch: %v", err)
 		}
 		got, _ := repo.MealEntries(ctx, "2026-08-25", "dinner")
@@ -928,12 +969,12 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		source, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
 		_ = repo.CopyLeftover(ctx, "dinner", []string{"2026-08-25", "2026-08-26"}, source,
 			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover)
-		if err := repo.MoveEntry(ctx, "2026-08-26", "dinner", 0, "2026-08-25", "dinner"); err != nil {
+		if err := repo.MoveEntry(ctx, idAt(t, repo, "2026-08-26", "dinner", 0), "2026-08-25", "dinner"); err != nil {
 			t.Fatalf("MoveEntry: %v", err)
 		}
 		_, _ = repo.Assign(ctx, "2026-08-25", "dinner", rs[1].ID)
 
-		if _, err := repo.SplitBatch(ctx, "2026-08-24", "dinner", 0); err != nil {
+		if _, err := repo.SplitBatch(ctx, idAt(t, repo, "2026-08-24", "dinner", 0)); err != nil {
 			t.Fatalf("SplitBatch: %v", err)
 		}
 		origin, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
@@ -947,7 +988,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		rs := seedRecipes(t, rr, "肉じゃが")
 		mon, _ := repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
 		_, _ = repo.Assign(ctx, "2026-08-25", "dinner", rs[0].ID)
-		if err := repo.MergeBatch(ctx, "2026-08-25", "dinner", 0, mon.BatchID); err != nil {
+		if err := repo.MergeBatch(ctx, idAt(t, repo, "2026-08-25", "dinner", 0), mon.BatchID); err != nil {
 			t.Fatalf("MergeBatch: %v", err)
 		}
 		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
@@ -965,7 +1006,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "肉じゃが")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
-		err := repo.MergeBatch(ctx, "2026-08-24", "dinner", 0, "ghost-batch-id")
+		err := repo.MergeBatch(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), "ghost-batch-id")
 		if !errors.Is(err, mealplan.ErrBatchTargetNotFound) {
 			t.Errorf("err = %v, want ErrBatchTargetNotFound", err)
 		}
@@ -980,7 +1021,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		_, _ = repo.Assign(ctx, "2026-09-05", "dinner", rs[0].ID)     // 12 日後 (除外)
 		lunch, _ := repo.Assign(ctx, "2026-08-24", "lunch", rs[0].ID) // 別 meal 同レシピ (候補)
 
-		got, err := repo.ListMergeCandidates(ctx, "2026-08-24", "dinner", rs[0].ID)
+		got, err := repo.ListMergeCandidates(ctx, idAt(t, repo, "2026-08-24", "dinner", 0))
 		if err != nil {
 			t.Fatalf("ListMergeCandidates: %v", err)
 		}
@@ -1012,7 +1053,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		rs := seedRecipes(t, rr, "肉じゃが", "みそ汁")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)     // 起点 r1
 		miso, _ := repo.Assign(ctx, "2026-08-25", "dinner", rs[1].ID) // 別レシピ
-		err := repo.MergeBatch(ctx, "2026-08-24", "dinner", 0, miso.BatchID)
+		err := repo.MergeBatch(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), miso.BatchID)
 		if !errors.Is(err, mealplan.ErrBatchMergeDenied) {
 			t.Errorf("err = %v, want ErrBatchMergeDenied", err)
 		}
@@ -1023,7 +1064,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		rs := seedRecipes(t, rr, "肉じゃが")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)    // 起点
 		far, _ := repo.Assign(ctx, "2026-09-05", "dinner", rs[0].ID) // 12 日後 (レンジ外)
-		err := repo.MergeBatch(ctx, "2026-08-24", "dinner", 0, far.BatchID)
+		err := repo.MergeBatch(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), far.BatchID)
 		if !errors.Is(err, mealplan.ErrBatchMergeDenied) {
 			t.Errorf("err = %v, want ErrBatchMergeDenied", err)
 		}
@@ -1039,7 +1080,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover)
 		_, _ = repo.Assign(ctx, "2026-08-28", "dinner", rs[0].ID) // 金 (4 日後、同レシピ)
 
-		if err := repo.MergeBatch(ctx, "2026-08-28", "dinner", 0, mon.BatchID); err != nil {
+		if err := repo.MergeBatch(ctx, idAt(t, repo, "2026-08-28", "dinner", 0), mon.BatchID); err != nil {
 			t.Fatalf("MergeBatch: %v", err)
 		}
 		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
@@ -1086,7 +1127,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		mon, _ := repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID) // 月・夕 (target)
 		_, _ = repo.Assign(ctx, "2026-08-25", "lunch", rs[0].ID)     // 火・昼 (別バッチ、同レシピ)
 
-		if err := repo.MergeBatch(ctx, "2026-08-25", "lunch", 0, mon.BatchID); err != nil {
+		if err := repo.MergeBatch(ctx, idAt(t, repo, "2026-08-25", "lunch", 0), mon.BatchID); err != nil {
 			t.Fatalf("MergeBatch across meals: %v", err)
 		}
 		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
@@ -1106,7 +1147,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		rs := seedRecipes(t, rr, "肉じゃが", "みそ汁")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
 		miso, _ := repo.Assign(ctx, "2026-08-25", "lunch", rs[1].ID) // 別 meal、別レシピ
-		err := repo.MergeBatch(ctx, "2026-08-24", "dinner", 0, miso.BatchID)
+		err := repo.MergeBatch(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), miso.BatchID)
 		if !errors.Is(err, mealplan.ErrBatchMergeDenied) {
 			t.Errorf("err = %v, want ErrBatchMergeDenied", err)
 		}
@@ -1116,14 +1157,14 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "肉じゃが")
 		monLunch, _ := repo.Assign(ctx, "2026-08-24", "lunch", rs[0].ID)
-		if err := repo.Spread(ctx, "2026-08-24", "lunch", 0,
+		if err := repo.Spread(ctx, idAt(t, repo, "2026-08-24", "lunch", 0),
 			[]mealplan.SpreadTarget{{Date: "2026-08-24", Meal: mealplan.MealDinner}},
 			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover); err != nil {
 			t.Fatalf("Spread: %v", err)
 		}
 		_, _ = repo.Assign(ctx, "2026-08-25", "dinner", rs[0].ID)
 
-		got, err := repo.ListMergeCandidates(ctx, "2026-08-25", "dinner", rs[0].ID)
+		got, err := repo.ListMergeCandidates(ctx, idAt(t, repo, "2026-08-25", "dinner", 0))
 		if err != nil {
 			t.Fatalf("ListMergeCandidates: %v", err)
 		}
@@ -1141,14 +1182,14 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		// 夕食の position 0 と昼食の position 1 を作り、position だけで選ぶと夕食が選ばれる並びにする。
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
 		_, _ = repo.Assign(ctx, "2026-08-24", "lunch", rs[1].ID)
-		if err := repo.Spread(ctx, "2026-08-24", "dinner", 0,
+		if err := repo.Spread(ctx, idAt(t, repo, "2026-08-24", "dinner", 0),
 			[]mealplan.SpreadTarget{{Date: "2026-08-24", Meal: mealplan.MealLunch}, {Date: "2026-08-25", Meal: mealplan.MealBreakfast}},
 			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover); err != nil {
 			t.Fatalf("Spread: %v", err)
 		}
 		_, _ = repo.Assign(ctx, "2026-08-26", "dinner", rs[0].ID)
 
-		got, err := repo.ListMergeCandidates(ctx, "2026-08-26", "dinner", rs[0].ID)
+		got, err := repo.ListMergeCandidates(ctx, idAt(t, repo, "2026-08-26", "dinner", 0))
 		if err != nil {
 			t.Fatalf("ListMergeCandidates: %v", err)
 		}
@@ -1264,7 +1305,7 @@ func TestMealPlanRepo_Cooked(t *testing.T) {
 		rs := seedRecipes(t, rr, "カレー")
 		seedLeftover(t, repo, rs[0].ID, "2026-08-25", "2026-08-26")
 
-		if err := repo.SetCooked(ctx, "2026-08-25", "dinner", 0, true); err != nil {
+		if err := repo.SetCooked(ctx, idAt(t, repo, "2026-08-25", "dinner", 0), true); err != nil {
 			t.Fatalf("SetCooked: %v", err)
 		}
 		for cell, cooked := range cookedByCell(t, repo, "2026-08-24") {
@@ -1278,9 +1319,9 @@ func TestMealPlanRepo_Cooked(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "カレー")
 		seedLeftover(t, repo, rs[0].ID, "2026-08-25", "2026-08-26")
-		_ = repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+		_ = repo.SetCooked(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), true)
 
-		if err := repo.SetCooked(ctx, "2026-08-25", "dinner", 0, false); err != nil {
+		if err := repo.SetCooked(ctx, idAt(t, repo, "2026-08-25", "dinner", 0), false); err != nil {
 			t.Fatalf("SetCooked: %v", err)
 		}
 		for cell, cooked := range cookedByCell(t, repo, "2026-08-24") {
@@ -1296,7 +1337,7 @@ func TestMealPlanRepo_Cooked(t *testing.T) {
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
 		_, _ = repo.Assign(ctx, "2026-08-26", "dinner", rs[0].ID)
 
-		_ = repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+		_ = repo.SetCooked(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), true)
 		got := cookedByCell(t, repo, "2026-08-24")
 		if !got["2026-08-24/dinner/カレー"] {
 			t.Error("2026-08-24: want cooked")
@@ -1308,7 +1349,7 @@ func TestMealPlanRepo_Cooked(t *testing.T) {
 
 	t.Run("SetCooked should return ErrEntryNotFound when the row does not exist", func(t *testing.T) {
 		repo, _ := newMealPlanRepoForTest(t)
-		err := repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+		err := repo.SetCooked(ctx, "no-such-entry", true)
 		if !errors.Is(err, mealplan.ErrEntryNotFound) {
 			t.Errorf("want ErrEntryNotFound, got %v", err)
 		}
@@ -1322,7 +1363,7 @@ func TestMealPlanRepo_Cooked(t *testing.T) {
 		rs := seedRecipes(t, rr, "肉じゃが")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
 		for _, cooked := range []bool{true, true, false, false} {
-			if err := repo.SetCooked(ctx, "2026-08-24", "dinner", 0, cooked); err != nil {
+			if err := repo.SetCooked(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), cooked); err != nil {
 				t.Fatalf("SetCooked(%v): %v", cooked, err)
 			}
 		}
@@ -1332,7 +1373,7 @@ func TestMealPlanRepo_Cooked(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "カレー")
 		seedLeftover(t, repo, rs[0].ID)
-		_ = repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+		_ = repo.SetCooked(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), true)
 
 		source, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
 		_ = repo.CopyLeftover(ctx, "dinner", []string{"2026-08-25"}, source,
@@ -1346,7 +1387,7 @@ func TestMealPlanRepo_Cooked(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "カレー")
 		seedLeftover(t, repo, rs[0].ID)
-		_ = repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+		_ = repo.SetCooked(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), true)
 
 		source, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
 		_ = repo.CopyLeftover(ctx, "dinner", []string{"2026-08-25"}, source,
@@ -1360,9 +1401,9 @@ func TestMealPlanRepo_Cooked(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "肉じゃが")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
-		_ = repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+		_ = repo.SetCooked(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), true)
 
-		if err := repo.MoveEntry(ctx, "2026-08-24", "dinner", 0, "2026-08-25", "dinner"); err != nil {
+		if err := repo.MoveEntry(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), "2026-08-25", "dinner"); err != nil {
 			t.Fatalf("MoveEntry: %v", err)
 		}
 		if !cookedByCell(t, repo, "2026-08-24")["2026-08-25/dinner/肉じゃが"] {
@@ -1374,15 +1415,15 @@ func TestMealPlanRepo_Cooked(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "肉じゃが", "カレー")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
-		_ = repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+		_ = repo.SetCooked(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), true)
 
-		if err := repo.Replace(ctx, "2026-08-24", "dinner", 0, rs[1].ID); err != nil {
+		if err := repo.Replace(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), rs[1].ID); err != nil {
 			t.Fatalf("Replace: %v", err)
 		}
 		if cookedByCell(t, repo, "2026-08-24")["2026-08-24/dinner/カレー"] {
 			t.Error("after replace: want not cooked")
 		}
-		if err := repo.Replace(ctx, "2026-08-24", "dinner", 0, rs[0].ID); err != nil {
+		if err := repo.Replace(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), rs[0].ID); err != nil {
 			t.Fatalf("Replace back: %v", err)
 		}
 		if cookedByCell(t, repo, "2026-08-24")["2026-08-24/dinner/肉じゃが"] {
@@ -1394,9 +1435,9 @@ func TestMealPlanRepo_Cooked(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "カレー")
 		seedLeftover(t, repo, rs[0].ID, "2026-08-25", "2026-08-26")
-		_ = repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+		_ = repo.SetCooked(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), true)
 
-		if _, err := repo.SplitBatch(ctx, "2026-08-25", "dinner", 0); err != nil {
+		if _, err := repo.SplitBatch(ctx, idAt(t, repo, "2026-08-25", "dinner", 0)); err != nil {
 			t.Fatalf("SplitBatch: %v", err)
 		}
 		got := cookedByCell(t, repo, "2026-08-24")
@@ -1413,9 +1454,9 @@ func TestMealPlanRepo_Cooked(t *testing.T) {
 		rs := seedRecipes(t, rr, "カレー")
 		target, _ := repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
 		_, _ = repo.Assign(ctx, "2026-08-26", "dinner", rs[0].ID)
-		_ = repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+		_ = repo.SetCooked(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), true)
 
-		if err := repo.MergeBatch(ctx, "2026-08-26", "dinner", 0, target.BatchID); err != nil {
+		if err := repo.MergeBatch(ctx, idAt(t, repo, "2026-08-26", "dinner", 0), target.BatchID); err != nil {
 			t.Fatalf("MergeBatch: %v", err)
 		}
 		got := cookedByCell(t, repo, "2026-08-24")
@@ -1429,9 +1470,9 @@ func TestMealPlanRepo_Cooked(t *testing.T) {
 		rs := seedRecipes(t, rr, "カレー")
 		target, _ := repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
 		_, _ = repo.Assign(ctx, "2026-08-26", "dinner", rs[0].ID)
-		_ = repo.SetCooked(ctx, "2026-08-26", "dinner", 0, true)
+		_ = repo.SetCooked(ctx, idAt(t, repo, "2026-08-26", "dinner", 0), true)
 
-		if err := repo.MergeBatch(ctx, "2026-08-26", "dinner", 0, target.BatchID); err != nil {
+		if err := repo.MergeBatch(ctx, idAt(t, repo, "2026-08-26", "dinner", 0), target.BatchID); err != nil {
 			t.Fatalf("MergeBatch: %v", err)
 		}
 		got := cookedByCell(t, repo, "2026-08-24")
@@ -1447,7 +1488,7 @@ func TestMealPlanRepo_Cooked(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "肉じゃが")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
-		_ = repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+		_ = repo.SetCooked(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), true)
 
 		if _, err := repo.ClearMeal(ctx, "2026-08-24", "dinner"); err != nil {
 			t.Fatalf("ClearMeal: %v", err)
@@ -1469,7 +1510,7 @@ func TestMealPlanRepo_Spread(t *testing.T) {
 		rs := seedRecipes(t, rr, "肉じゃが")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
 
-		if err := repo.Spread(ctx, "2026-08-24", "dinner", 0,
+		if err := repo.Spread(ctx, idAt(t, repo, "2026-08-24", "dinner", 0),
 			[]mealplan.SpreadTarget{cell("2026-08-25", mealplan.MealDinner), cell("2026-08-27", mealplan.MealDinner)},
 			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover); err != nil {
 			t.Fatalf("Spread: %v", err)
@@ -1487,7 +1528,7 @@ func TestMealPlanRepo_Spread(t *testing.T) {
 		rs := seedRecipes(t, rr, "肉じゃが")
 		src, _ := repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
 
-		if err := repo.Spread(ctx, "2026-08-24", "dinner", 0,
+		if err := repo.Spread(ctx, idAt(t, repo, "2026-08-24", "dinner", 0),
 			[]mealplan.SpreadTarget{cell("2026-08-25", mealplan.MealDinner), cell("2026-08-26", mealplan.MealLunch)},
 			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover); err != nil {
 			t.Fatalf("Spread: %v", err)
@@ -1505,7 +1546,7 @@ func TestMealPlanRepo_Spread(t *testing.T) {
 		rs := seedRecipes(t, rr, "肉じゃが")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
 
-		if err := repo.Spread(ctx, "2026-08-24", "dinner", 0,
+		if err := repo.Spread(ctx, idAt(t, repo, "2026-08-24", "dinner", 0),
 			[]mealplan.SpreadTarget{cell("2026-08-25", mealplan.MealDinner), cell("2026-08-26", mealplan.MealLunch)},
 			mealplan.CopyModeAppend, mealplan.ShareBatchDistinct); err != nil {
 			t.Fatalf("Spread: %v", err)
@@ -1532,7 +1573,7 @@ func TestMealPlanRepo_Spread(t *testing.T) {
 		src, _ := repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
 		_, _ = repo.Assign(ctx, "2026-08-25", "lunch", rs[1].ID)
 
-		if err := repo.Spread(ctx, "2026-08-24", "dinner", 0,
+		if err := repo.Spread(ctx, idAt(t, repo, "2026-08-24", "dinner", 0),
 			[]mealplan.SpreadTarget{cell("2026-08-25", mealplan.MealLunch)},
 			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover); err != nil {
 			t.Fatalf("Spread: %v", err)
@@ -1552,7 +1593,7 @@ func TestMealPlanRepo_Spread(t *testing.T) {
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
 		existing, _ := repo.Assign(ctx, "2026-08-25", "lunch", rs[0].ID)
 
-		if err := repo.Spread(ctx, "2026-08-24", "dinner", 0,
+		if err := repo.Spread(ctx, idAt(t, repo, "2026-08-24", "dinner", 0),
 			[]mealplan.SpreadTarget{cell("2026-08-25", mealplan.MealLunch), cell("2026-08-25", mealplan.MealDinner)},
 			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover); err != nil {
 			t.Fatalf("Spread: %v", err)
@@ -1573,7 +1614,7 @@ func TestMealPlanRepo_Spread(t *testing.T) {
 		src, _ := repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
 		_, _ = repo.Assign(ctx, "2026-08-25", "dinner", rs[1].ID)
 
-		if err := repo.Spread(ctx, "2026-08-24", "dinner", 0,
+		if err := repo.Spread(ctx, idAt(t, repo, "2026-08-24", "dinner", 0),
 			[]mealplan.SpreadTarget{cell("2026-08-25", mealplan.MealDinner)},
 			mealplan.CopyModeOverwrite, mealplan.ShareBatchLeftover); err != nil {
 			t.Fatalf("Spread: %v", err)
@@ -1588,14 +1629,14 @@ func TestMealPlanRepo_Spread(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "肉じゃが")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
-		_ = repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+		_ = repo.SetCooked(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), true)
 
-		if err := repo.Spread(ctx, "2026-08-24", "dinner", 0,
+		if err := repo.Spread(ctx, idAt(t, repo, "2026-08-24", "dinner", 0),
 			[]mealplan.SpreadTarget{cell("2026-08-25", mealplan.MealDinner)},
 			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover); err != nil {
 			t.Fatalf("Spread shared: %v", err)
 		}
-		if err := repo.Spread(ctx, "2026-08-24", "dinner", 0,
+		if err := repo.Spread(ctx, idAt(t, repo, "2026-08-24", "dinner", 0),
 			[]mealplan.SpreadTarget{cell("2026-08-26", mealplan.MealLunch)},
 			mealplan.CopyModeAppend, mealplan.ShareBatchDistinct); err != nil {
 			t.Fatalf("Spread distinct: %v", err)
@@ -1614,7 +1655,7 @@ func TestMealPlanRepo_Spread(t *testing.T) {
 		rs := seedRecipes(t, rr, "みそ汁")
 		_, _ = repo.Assign(ctx, "2026-08-25", "dinner", rs[0].ID)
 
-		err := repo.Spread(ctx, "2026-08-24", "dinner", 0,
+		err := repo.Spread(ctx, "no-such-entry",
 			[]mealplan.SpreadTarget{cell("2026-08-25", mealplan.MealDinner)},
 			mealplan.CopyModeOverwrite, mealplan.ShareBatchLeftover)
 		if !errors.Is(err, mealplan.ErrEntryNotFound) {
@@ -1623,6 +1664,194 @@ func TestMealPlanRepo_Spread(t *testing.T) {
 		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
 		if len(got) != 1 || got[0].RecipeID != rs[0].ID {
 			t.Errorf("rows = %+v, want untouched みそ汁 only", got)
+		}
+	})
+}
+
+func TestMealPlanRepo_EntryID(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Assign should return an entry with a non-empty id", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "A")
+		e1 := assignID(t, repo, "2026-08-24", "dinner", rs[0].ID)
+		e2 := assignID(t, repo, "2026-08-24", "dinner", rs[0].ID)
+		if e1 == "" || e2 == "" || e1 == e2 {
+			t.Errorf("ids = %q, %q; want distinct non-empty", e1, e2)
+		}
+		got, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
+		if got[0].ID != e1 || got[1].ID != e2 {
+			t.Errorf("listed ids = %q, %q; want %q, %q", got[0].ID, got[1].ID, e1, e2)
+		}
+	})
+
+	t.Run("Remove should hit the given entry even after an earlier row in the same cell was removed", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "A", "B", "C")
+		a := assignID(t, repo, "2026-08-24", "dinner", rs[0].ID)
+		b := assignID(t, repo, "2026-08-24", "dinner", rs[1].ID)
+		_ = assignID(t, repo, "2026-08-24", "dinner", rs[2].ID)
+
+		if _, err := repo.Remove(ctx, a); err != nil {
+			t.Fatalf("Remove a: %v", err)
+		}
+		removed, err := repo.Remove(ctx, b)
+		if err != nil {
+			t.Fatalf("Remove b: %v", err)
+		}
+		if removed.ID != b || removed.RecipeID != rs[1].ID {
+			t.Errorf("removed = %+v, want B (%s)", removed, b)
+		}
+		got, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
+		assertMealOrder(t, got, rs[2].ID)
+	})
+
+	t.Run("SetCooked should mark the given entry even after the cell was reordered", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが", "みそ汁")
+		niku := assignID(t, repo, "2026-08-24", "dinner", rs[0].ID)
+		miso := assignID(t, repo, "2026-08-24", "dinner", rs[1].ID)
+
+		if err := repo.Reorder(ctx, "2026-08-24", "dinner", []string{miso, niku}); err != nil {
+			t.Fatalf("Reorder: %v", err)
+		}
+		if err := repo.SetCooked(ctx, niku, true); err != nil {
+			t.Fatalf("SetCooked: %v", err)
+		}
+		got := cookedByCell(t, repo, "2026-08-24")
+		if !got["2026-08-24/dinner/肉じゃが"] || got["2026-08-24/dinner/みそ汁"] {
+			t.Errorf("want only 肉じゃが cooked, got %+v", got)
+		}
+	})
+
+	t.Run("Replace should return ErrEntryNotFound when the entry was already removed", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "A", "B", "C")
+		a := assignID(t, repo, "2026-08-24", "dinner", rs[0].ID)
+		_ = assignID(t, repo, "2026-08-24", "dinner", rs[1].ID)
+		if _, err := repo.Remove(ctx, a); err != nil {
+			t.Fatalf("Remove: %v", err)
+		}
+
+		err := repo.Replace(ctx, a, rs[2].ID)
+		if !errors.Is(err, mealplan.ErrEntryNotFound) {
+			t.Errorf("err = %v, want ErrEntryNotFound", err)
+		}
+		got, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
+		assertMealOrder(t, got, rs[1].ID)
+	})
+
+	t.Run("MoveEntry should keep the entry id", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "A")
+		id := assignID(t, repo, "2026-08-24", "dinner", rs[0].ID)
+
+		if err := repo.MoveEntry(ctx, id, "2026-08-25", "lunch"); err != nil {
+			t.Fatalf("MoveEntry: %v", err)
+		}
+		got, _ := repo.MealEntries(ctx, "2026-08-25", "lunch")
+		if len(got) != 1 || got[0].ID != id {
+			t.Errorf("moved = %+v, want id %q", got, id)
+		}
+	})
+
+	t.Run("Reorder should swap two rows of the same recipe when their ids are given in the new order", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "カレー")
+		first := assignID(t, repo, "2026-08-24", "dinner", rs[0].ID)
+		second := assignID(t, repo, "2026-08-24", "dinner", rs[0].ID)
+
+		if err := repo.Reorder(ctx, "2026-08-24", "dinner", []string{second, first}); err != nil {
+			t.Fatalf("Reorder: %v", err)
+		}
+		got, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
+		if len(got) != 2 || got[0].ID != second || got[1].ID != first {
+			t.Errorf("order = %+v, want [%s, %s]", got, second, first)
+		}
+	})
+
+	t.Run("Reorder should return ErrReorderMismatch when an id is duplicated", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "A", "B")
+		a := assignID(t, repo, "2026-08-24", "dinner", rs[0].ID)
+		_ = assignID(t, repo, "2026-08-24", "dinner", rs[1].ID)
+
+		err := repo.Reorder(ctx, "2026-08-24", "dinner", []string{a, a})
+		if !errors.Is(err, mealplan.ErrReorderMismatch) {
+			t.Errorf("err = %v, want ErrReorderMismatch", err)
+		}
+	})
+
+	t.Run("Reorder should return ErrReorderMismatch when an id belongs to another cell", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "A", "B")
+		a := assignID(t, repo, "2026-08-24", "dinner", rs[0].ID)
+		_ = assignID(t, repo, "2026-08-24", "dinner", rs[1].ID)
+		other := assignID(t, repo, "2026-08-24", "lunch", rs[1].ID)
+
+		err := repo.Reorder(ctx, "2026-08-24", "dinner", []string{other, a})
+		if !errors.Is(err, mealplan.ErrReorderMismatch) {
+			t.Errorf("err = %v, want ErrReorderMismatch", err)
+		}
+		got, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
+		assertMealOrder(t, got, rs[0].ID, rs[1].ID)
+	})
+
+	t.Run("RestoreEntries should bring the row back with the same id", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "A", "B")
+		_ = assignID(t, repo, "2026-08-24", "dinner", rs[0].ID)
+		b := assignID(t, repo, "2026-08-24", "dinner", rs[1].ID)
+		removed, err := repo.Remove(ctx, b)
+		if err != nil {
+			t.Fatalf("Remove: %v", err)
+		}
+
+		if err := repo.RestoreEntries(ctx, []mealplan.RemovedEntry{removed}); err != nil {
+			t.Fatalf("RestoreEntries: %v", err)
+		}
+		if got := idAt(t, repo, "2026-08-24", "dinner", 1); got != b {
+			t.Errorf("restored id = %q, want %q", got, b)
+		}
+	})
+
+	t.Run("RestoreEntries should return ErrInvalidRestore when a row with the same id already exists", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "A")
+		a := assignID(t, repo, "2026-08-24", "dinner", rs[0].ID)
+		removed, _ := repo.Remove(ctx, a)
+		if err := repo.RestoreEntries(ctx, []mealplan.RemovedEntry{removed}); err != nil {
+			t.Fatalf("first RestoreEntries: %v", err)
+		}
+
+		err := repo.RestoreEntries(ctx, []mealplan.RemovedEntry{removed})
+		if !errors.Is(err, mealplan.ErrInvalidRestore) {
+			t.Errorf("err = %v, want ErrInvalidRestore", err)
+		}
+		got, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
+		assertMealOrder(t, got, rs[0].ID)
+	})
+
+	t.Run("Spread should give every inserted row a new id", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが")
+		src := assignID(t, repo, "2026-08-24", "dinner", rs[0].ID)
+
+		if err := repo.Spread(ctx, src,
+			[]mealplan.SpreadTarget{{Date: "2026-08-25", Meal: mealplan.MealDinner}, {Date: "2026-08-26", Meal: mealplan.MealLunch}},
+			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover); err != nil {
+			t.Fatalf("Spread: %v", err)
+		}
+		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
+		ids := map[string]bool{}
+		for _, e := range got {
+			if e.ID == "" {
+				t.Errorf("%s/%s: empty id", e.Date, e.Meal)
+			}
+			ids[e.ID] = true
+		}
+		if len(got) != 3 || len(ids) != 3 {
+			t.Errorf("want 3 rows with distinct ids, got %+v", got)
 		}
 	})
 }

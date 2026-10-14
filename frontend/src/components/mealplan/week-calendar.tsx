@@ -10,7 +10,7 @@ import type {
   RemovedEntry,
 } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
 import { MealPlanService } from "../../../bindings/github.com/yito0000/meal-cycle/internal/service";
-import type { SpreadSelection } from "../../lib/spread-batch-selection";
+import type { SpreadSelection, SpreadSource } from "../../lib/spread-batch-selection";
 import { UNDO_TOAST_MS } from "../../lib/undo-toast";
 import { BatchMergeDialog } from "./batch-merge-dialog";
 import { CopyConflictDialog, type CopyConflictMode } from "./copy-conflict-dialog";
@@ -46,13 +46,12 @@ type Props = {
 type PickerState =
   | { kind: "closed" }
   | { kind: "add"; date: string; meal: string }
-  | { kind: "replace"; date: string; meal: string; position: number };
+  | { kind: "replace"; entryId: string };
 
 type PendingCopy = {
   date: string;
   meal: string;
   days: number;
-  position: number;
   targets: string[];
   conflicts: string[];
   shareBatch?: boolean;
@@ -60,19 +59,17 @@ type PendingCopy = {
 
 type MergeDialogState =
   | { kind: "closed" }
-  | { kind: "open"; date: string; meal: string; position: number; candidates: BatchSummary[] };
+  | { kind: "open"; entryId: string; candidates: BatchSummary[] };
 
-type DissolveState =
-  | { kind: "closed" }
-  | { kind: "open"; date: string; meal: string; position: number; removedCount: number };
+type DissolveState = { kind: "closed" } | { kind: "open"; entryId: string; removedCount: number };
 
+// 1 品に対する操作は行の ID で指す。並び順は削除や並べ替えで振り直され、取り直す前の一覧の並び順は
+// 別の品を指しうるため (add-mealplan-entry-id)。
 type SpreadState =
   | { kind: "closed" }
   | {
       kind: "open";
-      sourceDate: string;
-      sourceMeal: string;
-      sourcePosition: number;
+      source: SpreadSource;
       sourceRecipeName: string;
       sourceRecipeId: string;
       sourceBatchId: string;
@@ -126,14 +123,14 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
       withHandlers(MealPlanService.AssignRecipe(v.date, v.meal, v.recipeID)),
   });
   const replaceMut = useMutation({
-    mutationFn: (v: { date: string; meal: string; position: number; recipeID: string }) =>
-      withHandlers(MealPlanService.ReplaceEntry(v.date, v.meal, v.position, v.recipeID)),
+    mutationFn: (v: { entryId: string; recipeID: string }) =>
+      withHandlers(MealPlanService.ReplaceEntry(v.entryId, v.recipeID)),
   });
   // 通知は mutate ごとではなく useMutation 側で出す。mutate に渡したコールバックは最後の呼び出しの分しか
   // 呼ばれず、続けて 2 品を削除すると 1 品目の「元に戻す」が出なくなるため。
   const removeMut = useMutation({
-    mutationFn: (v: { date: string; meal: string; position: number; recipeName: string }) =>
-      withHandlers(MealPlanService.RemoveEntry(v.date, v.meal, v.position)),
+    mutationFn: (v: { entryId: string; recipeName: string }) =>
+      withHandlers(MealPlanService.RemoveEntry(v.entryId)),
     onSuccess: (removed, v) =>
       showUndoToast(t("pages.meal_plan.toast.removed", { name: v.recipeName }), [removed]),
   });
@@ -159,21 +156,15 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
       date: string;
       meal: string;
       days: number;
-      position: number;
       mode: string;
       shareBatch: boolean;
-    }) =>
-      withHandlers(
-        MealPlanService.CopyLeftover(v.date, v.meal, v.days, v.position, v.mode, v.shareBatch),
-      ),
+    }) => withHandlers(MealPlanService.CopyLeftover(v.date, v.meal, v.days, v.mode, v.shareBatch)),
   });
   const spreadMut = useMutation({
-    mutationFn: (v: { date: string; meal: string; position: number; selection: SpreadSelection }) =>
+    mutationFn: (v: { entryId: string; selection: SpreadSelection }) =>
       withHandlers(
         MealPlanService.SpreadEntry(
-          v.date,
-          v.meal,
-          v.position,
+          v.entryId,
           v.selection.targets.map((c) => ({ date: c.date, meal: c.meal as Meal })),
           v.selection.conflictMode,
           v.selection.shareBatch,
@@ -181,38 +172,23 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
       ),
   });
   const cookedMut = useMutation({
-    mutationFn: (v: { date: string; meal: string; position: number; cooked: boolean }) =>
-      withHandlers(MealPlanService.SetCooked(v.date, v.meal, v.position, v.cooked)),
+    mutationFn: (v: { entryId: string; cooked: boolean }) =>
+      withHandlers(MealPlanService.SetCooked(v.entryId, v.cooked)),
   });
   const splitMut = useMutation({
-    mutationFn: (v: { date: string; meal: string; position: number }) =>
-      withHandlers(MealPlanService.SplitBatch(v.date, v.meal, v.position)),
+    mutationFn: (v: { entryId: string }) => withHandlers(MealPlanService.SplitBatch(v.entryId)),
   });
   const mergeMut = useMutation({
-    mutationFn: (v: { date: string; meal: string; position: number; targetBatchID: string }) =>
-      withHandlers(MealPlanService.MergeBatch(v.date, v.meal, v.position, v.targetBatchID)),
+    mutationFn: (v: { entryId: string; targetBatchID: string }) =>
+      withHandlers(MealPlanService.MergeBatch(v.entryId, v.targetBatchID)),
   });
   const reorderMut = useMutation({
-    mutationFn: (v: { date: string; meal: string; orderedRecipeIDs: string[] }) =>
-      withHandlers(MealPlanService.ReorderMeal(v.date, v.meal, v.orderedRecipeIDs)),
+    mutationFn: (v: { date: string; meal: string; orderedEntryIDs: string[] }) =>
+      withHandlers(MealPlanService.ReorderMeal(v.date, v.meal, v.orderedEntryIDs)),
   });
   const moveMut = useMutation({
-    mutationFn: (v: {
-      sourceDate: string;
-      sourceMeal: string;
-      sourcePosition: number;
-      targetDate: string;
-      targetMeal: string;
-    }) =>
-      withHandlers(
-        MealPlanService.MoveEntry(
-          v.sourceDate,
-          v.sourceMeal,
-          v.sourcePosition,
-          v.targetDate,
-          v.targetMeal,
-        ),
-      ),
+    mutationFn: (v: { entryId: string; targetDate: string; targetMeal: string }) =>
+      withHandlers(MealPlanService.MoveEntry(v.entryId, v.targetDate, v.targetMeal)),
   });
 
   const dates = periodDates(periodStart, periodWeeks * 7);
@@ -235,10 +211,10 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
     else grouped.set(key, [e]);
   }
 
-  const startCopy = (date: string, meal: string, days: number, position: number) => {
+  const startCopy = (date: string, meal: string, days: number) => {
     const { targets, conflicts } = previewCopy(date, meal, days, entries);
     if (targets.length === 0) return;
-    setPendingCopy({ date, meal, days, position, targets, conflicts });
+    setPendingCopy({ date, meal, days, targets, conflicts });
   };
 
   const resolveMode = (shareBatch: boolean) => {
@@ -248,7 +224,6 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
         date: pendingCopy.date,
         meal: pendingCopy.meal,
         days: pendingCopy.days,
-        position: pendingCopy.position,
         mode: "append",
         shareBatch,
       });
@@ -268,22 +243,16 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
       date: pendingCopy.date,
       meal: pendingCopy.meal,
       days: pendingCopy.days,
-      position: pendingCopy.position,
       mode,
       shareBatch: pendingCopy.shareBatch ?? true,
     });
     setPendingCopy(null);
   };
 
-  const openMergeDialog = async (
-    date: string,
-    meal: string,
-    position: number,
-    recipeID: string,
-  ) => {
+  const openMergeDialog = async (entryId: string) => {
     try {
-      const candidates = (await MealPlanService.ListMergeCandidates(date, meal, recipeID)) ?? [];
-      setMergeDialog({ kind: "open", date, meal, position, candidates });
+      const candidates = (await MealPlanService.ListMergeCandidates(entryId)) ?? [];
+      setMergeDialog({ kind: "open", entryId, candidates });
     } catch (err) {
       toast.error(t(errorI18nKey(err)));
     }
@@ -292,24 +261,19 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
   const submitSpread = (selection: SpreadSelection) => {
     if (spreadState.kind !== "open") return;
     setSpreadState({ kind: "closed" });
-    spreadMut.mutate({
-      date: spreadState.sourceDate,
-      meal: spreadState.sourceMeal,
-      position: spreadState.sourcePosition,
-      selection,
-    });
+    spreadMut.mutate({ entryId: spreadState.source.id, selection });
   };
 
   const handleEntryAction = (date: string, meal: string, action: EntryAction, entry: Entry) => {
     switch (action) {
       case "toggle-cooked":
-        cookedMut.mutate({ date, meal, position: entry.position, cooked: !entry.cooked });
+        cookedMut.mutate({ entryId: entry.id, cooked: !entry.cooked });
         break;
       case "replace":
-        setPicker({ kind: "replace", date, meal, position: entry.position });
+        setPicker({ kind: "replace", entryId: entry.id });
         break;
       case "remove":
-        removeMut.mutate({ date, meal, position: entry.position, recipeName: entry.recipeName });
+        removeMut.mutate({ entryId: entry.id, recipeName: entry.recipeName });
         break;
       case "view-detail":
         navigate({
@@ -319,18 +283,20 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
         });
         break;
       case "move-up":
-        reorderWithinCell(date, meal, entry.position, entry.position - 1);
+        reorderWithinCell(date, meal, entry.id, entry.position - 1);
         break;
-      case "move-down":
+      case "move-down": {
         // reorderWithinCell は source を target の前に差し込むので、1 つ下の品を上に動かす形で渡す。
-        reorderWithinCell(date, meal, entry.position + 1, entry.position);
+        const below = entries.find(
+          (e) => e.date === date && e.meal === meal && e.position === entry.position + 1,
+        );
+        if (below) reorderWithinCell(date, meal, below.id, entry.position);
         break;
+      }
       case "spread":
         setSpreadState({
           kind: "open",
-          sourceDate: date,
-          sourceMeal: meal,
-          sourcePosition: entry.position,
+          source: { id: entry.id, date, meal },
           sourceRecipeName: entry.recipeName,
           sourceRecipeId: entry.recipeId,
           sourceBatchId: entry.batchId,
@@ -339,34 +305,31 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
       case "split-batch":
         setDissolveState({
           kind: "open",
-          date,
-          meal,
-          position: entry.position,
+          entryId: entry.id,
           removedCount: entry.batchMemberCount - 1,
         });
         break;
       case "merge-batch":
-        void openMergeDialog(date, meal, entry.position, entry.recipeId);
+        void openMergeDialog(entry.id);
         break;
     }
   };
 
   // 同一セル内 D&D は既存 ReorderMeal に流す (design.md D2)。drop 対象 entry の位置に source を差し込み、
   // 他の entry は相対順を維持して詰め直す。drop 対象 entry が無い (セル余白へのドロップ) は no-op。
+  // 並びは行の ID で渡すので、同じレシピの品が 2 つあっても区別して並べ替えられる。
   const reorderWithinCell = (
     date: string,
     meal: string,
-    sourcePosition: number,
+    sourceId: string,
     targetPosition: number,
   ) => {
-    if (sourcePosition === targetPosition) return;
     const cellEntries = entries
       .filter((e) => e.date === date && e.meal === meal)
       .sort((a, b) => a.position - b.position);
-    if (cellEntries.length === 0) return;
-    const withoutSource = cellEntries.filter((e) => e.position !== sourcePosition);
-    const source = cellEntries.find((e) => e.position === sourcePosition);
-    if (!source) return;
+    const source = cellEntries.find((e) => e.id === sourceId);
+    if (!source || source.position === targetPosition) return;
+    const withoutSource = cellEntries.filter((e) => e.id !== sourceId);
     // targetPosition の元の index に source を挿入する。target が source より後ろだった場合、
     // source を先に抜くことで index が 1 つ前にずれる点はそのまま利用する。
     const targetIdx = withoutSource.findIndex((e) => e.position === targetPosition);
@@ -379,7 +342,7 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
     reorderMut.mutate({
       date,
       meal,
-      orderedRecipeIDs: reordered.map((e) => e.recipeId),
+      orderedEntryIDs: reordered.map((e) => e.id),
     });
   };
 
@@ -393,16 +356,10 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
     setDragSource(null);
     if (source.date === target.date && source.meal === target.meal) {
       if (target.position === undefined) return;
-      reorderWithinCell(source.date, source.meal, source.position, target.position);
+      reorderWithinCell(source.date, source.meal, source.id, target.position);
       return;
     }
-    moveMut.mutate({
-      sourceDate: source.date,
-      sourceMeal: source.meal,
-      sourcePosition: source.position,
-      targetDate: target.date,
-      targetMeal: target.meal,
-    });
+    moveMut.mutate({ entryId: source.id, targetDate: target.date, targetMeal: target.meal });
   };
 
   const handleMealAction = (date: string, meal: string, action: MealAction, days?: number) => {
@@ -411,7 +368,7 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
         clearMut.mutate({ date, meal });
         break;
       case "copy-days":
-        if (days) startCopy(date, meal, days, -1);
+        if (days) startCopy(date, meal, days);
         break;
     }
   };
@@ -513,12 +470,7 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
           if (picker.kind === "add") {
             assignMut.mutate({ date: picker.date, meal: picker.meal, recipeID: r.id });
           } else if (picker.kind === "replace") {
-            replaceMut.mutate({
-              date: picker.date,
-              meal: picker.meal,
-              position: picker.position,
-              recipeID: r.id,
-            });
+            replaceMut.mutate({ entryId: picker.entryId, recipeID: r.id });
           }
           setPicker({ kind: "closed" });
         }}
@@ -548,12 +500,7 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
         }}
         onSelect={(batchID) => {
           if (mergeDialog.kind === "open") {
-            mergeMut.mutate({
-              date: mergeDialog.date,
-              meal: mergeDialog.meal,
-              position: mergeDialog.position,
-              targetBatchID: batchID,
-            });
+            mergeMut.mutate({ entryId: mergeDialog.entryId, targetBatchID: batchID });
           }
           setMergeDialog({ kind: "closed" });
         }}
@@ -565,11 +512,7 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
         onCancel={() => setDissolveState({ kind: "closed" })}
         onConfirm={() => {
           if (dissolveState.kind === "open") {
-            splitMut.mutate({
-              date: dissolveState.date,
-              meal: dissolveState.meal,
-              position: dissolveState.position,
-            });
+            splitMut.mutate({ entryId: dissolveState.entryId });
           }
           setDissolveState({ kind: "closed" });
         }}
@@ -578,11 +521,7 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
       {spreadState.kind === "open" && (
         <SpreadBatchDialog
           open
-          source={{
-            date: spreadState.sourceDate,
-            meal: spreadState.sourceMeal,
-            position: spreadState.sourcePosition,
-          }}
+          source={spreadState.source}
           sourceRecipeName={spreadState.sourceRecipeName}
           sourceRecipeId={spreadState.sourceRecipeId}
           sourceBatchId={spreadState.sourceBatchId}

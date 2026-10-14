@@ -11,4 +11,5 @@ export type SpreadSelection = {
   conflictMode: SpreadConflictMode;
 };
 
-export type SpreadSource = { date: string; meal: string; position: number };
+// id で起点の品を指し、date / meal は格子の起点セルの表示に使う (add-mealplan-entry-id design.md D7)。
+export type SpreadSource = { id: string; date: string; meal: string };

@@ -15,6 +15,9 @@ const (
 
 // Entry は (Date, Meal) の Position 位置に置かれる 1 品。
 //
+// ID は行そのものの識別子で、1 品に対する操作はこれで行を指す。Position は並べ替えや削除のたびに
+// 振り直されるので、行の指定には使わない (add-mealplan-entry-id)。
+//
 // Date は "YYYY-MM-DD" (ローカル日付、タイムゾーンなし)。Position は 0 起点で
 // (Date, Meal) 内で一意、S01 セル内の縦の並び順 (主菜 → 副菜 → 汁物) を決める。
 // RecipeID は永続化の主参照で、RecipeName は表示用に recipes と JOIN した値。
@@ -22,6 +25,7 @@ const (
 // 同じ BatchID を持つ行の全体数 (repo が COUNT(*) OVER (PARTITION BY batch_id) で返す)。
 // Cooked は同じ (BatchID, RecipeID) の組に作った印が付いているか。
 type Entry struct {
+	ID               string `json:"id"`
 	Date             string `json:"date"`
 	Meal             Meal   `json:"meal"`
 	Position         int    `json:"position"`

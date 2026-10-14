@@ -112,6 +112,29 @@ func TestPlanCopy(t *testing.T) {
 		}
 	})
 
+	t.Run("every returned entry has a distinct non-empty id that differs from the source ids", func(t *testing.T) {
+		withIDs := []Entry{
+			{ID: "s1", Date: "2026-08-24", Meal: MealDinner, Position: 0, RecipeID: "r1"},
+			{ID: "s2", Date: "2026-08-24", Meal: MealDinner, Position: 1, RecipeID: "r2"},
+		}
+		for _, mode := range []CopyMode{CopyModeAppend, CopyModeOverwrite} {
+			got, err := PlanCopy("2026-08-25", withIDs, nil, mode, ShareBatchLeftover)
+			if err != nil {
+				t.Fatalf("%s: err: %v", mode, err)
+			}
+			seen := map[string]bool{}
+			for _, e := range got {
+				if e.ID == "" || e.ID == "s1" || e.ID == "s2" {
+					t.Errorf("%s: id = %q, want a fresh non-empty id", mode, e.ID)
+				}
+				seen[e.ID] = true
+			}
+			if len(seen) != len(got) {
+				t.Errorf("%s: want %d distinct ids, got %d", mode, len(got), len(seen))
+			}
+		}
+	})
+
 	t.Run("invalid mode returns ErrInvalidCopyMode", func(t *testing.T) {
 		_, err := PlanCopy("2026-08-25", source, nil, CopyMode("replace"), ShareBatchDistinct)
 		if !errors.Is(err, ErrInvalidCopyMode) {

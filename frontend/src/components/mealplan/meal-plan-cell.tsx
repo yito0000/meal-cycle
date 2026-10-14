@@ -18,7 +18,8 @@ export type EntryAction =
   | "merge-batch";
 export type MealAction = "clear" | "copy-days";
 
-export type DragSource = { date: string; meal: string; position: number };
+// id で操作する品を指す。date / meal / position は同じセルかの判定とドロップ位置の計算に使う (add-mealplan-entry-id design.md D7)。
+export type DragSource = { id: string; date: string; meal: string; position: number };
 export type DropTarget = { date: string; meal: string; position?: number };
 
 interface Props {
@@ -135,14 +136,10 @@ export function MealPlanCell({
         // batchMemberCount > 1 の作り置き行は個別移動を禁止する (design.md D1)。移動したい場合は
         // 「作り置きをやめる」→ 残った最初の日の行を D&D →「作り置きを広げる」の順で扱う。
         const isBatchMember = entry.batchMemberCount > 1;
-        const isDragSource =
-          dragSource !== null &&
-          dragSource.date === date &&
-          dragSource.meal === meal &&
-          dragSource.position === entry.position;
+        const isDragSource = dragSource !== null && dragSource.id === entry.id;
         return (
           <MealItemRow
-            key={entry.position}
+            key={entry.id}
             entry={entry}
             cellItemCount={entries.length}
             fontClass={fontCls}

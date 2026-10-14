@@ -170,10 +170,15 @@ func TestDispatchHandler(t *testing.T) {
 	t.Run("should return 200 when a method takes a slice of structs and a bool arg", func(t *testing.T) {
 		h := setup(t)
 		id := createRecipe(t, h, "肉じゃが")
-		if rec := call(t, h, "/api/MealPlanService/AssignRecipe", `["2026-08-24","dinner","`+id+`"]`); rec.Code != http.StatusOK {
-			t.Fatalf("assign failed: %d %s", rec.Code, rec.Body.String())
+		assigned := call(t, h, "/api/MealPlanService/AssignRecipe", `["2026-08-24","dinner","`+id+`"]`)
+		if assigned.Code != http.StatusOK {
+			t.Fatalf("assign failed: %d %s", assigned.Code, assigned.Body.String())
 		}
-		body := `["2026-08-24","dinner",0,[{"date":"2026-08-25","meal":"dinner"},{"date":"2026-08-26","meal":"lunch"}],"append",false]`
+		var src mealplan.Entry
+		if err := json.Unmarshal(assigned.Body.Bytes(), &src); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		body := `["` + src.ID + `",[{"date":"2026-08-25","meal":"dinner"},{"date":"2026-08-26","meal":"lunch"}],"append",false]`
 		rec := call(t, h, "/api/MealPlanService/SpreadEntry", body)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("want 200, got %d (%s)", rec.Code, rec.Body.String())

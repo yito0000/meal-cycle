@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/yito0000/meal-cycle/internal/domain/mealplan"
 	"github.com/yito0000/meal-cycle/internal/domain/recipe"
 	"github.com/yito0000/meal-cycle/internal/domain/shopping"
 )
@@ -48,7 +49,7 @@ func (f *shoppingFixture) place(t *testing.T, date, meal, recipeID, batchID stri
 	if err != nil {
 		t.Fatalf("nextPosition: %v", err)
 	}
-	if _, err := insertMealPlan(ctx, f.db, date, meal, pos, recipeID, batchID); err != nil {
+	if _, err := insertMealPlan(ctx, f.db, mealplan.NewEntryID(), date, meal, pos, recipeID, batchID); err != nil {
 		t.Fatalf("insertMealPlan: %v", err)
 	}
 }

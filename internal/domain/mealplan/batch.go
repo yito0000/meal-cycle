@@ -23,3 +23,8 @@ func NewBatchID() string {
 	}
 	return id.String()
 }
+
+// NewEntryID は献立の行の ID を、作り置きの ID と同じ UUID v7 で発行する (add-mealplan-entry-id design.md D1)。
+func NewEntryID() string {
+	return NewBatchID()
+}

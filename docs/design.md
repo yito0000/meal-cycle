@@ -136,14 +136,18 @@ updatedAt    : timestamp
 **1 行 = meal (時間帯) に割り当てられた 1 品**。同じ `(date, meal)` に対して 0..N 行が入る（1 食で主菜＋副菜＋汁物のような複数品構成を表現するため）。
 
 ```
-id           : string
+id           : string           // UUID v7。主キー。1 品に対する操作はこれで行を指す
 date         : date             // YYYY-MM-DD
-meal         : "breakfast" | "lunch" | "dinner" | "other"
+meal         : "breakfast" | "lunch" | "dinner"
 recipeId     : string           // NOT NULL。未定は「行が無い」ことで表現
 position     : int              // 同一 (date, meal) 内での並び順（0 始まり、主菜→副菜→汁物 の順を想定）
+batchId      : string           // 作り置きの識別子。同じ値の行は 1 回分の調理を共有する
+createdAt    : timestamp
 ```
 
-- `(date, meal)` に一意制約はかけない。代わりに `(date, meal, position)` にユニークインデックスを張って表示順を安定化
+- 主キーは `id`（proposal: add-mealplan-entry-id）。`position` は並び順だけを表し、削除や並べ替えのたびに振り直されるので行の指定には使わない。
+  migration 00009 より前からある行の `id` は、UUID v7 ではなく無作為な hex で振ってある（中身を読まない不透明な文字列として扱う）
+- `(date, meal)` に一意制約はかけない。`(date, meal, position)` は一意制約として残し、「0 からの連番で欠番なし」を DB に守らせる
 - 「未定 = null」は現状の使い方（1 行必ずある + `recipeId` が null）から「行を作らない」に変える方が自然
 - `memo` は MVP からは外す。将来時間帯単位のメモが欲しくなれば `MealMemo(date, meal, memo)` を別テーブルで足す
 

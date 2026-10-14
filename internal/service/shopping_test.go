@@ -65,10 +65,10 @@ func (d shoppingDeps) assign(t *testing.T, date, recipeID string) {
 	}
 }
 
-// leftover は date の夕食の 1 品目を days 日分の作り置きとして広げる。
+// leftover は date の夕食の品を days 日分の作り置きとして広げる。
 func (d shoppingDeps) leftover(t *testing.T, date string, days int) {
 	t.Helper()
-	if err := d.meal.CopyLeftover(context.Background(), date, "dinner", days, 0,
+	if err := d.meal.CopyLeftover(context.Background(), date, "dinner", days,
 		string(mealplan.CopyModeAppend), true); err != nil {
 		t.Fatalf("copy leftover: %v", err)
 	}
@@ -177,7 +177,7 @@ func TestShoppingService_List(t *testing.T) {
 		curry := d.createRecipe(t, "カレー", onionIng(3))
 		d.assign(t, shoppingDay(0), nikujaga)
 		d.assign(t, shoppingDay(2), curry)
-		if err := d.meal.SetCooked(ctx, shoppingDay(0), "dinner", 0, true); err != nil {
+		if err := d.meal.SetCooked(ctx, entryIDAt(t, d.meal, shoppingDay(0), "dinner", 0), true); err != nil {
 			t.Fatalf("SetCooked: %v", err)
 		}
 		it := onlyItem(t, d.list(t, 7))
@@ -191,7 +191,7 @@ func TestShoppingService_List(t *testing.T) {
 		id := d.createRecipe(t, "カレー", onionIng(3))
 		d.assign(t, shoppingDay(-1), id)
 		d.leftover(t, shoppingDay(-1), 2)
-		if err := d.meal.SetCooked(ctx, shoppingDay(-1), "dinner", 0, true); err != nil {
+		if err := d.meal.SetCooked(ctx, entryIDAt(t, d.meal, shoppingDay(-1), "dinner", 0), true); err != nil {
 			t.Fatalf("SetCooked: %v", err)
 		}
 		got := d.list(t, 7)

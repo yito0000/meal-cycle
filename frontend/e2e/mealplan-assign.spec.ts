@@ -8,8 +8,10 @@ import {
   dateAfter,
   deleteRecipe,
   detailBreadcrumb,
+  mealPlanCell,
   mealPlanItemRows,
   openItemMenu,
+  spreadEntry,
 } from "./helpers.js";
 
 const t = ja.pages.meal_plan;
@@ -107,7 +109,15 @@ test.describe("時間帯内の並び替え", () => {
 
   test("作り置きに属する品も移動できる", async ({ page }) => {
     await seedDinner(page, dateAfter(0), ["みそ汁", "肉じゃが"]);
-    await copyLeftover(page, dateAfter(0), "dinner", 3, true, 1);
+    await spreadEntry(
+      page,
+      { date: dateAfter(0), meal: "dinner", position: 1 },
+      [
+        { date: dateAfter(1), meal: "dinner" },
+        { date: dateAfter(2), meal: "dinner" },
+      ],
+      true,
+    );
     await openMealCalendar(page);
     // 今日が週末だと 2〜3 日目が翌週になるので、2 週表示で 3 日分を画面に入れる。
     await page.getByTestId("period-weeks-2").click();
@@ -148,6 +158,28 @@ test.describe("並べ替えたあとの品の削除と移動", () => {
     for (const message of Object.values(t.errors)) {
       await expect(page.getByText(message, { exact: true })).toHaveCount(0);
     }
+  });
+});
+
+test.describe("品の指定は並び順に左右されない", () => {
+  test("同じレシピの 2 品を区別して並べ替えられる", async ({ page }) => {
+    const curry = await createRecipeWithIngredients(page, "カレー", []);
+    await assignRecipe(page, dateAfter(0), "dinner", curry);
+    await copyLeftover(page, dateAfter(0), "dinner", 2, true);
+    await assignRecipe(page, dateAfter(0), "dinner", curry);
+    await openMealCalendar(page);
+    const rows = mealPlanCell(page, dateAfter(0), "dinner").locator('[role="listitem"]');
+    await expect(rows).toHaveText(["カレー", "カレー"]);
+    await expect(rows.nth(0)).toHaveAttribute("data-batch-member-count", "2");
+    await expect(rows.nth(1)).toHaveAttribute("data-batch-member-count", "1");
+
+    await openItemMenu(page, "カレー", 1);
+    await page.getByRole("menuitem", { name: t.item_menu.move_up }).click();
+
+    await expect(rows.nth(0)).toHaveAttribute("data-batch-member-count", "1");
+    await expect(rows.nth(0)).toHaveClass(/border-transparent/);
+    await expect(rows.nth(1)).toHaveAttribute("data-batch-member-count", "2");
+    await expect(rows.nth(1)).not.toHaveClass(/border-transparent/);
   });
 });
 

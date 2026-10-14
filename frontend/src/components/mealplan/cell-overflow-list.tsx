@@ -35,7 +35,7 @@ export function CellOverflowList({ sortedEntries, overflow, label, onEntryAction
         <div className="flex flex-col gap-1">
           {sortedEntries.map((entry) => (
             <MealItemRow
-              key={entry.position}
+              key={entry.id}
               entry={entry}
               cellItemCount={sortedEntries.length}
               fontClass="text-sm"

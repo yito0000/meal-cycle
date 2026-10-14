@@ -142,21 +142,61 @@ export async function assignRecipe(page: Page, date: string, meal: string, recip
   }
 }
 
-// copyLeftover は (date, meal) の position 番目の品 (既定は 1 品目) を days 日分に広げる。
-// shareBatch=true で作り置き、false で別調理。
+// copyLeftover は (date, meal) の全品を days 日分に広げる。shareBatch=true で作り置き、false で別調理。
+// 2 品以上あるセルで 1 品だけを広げたいときは spreadEntry を使う。
 export async function copyLeftover(
   page: Page,
   date: string,
   meal: string,
   days: number,
   shareBatch: boolean,
-  position = 0,
 ) {
   const res = await page.request.post("/api/MealPlanService/CopyLeftover", {
-    data: [date, meal, days, position, "append", shareBatch],
+    data: [date, meal, days, "append", shareBatch],
   });
   if (!res.ok()) {
     throw new Error(`copy leftover ${date} failed: ${res.status()} ${await res.text()}`);
+  }
+}
+
+// entryId は (date, meal, position) にいまある品の ID を返す。サービスは品を ID で指すが、
+// テストの前提は並び順で書いたほうが読みやすいため、ここで引き直す (add-mealplan-entry-id design.md D7)。
+export async function entryId(
+  page: Page,
+  date: string,
+  meal: string,
+  position: number,
+): Promise<string> {
+  const res = await page.request.post("/api/MealPlanService/ListPeriod", { data: [date, 1] });
+  if (!res.ok()) {
+    throw new Error(`list ${date} failed: ${res.status()} ${await res.text()}`);
+  }
+  const entries = (await res.json()) as {
+    id: string;
+    date: string;
+    meal: string;
+    position: number;
+  }[];
+  const found = entries.find((e) => e.date === date && e.meal === meal && e.position === position);
+  if (!found) {
+    throw new Error(`no entry at ${date} ${meal} ${position}`);
+  }
+  return found.id;
+}
+
+// spreadEntry は (date, meal, position) の 1 品を targets のセルへ広げる。
+export async function spreadEntry(
+  page: Page,
+  source: { date: string; meal: string; position: number },
+  targets: { date: string; meal: string }[],
+  shareBatch: boolean,
+) {
+  const id = await entryId(page, source.date, source.meal, source.position);
+  const res = await page.request.post("/api/MealPlanService/SpreadEntry", {
+    data: [id, targets, "append", shareBatch],
+  });
+  if (!res.ok()) {
+    throw new Error(`spread ${source.date} failed: ${res.status()} ${await res.text()}`);
   }
 }
 
@@ -168,8 +208,9 @@ export async function setCooked(
   position: number,
   cooked: boolean,
 ) {
+  const id = await entryId(page, date, meal, position);
   const res = await page.request.post("/api/MealPlanService/SetCooked", {
-    data: [date, meal, position, cooked],
+    data: [id, cooked],
   });
   if (!res.ok()) {
     throw new Error(`set cooked ${date} ${meal} failed: ${res.status()} ${await res.text()}`);

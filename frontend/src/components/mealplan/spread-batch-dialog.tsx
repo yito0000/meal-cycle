@@ -5,6 +5,7 @@ import { Meal } from "../../../bindings/github.com/yito0000/meal-cycle/internal/
 import type {
   SpreadConflictMode,
   SpreadSelection,
+  SpreadSource,
   SpreadTarget,
 } from "../../lib/spread-batch-selection";
 import { Button } from "../ui/button";
@@ -13,7 +14,7 @@ import { MEAL_RENDER_ORDER } from "./mealplan-config";
 
 interface Props {
   open: boolean;
-  source: { date: string; meal: string; position: number };
+  source: SpreadSource;
   sourceRecipeName: string;
   sourceRecipeId: string;
   sourceBatchId: string;
