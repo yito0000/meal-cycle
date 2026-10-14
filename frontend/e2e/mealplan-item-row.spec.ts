@@ -4,8 +4,10 @@ import { expect, test } from "./fixtures.js";
 import {
   assignRecipe,
   createRecipeWithIngredients,
+  mealPlanCell,
   mealPlanItemRows,
   openItemMenu,
+  openOverflowList,
 } from "./helpers.js";
 
 const t = ja.pages.meal_plan;
@@ -28,6 +30,19 @@ async function openNextWeek(page: Page) {
   await expect(page.getByRole("heading", { name: t.title })).toBeVisible();
   await page.getByTestId("period-next").click();
 }
+
+// 4 週表示のセル内表示上限 (2 品) を 1 品超える 3 品を、来週の月曜・夕食に並べる。
+async function openFourWeeksWithThreeDishes(page: Page) {
+  for (const name of ["肉じゃが", "みそ汁", "ほうれん草の胡麻和え"]) {
+    const id = await createRecipeWithIngredients(page, name, []);
+    await assignRecipe(page, nextWeekDay(0), "dinner", id);
+  }
+  await openNextWeek(page);
+  await page.getByTestId("period-weeks-4").click();
+  await expect(page.getByTestId("period-calendar")).toHaveAttribute("data-period-weeks", "4");
+}
+
+const moreOne = t.cell.more_items.replace("{{count}}", "1");
 
 function nameButton(page: Page, recipeName: string) {
   return mealPlanItemRows(page, recipeName).getByRole("button", { name: recipeName, exact: true });
@@ -103,5 +118,72 @@ test.describe("セル内の品表示", () => {
 
     expect((await measure("ほうれん草の胡麻和え")).lines).toBe(2);
     expect(await measure(longName)).toEqual({ lines: 2, overflows: true });
+  });
+
+  test("「他 N 件」を押すとセルの全品の一覧が開く", async ({ page }) => {
+    await openFourWeeksWithThreeDishes(page);
+    const cell = mealPlanCell(page, nextWeekDay(0), "dinner");
+    await expect(cell.getByRole("button", { name: moreOne })).toBeVisible();
+
+    const list = await openOverflowList(page, nextWeekDay(0), "dinner");
+
+    const rows = list.getByRole("listitem");
+    await expect(rows).toHaveCount(3);
+    await expect(rows.nth(0)).toContainText("肉じゃが");
+    await expect(rows.nth(1)).toContainText("みそ汁");
+    await expect(rows.nth(2)).toContainText("ほうれん草の胡麻和え");
+  });
+
+  test("畳まれた品に作った印を付けられる", async ({ page }) => {
+    await openFourWeeksWithThreeDishes(page);
+    const list = await openOverflowList(page, nextWeekDay(0), "dinner");
+
+    const checkbox = list
+      .getByRole("listitem")
+      .filter({ hasText: "ほうれん草の胡麻和え" })
+      .getByRole("checkbox", { name: t.cell.cooked });
+    await checkbox.click();
+    await expect(checkbox).toBeChecked();
+
+    await page.keyboard.press("Escape");
+    await page.getByTestId("period-weeks-1").click();
+    await expect(page.getByTestId("period-calendar")).toHaveAttribute("data-period-weeks", "1");
+    await expect(
+      mealPlanItemRows(page, "ほうれん草の胡麻和え").getByRole("checkbox", { name: t.cell.cooked }),
+    ).toBeChecked();
+  });
+
+  test("畳まれた品のメニューから削除できる", async ({ page }) => {
+    await openFourWeeksWithThreeDishes(page);
+    const list = await openOverflowList(page, nextWeekDay(0), "dinner");
+
+    await list
+      .getByRole("listitem")
+      .filter({ hasText: "ほうれん草の胡麻和え" })
+      .getByRole("button", { name: "ほうれん草の胡麻和え", exact: true })
+      .click();
+    await page.getByRole("menuitem", { name: t.item_menu.remove }).click();
+
+    const cell = mealPlanCell(page, nextWeekDay(0), "dinner");
+    const rows = cell.getByRole("listitem");
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(0)).toContainText("肉じゃが");
+    await expect(rows.nth(1)).toContainText("みそ汁");
+    await expect(cell.getByRole("button", { name: moreOne })).toHaveCount(0);
+    await expect(page.getByTestId("cell-overflow-list")).toHaveCount(0);
+  });
+
+  test("一覧は Esc で閉じる", async ({ page }) => {
+    await openFourWeeksWithThreeDishes(page);
+    await openOverflowList(page, nextWeekDay(0), "dinner");
+
+    await page.keyboard.press("Escape");
+
+    await expect(page.getByTestId("cell-overflow-list")).toHaveCount(0);
+    const cell = mealPlanCell(page, nextWeekDay(0), "dinner");
+    await expect(cell.getByRole("listitem")).toHaveCount(2);
+    await expect(cell.getByRole("button", { name: moreOne })).toBeVisible();
+    const list = await openOverflowList(page, nextWeekDay(0), "dinner");
+    await expect(list.getByRole("listitem")).toHaveCount(3);
   });
 });

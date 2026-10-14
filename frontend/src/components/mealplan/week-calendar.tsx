@@ -6,9 +6,9 @@ import { toast } from "sonner";
 import type {
   BatchSummary,
   Entry,
+  Meal,
   RemovedEntry,
 } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
-import { Meal } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
 import { MealPlanService } from "../../../bindings/github.com/yito0000/meal-cycle/internal/service";
 import type { SpreadSelection } from "../../lib/spread-batch-selection";
 import { UNDO_TOAST_MS } from "../../lib/undo-toast";
@@ -25,7 +25,12 @@ import {
   type MealAction,
   MealPlanCell,
 } from "./meal-plan-cell";
-import { MEAL_RENDER_ORDER, MEALPLAN_DEFAULTS, pickCellPreset } from "./mealplan-config";
+import {
+  MEAL_RENDER_ORDER,
+  MEALPLAN_DEFAULTS,
+  mealLabelKey,
+  pickCellPreset,
+} from "./mealplan-config";
 import type { PeriodWeeks } from "./period-nav";
 import { RecipePickerDialog } from "./recipe-picker-dialog";
 import { SpreadBatchDialog } from "./spread-batch-dialog";
@@ -79,17 +84,6 @@ type SpreadState =
 const SPREAD_INITIAL_FUTURE_DAYS = Math.max(...MEALPLAN_DEFAULTS.leftoverCopyPresets) - 1;
 const SPREAD_EXPAND_STEP = 0;
 const SPREAD_PRESET_DAYS = Math.min(...MEALPLAN_DEFAULTS.leftoverCopyPresets);
-
-function mealLabelKey(meal: string): string {
-  switch (meal) {
-    case Meal.MealBreakfast:
-      return "pages.meal_plan.meal.breakfast";
-    case Meal.MealLunch:
-      return "pages.meal_plan.meal.lunch";
-    default:
-      return "pages.meal_plan.meal.dinner";
-  }
-}
 
 export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }: Props) {
   const { t, i18n } = useTranslation();

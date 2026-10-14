@@ -40,7 +40,8 @@
       },
       "cell": {
         "more_items": "他 {{count}} 件",
-        "cooked": "作った"
+        "cooked": "作った",
+        "overflow_list_label": "{{date}} {{meal}} の品"
       },
       "picker": {
         "title": "レシピを選ぶ",

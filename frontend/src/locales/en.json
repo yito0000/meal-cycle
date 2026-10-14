@@ -40,7 +40,8 @@
       },
       "cell": {
         "more_items": "+{{count}} more",
-        "cooked": "Cooked"
+        "cooked": "Cooked",
+        "overflow_list_label": "Dishes for {{date}} {{meal}}"
       },
       "picker": {
         "title": "Pick a recipe",

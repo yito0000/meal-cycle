@@ -275,3 +275,21 @@ export function spreadCell(page: Page, date: string, meal: string) {
     .getByRole("dialog", { name: ja.pages.meal_plan.spread.title })
     .locator(`td[data-date="${date}"][data-meal="${meal}"]`);
 }
+
+// S01 の (date, meal) セル。
+export function mealPlanCell(page: Page, date: string, meal: string) {
+  return page.locator(`div[role="group"][data-date="${date}"][data-meal="${meal}"]`);
+}
+
+// S01 のセルの「他 N 件」を押し、開いた全品の一覧の locator を返す。
+// 一覧の中で品のメニューを開くと Radix が一覧に aria-hidden を付けるので、role ではなく test id で探す。
+export async function openOverflowList(page: Page, date: string, meal: string) {
+  await mealPlanCell(page, date, meal)
+    .getByRole("button", {
+      name: new RegExp(`^${ja.pages.meal_plan.cell.more_items.replace("{{count}}", "\\d+")}$`),
+    })
+    .click();
+  const list = page.getByTestId("cell-overflow-list");
+  await list.waitFor();
+  return list;
+}

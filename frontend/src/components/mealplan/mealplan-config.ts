@@ -22,6 +22,17 @@ export const MEALPLAN_DEFAULTS = {
 // カレンダーで上から下へ並べる時間帯順。
 export const MEAL_RENDER_ORDER = [Meal.MealBreakfast, Meal.MealLunch, Meal.MealDinner] as const;
 
+export function mealLabelKey(meal: string): string {
+  switch (meal) {
+    case Meal.MealBreakfast:
+      return "pages.meal_plan.meal.breakfast";
+    case Meal.MealLunch:
+      return "pages.meal_plan.meal.lunch";
+    default:
+      return "pages.meal_plan.meal.dinner";
+  }
+}
+
 // 複数行バッチを見分ける枠色 (Tailwind class)。design.md D5 で採用: HSL ハッシュではなく
 // 事前定義の 3 色ローテーションで、1 週間内 3〜4 バッチまでの識別を目的にする。
 // 4 バッチ以上あると同じ色が回るが、位置が離れていれば混同されにくい。
