@@ -81,7 +81,7 @@
 - [x] 6.3 `cd frontend && npm run build:dev` を実行する。完了判定: ビルドが成功する
 - [x] 6.4 `task test:e2e` を実行する。完了判定: 既存の E2E を含めて全テストが pass する
 - [x] 6.5 `task lint` を実行する。完了判定: Go と Frontend の両方で指摘 0 件
-- [ ] 6.6 `task build:win` で作った `.exe` を、`%APPDATA%\meal-cycle\meal-cycle.db` を同名のフォルダに置き換えた状態で起動する。
+- [x] 6.6 `task build:win` で作った `.exe` を、`%APPDATA%\meal-cycle\meal-cycle.db` を同名のフォルダに置き換えた状態で起動する。
   完了判定: エラー画面に「データベースを開けませんでした」と DB の場所が出ることを目視で確認する
-- [ ] 6.7 Windows の設定をダークモードにして `.exe` を起動する。完了判定: 4 画面の見出しと入力欄の文字が読めることを目視で確認する
+- [x] 6.7 Windows の設定をダークモードにして `.exe` を起動する。完了判定: 4 画面の見出しと入力欄の文字が読めることを目視で確認する
 - [x] 6.8 `openspec validate add-shell-startup-safety --strict` を実行する。完了判定: エラー 0 件

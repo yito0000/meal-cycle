@@ -107,8 +107,8 @@
 - [x] 7.3 `cd frontend && npm run build:dev` を実行する。完了判定: ビルドが成功する
 - [x] 7.4 `task test:e2e` を実行する。完了判定: 既存の E2E を含めて全テストが pass する
 - [x] 7.5 `task lint` を実行する。完了判定: Go と Frontend の両方で指摘 0 件
-- [ ] 7.6 WSL 側で、献立の入った既存の DB (`~/.local/share/meal-cycle/meal-cycle.db`) に対して `task dev` で起動する。
+- [x] 7.6 WSL 側で、献立の入った既存の DB (`~/.local/share/meal-cycle/meal-cycle.db`) に対して `task dev` で起動する。
   完了判定: `backups/` に控えが 1 つ増え、S01 に更新前と同じ献立が表示されることを目視で確認する
-- [ ] 7.7 `task build:win` で作った `.exe` を、Windows 側の既存の DB に対して起動する。
+- [x] 7.7 `task build:win` で作った `.exe` を、Windows 側の既存の DB に対して起動する。
   完了判定: `%APPDATA%\meal-cycle\backups\` に控えが 1 つ増え、S01 に更新前と同じ献立が表示されることを目視で確認する
 - [x] 7.8 `openspec validate add-mealplan-entry-id --strict` を実行する。完了判定: エラー 0 件
