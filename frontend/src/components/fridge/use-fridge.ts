@@ -5,9 +5,6 @@ import { FridgeService } from "../../../bindings/github.com/yito0000/meal-cycle/
 
 const LIST_KEY = ["fridge", "list"] as const;
 
-// 「元に戻す」トーストの表示時間。ユーザー可変値ではないので config には置かない (design.md D9)。
-export const UNDO_TOAST_MS = 5000;
-
 export function useStockList() {
   return useQuery({
     queryKey: LIST_KEY,

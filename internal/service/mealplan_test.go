@@ -19,6 +19,7 @@ type fakeMealPlanRepo struct {
 	entries      []mealplan.Entry
 	knownRecipes map[string]string // id → name
 	spreadCalls  []spreadCall
+	restoreCalls [][]mealplan.RemovedEntry
 }
 
 type spreadCall struct {
@@ -81,7 +82,7 @@ func (r *fakeMealPlanRepo) Replace(_ context.Context, date, meal string, positio
 	return mealplan.ErrEntryNotFound
 }
 
-func (r *fakeMealPlanRepo) Remove(_ context.Context, date, meal string, position int) error {
+func (r *fakeMealPlanRepo) Remove(_ context.Context, date, meal string, position int) (mealplan.RemovedEntry, error) {
 	idx := -1
 	for i, e := range r.entries {
 		if e.Date == date && string(e.Meal) == meal && e.Position == position {
@@ -90,27 +91,43 @@ func (r *fakeMealPlanRepo) Remove(_ context.Context, date, meal string, position
 		}
 	}
 	if idx < 0 {
-		return mealplan.ErrEntryNotFound
+		return mealplan.RemovedEntry{}, mealplan.ErrEntryNotFound
 	}
+	removed := toRemovedEntry(r.entries[idx])
 	r.entries = append(r.entries[:idx], r.entries[idx+1:]...)
 	for i, e := range r.entries {
 		if e.Date == date && string(e.Meal) == meal && e.Position > position {
 			r.entries[i].Position--
 		}
 	}
-	return nil
+	return removed, nil
 }
 
-func (r *fakeMealPlanRepo) ClearMeal(_ context.Context, date, meal string) error {
+func (r *fakeMealPlanRepo) ClearMeal(_ context.Context, date, meal string) ([]mealplan.RemovedEntry, error) {
+	removed := make([]mealplan.RemovedEntry, 0)
 	kept := r.entries[:0]
 	for _, e := range r.entries {
 		if e.Date == date && string(e.Meal) == meal {
+			removed = append(removed, toRemovedEntry(e))
 			continue
 		}
 		kept = append(kept, e)
 	}
 	r.entries = kept
+	sort.Slice(removed, func(i, j int) bool { return removed[i].Position < removed[j].Position })
+	return removed, nil
+}
+
+func (r *fakeMealPlanRepo) RestoreEntries(_ context.Context, entries []mealplan.RemovedEntry) error {
+	r.restoreCalls = append(r.restoreCalls, entries)
 	return nil
+}
+
+func toRemovedEntry(e mealplan.Entry) mealplan.RemovedEntry {
+	return mealplan.RemovedEntry{
+		Date: e.Date, Meal: e.Meal, Position: e.Position, RecipeID: e.RecipeID, BatchID: e.BatchID,
+		CreatedAt: "2026-08-24T00:00:00Z",
+	}
 }
 
 func (r *fakeMealPlanRepo) Reorder(_ context.Context, date, meal string, orderedRecipeIDs []string) error {
@@ -627,8 +644,12 @@ func TestMealPlanService_RemoveEntry(t *testing.T) {
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r2")
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r3")
-		if err := svc.RemoveEntry(ctx, "2026-08-24", "dinner", 1); err != nil {
+		removed, err := svc.RemoveEntry(ctx, "2026-08-24", "dinner", 1)
+		if err != nil {
 			t.Fatalf("Remove: %v", err)
+		}
+		if removed.RecipeID != "r2" || removed.Position != 1 {
+			t.Errorf("removed = %+v, want r2 at position 1", removed)
 		}
 		got, _ := svc.ListPeriod(ctx, "2026-08-24", 1)
 		if len(got) != 2 || got[0].Position != 0 || got[1].Position != 1 {
@@ -639,7 +660,7 @@ func TestMealPlanService_RemoveEntry(t *testing.T) {
 	t.Run("against a non-existent position should return ErrEntryNotFound", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
 		svc := newMealPlanServiceWithRepo(repo)
-		err := svc.RemoveEntry(ctx, "2026-08-24", "dinner", 0)
+		_, err := svc.RemoveEntry(ctx, "2026-08-24", "dinner", 0)
 		if !errors.Is(err, mealplan.ErrEntryNotFound) {
 			t.Errorf("err = %v, want ErrEntryNotFound", err)
 		}
@@ -653,14 +674,82 @@ func TestMealPlanService_ClearMeal(t *testing.T) {
 		svc := newMealPlanServiceWithRepo(repo)
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r2")
-		if err := svc.ClearMeal(ctx, "2026-08-24", "dinner"); err != nil {
+		removed, err := svc.ClearMeal(ctx, "2026-08-24", "dinner")
+		if err != nil {
 			t.Fatalf("ClearMeal: %v", err)
+		}
+		if len(removed) != 2 || removed[0].RecipeID != "r1" || removed[1].RecipeID != "r2" {
+			t.Errorf("removed = %+v, want r1, r2", removed)
 		}
 		got, _ := svc.ListPeriod(ctx, "2026-08-24", 1)
 		if len(got) != 0 {
 			t.Errorf("want 0, got %d", len(got))
 		}
 	})
+}
+
+func TestMealPlanService_RestoreEntries(t *testing.T) {
+	ctx := context.Background()
+	valid := func() mealplan.RemovedEntry {
+		return mealplan.RemovedEntry{
+			Date: "2026-08-24", Meal: mealplan.MealDinner, Position: 1,
+			RecipeID: "r1", BatchID: "b1", CreatedAt: "2026-08-20T09:00:00Z", CookedAt: "2026-08-24T19:00:00Z",
+		}
+	}
+
+	t.Run("should pass valid entries to the repository", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(nil)
+		svc := newMealPlanServiceWithRepo(repo)
+		second := valid()
+		second.Position = 2
+		second.CookedAt = ""
+		if err := svc.RestoreEntries(ctx, []mealplan.RemovedEntry{valid(), second}); err != nil {
+			t.Fatalf("RestoreEntries: %v", err)
+		}
+		if len(repo.restoreCalls) != 1 || len(repo.restoreCalls[0]) != 2 {
+			t.Fatalf("restoreCalls = %+v, want 1 call with 2 entries", repo.restoreCalls)
+		}
+	})
+
+	t.Run("should do nothing when entries is empty", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(nil)
+		svc := newMealPlanServiceWithRepo(repo)
+		if err := svc.RestoreEntries(ctx, nil); err != nil {
+			t.Fatalf("RestoreEntries: %v", err)
+		}
+		if len(repo.restoreCalls) != 0 {
+			t.Errorf("restoreCalls = %+v, want none", repo.restoreCalls)
+		}
+	})
+
+	invalid := []struct {
+		name   string
+		mutate func(e *mealplan.RemovedEntry)
+		want   error
+	}{
+		{"should return ErrInvalidRestore when recipeId is empty", func(e *mealplan.RemovedEntry) { e.RecipeID = "" }, mealplan.ErrInvalidRestore},
+		{"should return ErrInvalidRestore when batchId is empty", func(e *mealplan.RemovedEntry) { e.BatchID = "" }, mealplan.ErrInvalidRestore},
+		{"should return ErrInvalidRestore when createdAt is not RFC3339", func(e *mealplan.RemovedEntry) { e.CreatedAt = "2026-08-20" }, mealplan.ErrInvalidRestore},
+		{"should return ErrInvalidRestore when cookedAt is neither empty nor RFC3339", func(e *mealplan.RemovedEntry) { e.CookedAt = "yesterday" }, mealplan.ErrInvalidRestore},
+		{"should return ErrInvalidDate when the date is invalid", func(e *mealplan.RemovedEntry) { e.Date = "2026-13-01" }, mealplan.ErrInvalidDate},
+		{"should return ErrInvalidMeal when the meal is invalid", func(e *mealplan.RemovedEntry) { e.Meal = "supper" }, mealplan.ErrInvalidMeal},
+		{"should return ErrInvalidPosition when the position is negative", func(e *mealplan.RemovedEntry) { e.Position = -1 }, mealplan.ErrInvalidPosition},
+	}
+	for _, tc := range invalid {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := newFakeMealPlanRepo(nil)
+			svc := newMealPlanServiceWithRepo(repo)
+			e := valid()
+			tc.mutate(&e)
+			err := svc.RestoreEntries(ctx, []mealplan.RemovedEntry{valid(), e})
+			if !errors.Is(err, tc.want) {
+				t.Errorf("err = %v, want %v", err, tc.want)
+			}
+			if len(repo.restoreCalls) != 0 {
+				t.Errorf("restoreCalls = %+v, want none", repo.restoreCalls)
+			}
+		})
+	}
 }
 
 func TestMealPlanService_ReorderMeal(t *testing.T) {

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"time"
 
 	"github.com/yito0000/meal-cycle/internal/config"
 	"github.com/yito0000/meal-cycle/internal/domain/mealplan"
@@ -13,8 +14,9 @@ type mealPlanRepo interface {
 	ListPeriod(ctx context.Context, periodStart string, periodDays int) ([]mealplan.Entry, error)
 	Assign(ctx context.Context, date, meal, recipeID string) (mealplan.Entry, error)
 	Replace(ctx context.Context, date, meal string, position int, recipeID string) error
-	Remove(ctx context.Context, date, meal string, position int) error
-	ClearMeal(ctx context.Context, date, meal string) error
+	Remove(ctx context.Context, date, meal string, position int) (mealplan.RemovedEntry, error)
+	ClearMeal(ctx context.Context, date, meal string) ([]mealplan.RemovedEntry, error)
+	RestoreEntries(ctx context.Context, entries []mealplan.RemovedEntry) error
 	Reorder(ctx context.Context, date, meal string, orderedRecipeIDs []string) error
 	CopyLeftover(ctx context.Context, meal string, targets []string,
 		sourceEntries []mealplan.Entry, mode mealplan.CopyMode, shareBatch mealplan.ShareBatch) error
@@ -80,23 +82,54 @@ func (s *MealPlanService) ReplaceEntry(
 	return s.repo.Replace(ctx, date, meal, position, recipeID)
 }
 
+// RemoveEntry は 1 品を削除し、「元に戻す」で RestoreEntries に渡すための削除した行の内容を返す。
 func (s *MealPlanService) RemoveEntry(
 	ctx context.Context, date, meal string, position int,
-) error {
+) (mealplan.RemovedEntry, error) {
 	if err := s.validateMealAddress(date, meal); err != nil {
-		return err
+		return mealplan.RemovedEntry{}, err
 	}
 	if err := mealplan.ValidatePosition(position); err != nil {
-		return err
+		return mealplan.RemovedEntry{}, err
 	}
 	return s.repo.Remove(ctx, date, meal, position)
 }
 
-func (s *MealPlanService) ClearMeal(ctx context.Context, date, meal string) error {
+// ClearMeal は時間帯の全品を削除し、削除した行を position 昇順で返す。
+func (s *MealPlanService) ClearMeal(ctx context.Context, date, meal string) ([]mealplan.RemovedEntry, error) {
 	if err := s.validateMealAddress(date, meal); err != nil {
-		return err
+		return nil, err
 	}
 	return s.repo.ClearMeal(ctx, date, meal)
+}
+
+// RestoreEntries は RemoveEntry / ClearMeal で削除した行を元のセルの元の並び順に戻す。
+// 中身はフロントを経由して戻ってくるので、壊れた値で行を作らないよう全項目を確かめる
+// (revise-mealplan-destructive-actions design.md D2)。
+func (s *MealPlanService) RestoreEntries(ctx context.Context, entries []mealplan.RemovedEntry) error {
+	if len(entries) == 0 {
+		return nil
+	}
+	for _, e := range entries {
+		if err := s.validateMealAddress(e.Date, string(e.Meal)); err != nil {
+			return err
+		}
+		if err := mealplan.ValidatePosition(e.Position); err != nil {
+			return err
+		}
+		if e.RecipeID == "" || e.BatchID == "" {
+			return mealplan.ErrInvalidRestore
+		}
+		if _, err := time.Parse(time.RFC3339, e.CreatedAt); err != nil {
+			return mealplan.ErrInvalidRestore
+		}
+		if e.CookedAt != "" {
+			if _, err := time.Parse(time.RFC3339, e.CookedAt); err != nil {
+				return mealplan.ErrInvalidRestore
+			}
+		}
+	}
+	return s.repo.RestoreEntries(ctx, entries)
 }
 
 func (s *MealPlanService) ReorderMeal(

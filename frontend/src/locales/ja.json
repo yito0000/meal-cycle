@@ -60,7 +60,7 @@
         "move_up": "上へ移動",
         "move_down": "下へ移動",
         "spread": "作り置きを広げる",
-        "split_batch": "作り置きから外す",
+        "split_batch": "作り置きをやめる",
         "merge_batch": "他の作り置きにまとめる"
       },
       "meal_menu": {
@@ -119,6 +119,18 @@
         "cell_drop_label": "ここにドロップして品を移動",
         "moved_announcement": "{{recipeName}} を {{fromDate}} {{fromMeal}} から {{toDate}} {{toMeal}} に移動しました"
       },
+      "dissolve": {
+        "title": "作り置きをやめますか",
+        "description": "最初の日の行だけを残し、ほかの {{count}} 行を削除します。選んだ行が残るとは限りません。",
+        "confirm": "やめる",
+        "cancel": "キャンセル"
+      },
+      "toast": {
+        "removed": "「{{name}}」を削除しました",
+        "cleared": "{{count}} 品を削除しました",
+        "undo": "元に戻す",
+        "restore_failed": "元に戻せませんでした"
+      },
       "errors": {
         "invalid_date": "日付の形式が不正です",
         "invalid_meal": "時間帯の指定が不正です",
@@ -131,7 +143,8 @@
         "batch_merge_denied": "その作り置きにはまとめられません",
         "invalid_period_weeks": "選択できない期間長です",
         "invalid_spread_target": "広げる先に選べないセルが含まれています",
-        "unknown": "処理に失敗しました"
+        "unknown": "処理に失敗しました",
+        "invalid_restore": "元に戻す内容が正しくありません"
       },
       "shopping_cta": "この期間の買い物リストを見る"
     },

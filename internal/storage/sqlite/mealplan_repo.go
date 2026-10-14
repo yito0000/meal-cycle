@@ -147,24 +147,31 @@ func (r *MealPlanRepo) Replace(ctx context.Context, date, meal string, position 
 	return nil
 }
 
-// Remove は 1 行削除し、後続 position を 1 つずつ詰め直す。
-func (r *MealPlanRepo) Remove(ctx context.Context, date, meal string, position int) error {
+// Remove は 1 行削除し、後続 position を 1 つずつ詰め直す。消した行の内容を「元に戻す」用に返す。
+func (r *MealPlanRepo) Remove(ctx context.Context, date, meal string, position int) (mealplan.RemovedEntry, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("begin tx: %w", err)
+		return mealplan.RemovedEntry{}, fmt.Errorf("begin tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
+	removed, err := loadRemovedEntries(ctx, tx, `m.date = ? AND m.meal = ? AND m.position = ?`, date, meal, position)
+	if err != nil {
+		return mealplan.RemovedEntry{}, err
+	}
+	if len(removed) == 0 {
+		return mealplan.RemovedEntry{}, mealplan.ErrEntryNotFound
+	}
 	if err := removeRowTx(ctx, tx, date, meal, position); err != nil {
-		return err
+		return mealplan.RemovedEntry{}, err
 	}
 	if err := pruneCookedMarks(ctx, tx); err != nil {
-		return err
+		return mealplan.RemovedEntry{}, err
 	}
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit tx: %w", err)
+		return mealplan.RemovedEntry{}, fmt.Errorf("commit tx: %w", err)
 	}
-	return nil
+	return removed[0], nil
 }
 
 // MoveEntry は 1 行を別セル (targetDate, targetMeal) の末尾 (position = max+1) に移す。
@@ -291,26 +298,142 @@ func renumberMeal(ctx context.Context, q querier, date, meal string) error {
 	return nil
 }
 
-// ClearMeal は (date, meal) の全 position を削除する。0 件でもエラーにしない。
-func (r *MealPlanRepo) ClearMeal(ctx context.Context, date, meal string) error {
+// ClearMeal は (date, meal) の全 position を削除し、消した行を position 昇順で返す。0 件でもエラーにしない。
+func (r *MealPlanRepo) ClearMeal(ctx context.Context, date, meal string) ([]mealplan.RemovedEntry, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	removed, err := loadRemovedEntries(ctx, tx, `m.date = ? AND m.meal = ?`, date, meal)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		DELETE FROM meal_plans WHERE date = ? AND meal = ?
+	`, date, meal); err != nil {
+		return nil, fmt.Errorf("clear meal: %w", err)
+	}
+	if err := pruneCookedMarks(ctx, tx); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit tx: %w", err)
+	}
+	return removed, nil
+}
+
+// RestoreEntries は Remove / ClearMeal で消した行を、元のセルの元の position へ 1 トランザクションで戻す。
+// 削除のあとにセルの品数が減っていれば末尾に置き、増えていれば後ろの行をずらすので、失敗しない
+// (revise-mealplan-destructive-actions design.md D2)。
+func (r *MealPlanRepo) RestoreEntries(ctx context.Context, entries []mealplan.RemovedEntry) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	if _, err := tx.ExecContext(ctx, `
-		DELETE FROM meal_plans WHERE date = ? AND meal = ?
-	`, date, meal); err != nil {
-		return fmt.Errorf("clear meal: %w", err)
-	}
-	if err := pruneCookedMarks(ctx, tx); err != nil {
-		return err
+	// position の小さい順に戻さないと、先に戻した行が後の行の position を押し出してしまう。
+	sorted := append([]mealplan.RemovedEntry(nil), entries...)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		a, b := sorted[i], sorted[j]
+		if a.Date != b.Date {
+			return a.Date < b.Date
+		}
+		if a.Meal != b.Meal {
+			return mealRank(a.Meal) < mealRank(b.Meal)
+		}
+		return a.Position < b.Position
+	})
+
+	for _, e := range sorted {
+		if err := restoreEntryTx(ctx, tx, e); err != nil {
+			return err
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit tx: %w", err)
 	}
 	return nil
+}
+
+func restoreEntryTx(ctx context.Context, tx *sql.Tx, e mealplan.RemovedEntry) error {
+	meal := string(e.Meal)
+	var count int
+	if err := tx.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM meal_plans WHERE date = ? AND meal = ?
+	`, e.Date, meal).Scan(&count); err != nil {
+		return fmt.Errorf("count meal rows: %w", err)
+	}
+	pos := min(e.Position, count)
+	if err := openPositionGap(ctx, tx, e.Date, meal, pos); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO meal_plans (date, meal, position, recipe_id, created_at, batch_id)
+		VALUES (?, ?, ?, ?, ?, ?)
+	`, e.Date, meal, pos, e.RecipeID, e.CreatedAt, e.BatchID); err != nil {
+		if isForeignKeyErr(err) {
+			return mealplan.ErrUnknownRecipe
+		}
+		return fmt.Errorf("insert meal_plans: %w", err)
+	}
+	if e.CookedAt == "" {
+		return nil
+	}
+	// 同じ作り置きの別の行が印を保っていれば、その印 (と日時) を優先する。
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO meal_plan_cooked (batch_id, recipe_id, cooked_at) VALUES (?, ?, ?)
+		ON CONFLICT (batch_id, recipe_id) DO NOTHING
+	`, e.BatchID, e.RecipeID, e.CookedAt); err != nil {
+		return fmt.Errorf("insert meal_plan_cooked: %w", err)
+	}
+	return nil
+}
+
+// openPositionGap は at 以降の行を 1 つずつ後ろへずらし、at を空ける。
+// closePositionGap と同じ理由で、+1 の 1 文にせず退避を挟む (fix-mealplan-renumber-after-reorder design.md D1)。
+func openPositionGap(ctx context.Context, q querier, date, meal string, at int) error {
+	if _, err := q.ExecContext(ctx, `
+		UPDATE meal_plans SET position = position + ?
+		WHERE date = ? AND meal = ? AND position >= ?
+	`, positionShiftOffset, date, meal, at); err != nil {
+		return fmt.Errorf("shift positions: %w", err)
+	}
+	if _, err := q.ExecContext(ctx, `
+		UPDATE meal_plans SET position = position - ? + 1
+		WHERE date = ? AND meal = ? AND position >= ?
+	`, positionShiftOffset, date, meal, positionShiftOffset); err != nil {
+		return fmt.Errorf("renumber positions: %w", err)
+	}
+	return nil
+}
+
+// loadRemovedEntries は where に合う行を、作った印の日時と一緒に position 昇順で読む。
+func loadRemovedEntries(ctx context.Context, q querier, where string, args ...any) ([]mealplan.RemovedEntry, error) {
+	rows, err := q.QueryContext(ctx, `
+		SELECT m.date, m.meal, m.position, m.recipe_id, m.batch_id, m.created_at, COALESCE(c.cooked_at, '')
+		FROM meal_plans m
+		LEFT JOIN meal_plan_cooked c ON c.batch_id = m.batch_id AND c.recipe_id = m.recipe_id
+		WHERE `+where+`
+		ORDER BY m.position
+	`, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query removed rows: %w", err)
+	}
+	defer rows.Close()
+	out := make([]mealplan.RemovedEntry, 0)
+	for rows.Next() {
+		var e mealplan.RemovedEntry
+		var mealStr string
+		if err := rows.Scan(&e.Date, &mealStr, &e.Position, &e.RecipeID, &e.BatchID, &e.CreatedAt, &e.CookedAt); err != nil {
+			return nil, fmt.Errorf("scan removed row: %w", err)
+		}
+		e.Meal = mealplan.Meal(mealStr)
+		out = append(out, e)
+	}
+	return out, rows.Err()
 }
 
 // Reorder は orderedRecipeIDs の順で position を 0..N-1 に採番し直す。
@@ -446,7 +569,7 @@ func (r *MealPlanRepo) CopyLeftover(
 	return nil
 }
 
-// SplitBatch は「作り置きから外す」= 連続 N 日コピーの逆演算を実行する。
+// SplitBatch は「作り置きをやめる」= 連続 N 日コピーの逆演算を実行する。
 // 対象行が属する作り置き全体を対象に、起点日 (バッチ内で最も古い日付 → MIN(position) を tiebreaker
 // にした行) を残し、他の同バッチ行を全削除。残った起点行に新 batch_id を発行して返す。
 // バッチが元々 1 行しか含まない場合は no-op で現行 batch_id を返す (design.md D4a)。

@@ -20,6 +20,7 @@ const RULES: [string, string][] = [
   ["mealplan: batch merge denied", "pages.meal_plan.errors.batch_merge_denied"],
   ["mealplan: invalid period weeks", "pages.meal_plan.errors.invalid_period_weeks"],
   ["mealplan: invalid spread target", "pages.meal_plan.errors.invalid_spread_target"],
+  ["mealplan: invalid restore", "pages.meal_plan.errors.invalid_restore"],
 ];
 
 export function errorI18nKey(err: unknown): string {

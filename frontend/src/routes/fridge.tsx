@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { UNDO_TOAST_MS } from "@/lib/undo-toast";
 import type { StockItem } from "../../bindings/github.com/yito0000/meal-cycle/internal/domain/fridge/models";
 import { stockErrorOf } from "../components/fridge/error-messages";
 import { FridgeAddRow } from "../components/fridge/fridge-add-row";
@@ -12,12 +13,7 @@ import {
 } from "../components/fridge/fridge-sort";
 import { FridgeSortSelect } from "../components/fridge/fridge-sort-select";
 import { FridgeTable } from "../components/fridge/fridge-table";
-import {
-  UNDO_TOAST_MS,
-  useDeleteStock,
-  useRestoreStock,
-  useStockList,
-} from "../components/fridge/use-fridge";
+import { useDeleteStock, useRestoreStock, useStockList } from "../components/fridge/use-fridge";
 import { useIngredientSuggestions } from "../components/ingredient/use-ingredient-suggestions";
 
 export function FridgePage() {

@@ -109,7 +109,7 @@ test.describe("作った印", () => {
   });
 });
 
-test.describe("作り置きの編集と作った印", () => {
+test.describe("編集操作と作った印", () => {
   test("作り置きとして広げた行は印を引き継ぐ", async ({ page }) => {
     const id = await createRecipeWithIngredients(page, "カレー", []);
     await assignRecipe(page, nextWeekDay(0), "dinner", id);
@@ -156,5 +156,20 @@ test.describe("作り置きの編集と作った印", () => {
     await page.getByRole("dialog").getByRole("button", { name: "肉じゃが" }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expectCooked(page, "肉じゃが", [false]);
+  });
+
+  test("元に戻した品は印を保つ", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "肉じゃが", []);
+    await assignRecipe(page, nextWeekDay(0), "dinner", id);
+    await openNextWeek(page);
+    await toggleCooked(page, "肉じゃが");
+    await expectCooked(page, "肉じゃが", [true]);
+
+    await openItemMenu(page, "肉じゃが");
+    await page.getByRole("menuitem", { name: t.item_menu.remove }).click();
+    await expect(mealPlanItemRows(page, "肉じゃが")).toHaveCount(0);
+    await page.getByRole("button", { name: t.toast.undo, exact: true }).click();
+
+    await expectCooked(page, "肉じゃが", [true]);
   });
 });

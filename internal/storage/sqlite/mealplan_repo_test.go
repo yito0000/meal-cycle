@@ -2,9 +2,11 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/yito0000/meal-cycle/internal/domain/mealplan"
 	"github.com/yito0000/meal-cycle/internal/domain/recipe"
@@ -221,7 +223,7 @@ func TestMealPlanRepo_Remove(t *testing.T) {
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[1].ID)
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[2].ID)
-		if err := repo.Remove(ctx, "2026-08-24", "dinner", 1); err != nil {
+		if _, err := repo.Remove(ctx, "2026-08-24", "dinner", 1); err != nil {
 			t.Fatalf("Remove: %v", err)
 		}
 		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
@@ -246,12 +248,64 @@ func TestMealPlanRepo_Remove(t *testing.T) {
 			t.Fatalf("Reorder: %v", err)
 		}
 
-		if err := repo.Remove(ctx, "2026-08-24", "dinner", 0); err != nil {
+		if _, err := repo.Remove(ctx, "2026-08-24", "dinner", 0); err != nil {
 			t.Fatalf("Remove: %v", err)
 		}
 		got, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
 		assertMealOrder(t, got, rs[2].ID, rs[0].ID)
 	})
+
+	t.Run("Remove should return the removed row with its batch id and createdAt", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "A", "B")
+		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+		b, _ := repo.Assign(ctx, "2026-08-24", "dinner", rs[1].ID)
+
+		got, err := repo.Remove(ctx, "2026-08-24", "dinner", 1)
+		if err != nil {
+			t.Fatalf("Remove: %v", err)
+		}
+		if got.Date != "2026-08-24" || got.Meal != mealplan.MealDinner || got.Position != 1 ||
+			got.RecipeID != rs[1].ID || got.BatchID != b.BatchID {
+			t.Errorf("removed = %+v, want B at 2026-08-24/dinner/1 in batch %s", got, b.BatchID)
+		}
+		if _, err := time.Parse(time.RFC3339, got.CreatedAt); err != nil {
+			t.Errorf("createdAt = %q, want RFC3339", got.CreatedAt)
+		}
+		if got.CookedAt != "" {
+			t.Errorf("cookedAt = %q, want empty", got.CookedAt)
+		}
+	})
+
+	t.Run("Remove should return cookedAt when the removed row carried a cooked mark", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "A")
+		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+		_ = repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+		want := cookedAtOf(t, repo, rs[0].ID)
+
+		got, err := repo.Remove(ctx, "2026-08-24", "dinner", 0)
+		if err != nil {
+			t.Fatalf("Remove: %v", err)
+		}
+		if got.CookedAt == "" || got.CookedAt != want {
+			t.Errorf("cookedAt = %q, want %q", got.CookedAt, want)
+		}
+	})
+}
+
+// cookedAtOf は recipeID の作った印の日時を返す。印が無ければ空文字。
+func cookedAtOf(t *testing.T, repo *MealPlanRepo, recipeID string) string {
+	t.Helper()
+	var at string
+	err := repo.db.QueryRow(`SELECT cooked_at FROM meal_plan_cooked WHERE recipe_id = ?`, recipeID).Scan(&at)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ""
+	}
+	if err != nil {
+		t.Fatalf("query cooked_at: %v", err)
+	}
+	return at
 }
 
 // assertMealOrder は 1 セルの行が wantRecipeIDs の順で position 0 から隙間なく並ぶことを確かめる。
@@ -401,7 +455,7 @@ func TestMealPlanRepo_ClearMeal(t *testing.T) {
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[1].ID)
 		_, _ = repo.Assign(ctx, "2026-08-24", "lunch", rs[0].ID)
 
-		if err := repo.ClearMeal(ctx, "2026-08-24", "dinner"); err != nil {
+		if _, err := repo.ClearMeal(ctx, "2026-08-24", "dinner"); err != nil {
 			t.Fatalf("ClearMeal: %v", err)
 		}
 		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
@@ -410,6 +464,196 @@ func TestMealPlanRepo_ClearMeal(t *testing.T) {
 		}
 		if got[0].Meal != mealplan.MealLunch {
 			t.Errorf("remaining meal = %s, want lunch", got[0].Meal)
+		}
+	})
+
+	t.Run("ClearMeal should return all removed rows ordered by position", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "A", "B", "C")
+		for _, r := range rs {
+			_, _ = repo.Assign(ctx, "2026-08-24", "dinner", r.ID)
+		}
+		_ = repo.Reorder(ctx, "2026-08-24", "dinner", []string{rs[2].ID, rs[0].ID, rs[1].ID})
+
+		got, err := repo.ClearMeal(ctx, "2026-08-24", "dinner")
+		if err != nil {
+			t.Fatalf("ClearMeal: %v", err)
+		}
+		if len(got) != 3 {
+			t.Fatalf("want 3 removed rows, got %d", len(got))
+		}
+		for i, want := range []string{rs[2].ID, rs[0].ID, rs[1].ID} {
+			if got[i].Position != i || got[i].RecipeID != want {
+				t.Errorf("row %d = (position %d, recipe %s); want (%d, %s)", i, got[i].Position, got[i].RecipeID, i, want)
+			}
+		}
+	})
+
+	t.Run("ClearMeal should return an empty slice when the meal has no rows", func(t *testing.T) {
+		repo, _ := newMealPlanRepoForTest(t)
+		got, err := repo.ClearMeal(ctx, "2026-08-24", "dinner")
+		if err != nil {
+			t.Fatalf("ClearMeal: %v", err)
+		}
+		if got == nil || len(got) != 0 {
+			t.Errorf("want empty non-nil slice, got %#v", got)
+		}
+	})
+}
+
+func TestMealPlanRepo_RestoreEntries(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("RestoreEntries should put a row back at its original position and shift later rows down", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "A", "B", "C")
+		for _, r := range rs {
+			_, _ = repo.Assign(ctx, "2026-08-24", "dinner", r.ID)
+		}
+		removed, err := repo.Remove(ctx, "2026-08-24", "dinner", 1)
+		if err != nil {
+			t.Fatalf("Remove: %v", err)
+		}
+
+		if err := repo.RestoreEntries(ctx, []mealplan.RemovedEntry{removed}); err != nil {
+			t.Fatalf("RestoreEntries: %v", err)
+		}
+		got, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
+		assertMealOrder(t, got, rs[0].ID, rs[1].ID, rs[2].ID)
+	})
+
+	t.Run("RestoreEntries should append at the end when the original position exceeds the current count", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "A", "B", "C")
+		for _, r := range rs {
+			_, _ = repo.Assign(ctx, "2026-08-24", "dinner", r.ID)
+		}
+		removed, _ := repo.Remove(ctx, "2026-08-24", "dinner", 2)
+		_, _ = repo.Remove(ctx, "2026-08-24", "dinner", 0)
+
+		if err := repo.RestoreEntries(ctx, []mealplan.RemovedEntry{removed}); err != nil {
+			t.Fatalf("RestoreEntries: %v", err)
+		}
+		got, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
+		assertMealOrder(t, got, rs[1].ID, rs[2].ID)
+	})
+
+	t.Run("RestoreEntries should restore all rows of a cleared meal in the original order", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "A", "B", "C")
+		for _, r := range rs {
+			_, _ = repo.Assign(ctx, "2026-08-24", "dinner", r.ID)
+		}
+		removed, _ := repo.ClearMeal(ctx, "2026-08-24", "dinner")
+		reversed := []mealplan.RemovedEntry{removed[2], removed[1], removed[0]}
+
+		if err := repo.RestoreEntries(ctx, reversed); err != nil {
+			t.Fatalf("RestoreEntries: %v", err)
+		}
+		got, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
+		assertMealOrder(t, got, rs[0].ID, rs[1].ID, rs[2].ID)
+	})
+
+	t.Run("RestoreEntries should keep the original batch id so the row rejoins its batch", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "カレー")
+		src := seedLeftover(t, repo, rs[0].ID, "2026-08-25", "2026-08-26")
+		removed, _ := repo.Remove(ctx, "2026-08-25", "dinner", 0)
+
+		if err := repo.RestoreEntries(ctx, []mealplan.RemovedEntry{removed}); err != nil {
+			t.Fatalf("RestoreEntries: %v", err)
+		}
+		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
+		if len(got) != 3 {
+			t.Fatalf("want 3 rows, got %d", len(got))
+		}
+		for _, e := range got {
+			if e.BatchID != src.BatchID || e.BatchMemberCount != 3 {
+				t.Errorf("%s: batch = (%s, %d), want (%s, 3)", e.Date, e.BatchID, e.BatchMemberCount, src.BatchID)
+			}
+		}
+	})
+
+	t.Run("RestoreEntries should bring back the cooked mark with the original cookedAt when the mark was pruned", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが")
+		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+		_ = repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+		want := cookedAtOf(t, repo, rs[0].ID)
+		removed, _ := repo.Remove(ctx, "2026-08-24", "dinner", 0)
+		if n := countCookedMarks(t, repo); n != 0 {
+			t.Fatalf("precondition: want mark pruned, got %d", n)
+		}
+
+		if err := repo.RestoreEntries(ctx, []mealplan.RemovedEntry{removed}); err != nil {
+			t.Fatalf("RestoreEntries: %v", err)
+		}
+		if got := cookedByCell(t, repo, "2026-08-24"); !got["2026-08-24/dinner/肉じゃが"] {
+			t.Errorf("want cooked, got %+v", got)
+		}
+		if got := cookedAtOf(t, repo, rs[0].ID); got != want {
+			t.Errorf("cookedAt = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("RestoreEntries should not duplicate the cooked mark when other rows of the batch still carry it", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "カレー")
+		seedLeftover(t, repo, rs[0].ID, "2026-08-25")
+		_ = repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
+		removed, _ := repo.Remove(ctx, "2026-08-25", "dinner", 0)
+
+		if err := repo.RestoreEntries(ctx, []mealplan.RemovedEntry{removed}); err != nil {
+			t.Fatalf("RestoreEntries: %v", err)
+		}
+		if n := countCookedMarks(t, repo); n != 1 {
+			t.Errorf("want 1 mark, got %d", n)
+		}
+		for cell, cooked := range cookedByCell(t, repo, "2026-08-24") {
+			if !cooked {
+				t.Errorf("%s: want cooked", cell)
+			}
+		}
+	})
+
+	t.Run("RestoreEntries should succeed in a cell whose rows were reordered before the removal", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "A", "B", "C")
+		for _, r := range rs {
+			_, _ = repo.Assign(ctx, "2026-08-24", "dinner", r.ID)
+		}
+		_ = repo.Reorder(ctx, "2026-08-24", "dinner", []string{rs[2].ID, rs[0].ID, rs[1].ID})
+		removed, err := repo.Remove(ctx, "2026-08-24", "dinner", 0)
+		if err != nil {
+			t.Fatalf("Remove: %v", err)
+		}
+
+		if err := repo.RestoreEntries(ctx, []mealplan.RemovedEntry{removed}); err != nil {
+			t.Fatalf("RestoreEntries: %v", err)
+		}
+		got, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
+		assertMealOrder(t, got, rs[2].ID, rs[0].ID, rs[1].ID)
+	})
+
+	t.Run("RestoreEntries should return ErrUnknownRecipe and change nothing when the recipe row does not exist", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "A", "B")
+		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
+		ok := mealplan.RemovedEntry{
+			Date: "2026-08-24", Meal: mealplan.MealDinner, Position: 0,
+			RecipeID: rs[1].ID, BatchID: mealplan.NewBatchID(), CreatedAt: "2026-08-20T09:00:00Z",
+		}
+		missing := ok
+		missing.Date = "2026-08-25"
+		missing.RecipeID = "no-such-recipe"
+
+		err := repo.RestoreEntries(ctx, []mealplan.RemovedEntry{ok, missing})
+		if !errors.Is(err, mealplan.ErrUnknownRecipe) {
+			t.Fatalf("err = %v, want ErrUnknownRecipe", err)
+		}
+		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
+		if len(got) != 1 || got[0].RecipeID != rs[0].ID || got[0].Position != 0 {
+			t.Errorf("want only the original A, got %+v", got)
 		}
 	})
 }
@@ -1205,7 +1449,7 @@ func TestMealPlanRepo_Cooked(t *testing.T) {
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
 		_ = repo.SetCooked(ctx, "2026-08-24", "dinner", 0, true)
 
-		if err := repo.ClearMeal(ctx, "2026-08-24", "dinner"); err != nil {
+		if _, err := repo.ClearMeal(ctx, "2026-08-24", "dinner"); err != nil {
 			t.Fatalf("ClearMeal: %v", err)
 		}
 		if n := countCookedMarks(t, repo); n != 0 {

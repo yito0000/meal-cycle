@@ -6,6 +6,7 @@ import {
   createRecipe,
   createRecipeWithIngredients,
   dateAfter,
+  deleteRecipe,
   detailBreadcrumb,
   mealPlanItemRows,
   openItemMenu,
@@ -147,6 +148,96 @@ test.describe("並べ替えたあとの品の削除と移動", () => {
     for (const message of Object.values(t.errors)) {
       await expect(page.getByText(message, { exact: true })).toHaveCount(0);
     }
+  });
+});
+
+// 「元に戻す」付きの通知。sonner の toast は main の外に描かれるので page 起点で探す。
+function undoButton(page: import("@playwright/test").Page) {
+  return page.getByRole("button", { name: t.toast.undo, exact: true });
+}
+
+test.describe("品の削除と時間帯クリアの取り消し", () => {
+  test("削除した品を元に戻す", async ({ page }) => {
+    await seedDinner(page, dateAfter(0), ["肉じゃが", "みそ汁", "ほうれん草の胡麻和え"]);
+    await openMealCalendar(page);
+    await expect(allItemRows(page)).toHaveText(["肉じゃが", "みそ汁", "ほうれん草の胡麻和え"]);
+
+    await openItemMenu(page, "みそ汁");
+    await page.getByRole("menuitem", { name: t.item_menu.remove }).click();
+    await expect(allItemRows(page)).toHaveText(["肉じゃが", "ほうれん草の胡麻和え"]);
+
+    await undoButton(page).click();
+
+    await expect(allItemRows(page)).toHaveText(["肉じゃが", "みそ汁", "ほうれん草の胡麻和え"]);
+  });
+
+  test("削除すると通知に元に戻すが表示される", async ({ page }) => {
+    await seedDinner(page, dateAfter(0), ["肉じゃが"]);
+    await openMealCalendar(page);
+
+    await openItemMenu(page, "肉じゃが");
+    await page.getByRole("menuitem", { name: t.item_menu.remove }).click();
+
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(allItemRows(page)).toHaveCount(0);
+    await expect(page.getByText(t.toast.removed.replace("{{name}}", "肉じゃが"))).toBeVisible();
+    await expect(undoButton(page)).toBeVisible();
+  });
+
+  test("クリアした時間帯を元に戻す", async ({ page }) => {
+    await seedDinner(page, dateAfter(0), ["肉じゃが", "みそ汁"]);
+    await openMealCalendar(page);
+    await expect(allItemRows(page)).toHaveText(["肉じゃが", "みそ汁"]);
+
+    await page.getByRole("button", { name: t.cell_actions.meal_menu }).click();
+    await page.getByRole("menuitem", { name: t.meal_menu.clear }).click();
+    await expect(allItemRows(page)).toHaveCount(0);
+    await expect(page.getByText(t.toast.cleared.replace("{{count}}", "2"))).toBeVisible();
+
+    await undoButton(page).click();
+
+    await expect(allItemRows(page)).toHaveText(["肉じゃが", "みそ汁"]);
+  });
+
+  test("作り置きの 1 行を削除して元に戻すと同じ作り置きに戻る", async ({ page }) => {
+    await seedDinner(page, dateAfter(0), ["カレー"]);
+    await copyLeftover(page, dateAfter(0), "dinner", 3, true);
+    await openMealCalendar(page);
+    // 今日が週末だと 2〜3 日目が翌週になるので、2 週表示で 3 日分を画面に入れる。
+    await page.getByTestId("period-weeks-2").click();
+    const rows = mealPlanItemRows(page, "カレー");
+    await expect(rows).toHaveCount(3);
+    const batchId = await rows.nth(0).getAttribute("data-batch-id");
+
+    await openItemMenu(page, "カレー", 1);
+    await page.getByRole("menuitem", { name: t.item_menu.remove }).click();
+    await expect(rows).toHaveCount(2);
+
+    await undoButton(page).click();
+
+    await expect(rows).toHaveCount(3);
+    for (const i of [0, 1, 2]) {
+      await expect(rows.nth(i)).toHaveAttribute("data-batch-id", batchId ?? "");
+      await expect(rows.nth(i)).toHaveAttribute("data-batch-member-count", "3");
+    }
+  });
+});
+
+test.describe("S01 の操作結果の通知", () => {
+  test("失敗した操作は通知で知らされる", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "肉じゃが", []);
+    await openMealCalendar(page);
+
+    await page.getByRole("button", { name: t.cell_actions.add_first }).first().click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("button", { name: "肉じゃが" })).toBeVisible();
+    await deleteRecipe(page, id);
+    await dialog.getByRole("button", { name: "肉じゃが" }).click();
+
+    const message = t.errors.unknown_recipe;
+    await expect(page.locator("[data-sonner-toast]").getByText(message)).toBeVisible();
+    await expect(page.getByRole("main").getByText(message)).toHaveCount(0);
+    await expect(allItemRows(page)).toHaveCount(0);
   });
 });
 

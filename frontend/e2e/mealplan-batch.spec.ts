@@ -66,21 +66,85 @@ async function setCheck(page: Page, date: string, meal: string, checked: boolean
   await spreadCell(page, date, meal).getByRole("checkbox").setChecked(checked);
 }
 
-// Radix DropdownMenu の Portal 操作は E2E で扱いづらいため、そこに依存するシナリオは
-// test.skip で名前だけ残し、次イテレーションで有効化する (design.md D6)。
+// spreadLeftover は MON の夕食の 1 品目を、days に挙げた日の夕食へ作り置きとして広げる。
+async function spreadLeftover(page: Page, days: string[]) {
+  const res = await page.request.post("/api/MealPlanService/SpreadEntry", {
+    data: [MON, "dinner", 0, days.map((date) => ({ date, meal: "dinner" })), "append", true],
+  });
+  if (!res.ok()) throw new Error(`spread failed: ${res.status()} ${await res.text()}`);
+}
 
-test.describe("事後編集による作り置きの外し / まとめ", () => {
-  test.skip("作り置きから外すと起点日だけが残る", async () => {
-    // CellItemMenu → 「作り置きから外す」経路。作り置きの逆演算として、
-    // 起点日以外の行が削除される。DropdownMenu Portal 対応時に有効化。
+function dissolveDialog(page: Page) {
+  return page.getByRole("dialog", { name: t.dissolve.title });
+}
+
+// 月・火・水曜・夕に同じ作り置きの「肉じゃが」を並べ、火曜の行で「作り置きをやめる」を選ぶ。
+async function chooseDissolveOnTuesday(page: Page) {
+  const id = await createRecipeWithIngredients(page, "肉じゃが", []);
+  await assignRecipe(page, MON, "dinner", id);
+  await spreadLeftover(page, [TUE, WED]);
+  await openNextWeek(page);
+  await expect(mealPlanItemRows(page, "肉じゃが")).toHaveCount(3);
+
+  await openItemMenu(page, "肉じゃが", 1);
+  await page.getByRole("menuitem", { name: t.item_menu.split_batch }).click();
+  await expect(dissolveDialog(page)).toBeVisible();
+}
+
+// Radix DropdownMenu の Portal 操作に依存するまとめるシナリオは、test.skip で名前だけ残している (design.md D6)。
+test.describe("作り置きをやめる操作とまとめる操作", () => {
+  test("作り置きをやめると最初の日だけが残る", async ({ page }) => {
+    await chooseDissolveOnTuesday(page);
+    const before = rowsIn(await listNextWeek(page), MON, "dinner")[0];
+
+    await dissolveDialog(page).getByRole("button", { name: t.dissolve.confirm }).click();
+
+    await expect(dissolveDialog(page)).toHaveCount(0);
+    const rows = await waitForRowCount(page, 1);
+    expect(rows[0].date).toBe(MON);
+    expect(rows[0].batchMemberCount).toBe(1);
+    expect(rows[0].batchId).not.toBe(before.batchId);
+    await expect(mealPlanItemRows(page, "肉じゃが")).toHaveCount(1);
   });
 
-  test.skip("単独作り置きの行に対して外す操作は何もしない", async () => {
-    // 1 行しか含まない作り置きに Split を叩いても no-op。同上。
+  test("作り置きをやめる前に削除される行の数を確認する", async ({ page }) => {
+    await chooseDissolveOnTuesday(page);
+
+    await expect(dissolveDialog(page)).toContainText(
+      t.dissolve.description.replace("{{count}}", "2"),
+    );
+    expect(await listNextWeek(page)).toHaveLength(3);
+    await expect(mealPlanItemRows(page, "肉じゃが")).toHaveCount(3);
+  });
+
+  test("確認でキャンセルすると作り置きは変わらない", async ({ page }) => {
+    await chooseDissolveOnTuesday(page);
+    const before = await listNextWeek(page);
+
+    await dissolveDialog(page).getByRole("button", { name: t.dissolve.cancel }).click();
+
+    await expect(dissolveDialog(page)).toHaveCount(0);
+    const after = await listNextWeek(page);
+    expect(after).toHaveLength(3);
+    for (const r of after) {
+      expect(r.batchId).toBe(before[0].batchId);
+      expect(r.batchMemberCount).toBe(3);
+    }
+  });
+
+  test("単独の行には「作り置きをやめる」項目が出ない", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "肉じゃが", []);
+    await assignRecipe(page, MON, "dinner", id);
+    await openNextWeek(page);
+
+    await openItemMenu(page, "肉じゃが");
+
+    await expect(page.getByRole("menuitem", { name: t.item_menu.spread })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: t.item_menu.split_batch })).toHaveCount(0);
   });
 
   test.skip("同一レシピの近い日付の作り置きにまとめる", async () => {
-    // CellItemMenu → 「他の作り置きにまとめる」→ BatchMergeDialog。同上。
+    // CellItemMenu → 「他の作り置きにまとめる」→ BatchMergeDialog。DropdownMenu Portal 対応時に有効化。
   });
 
   test.skip("レシピが違う作り置きにはまとめられない", async () => {
@@ -96,7 +160,7 @@ test.describe("事後編集による作り置きの外し / まとめ", () => {
   });
 
   test.skip("別時間帯の同一レシピ作り置きにもまとめられる", async () => {
-    // CellItemMenu → 「他の作り置きにまとめる」→ 別 meal 候補選択。DropdownMenu Portal 対応時に有効化。
+    // CellItemMenu → 「他の作り置きにまとめる」→ 別 meal 候補選択。同上。
   });
 });
 

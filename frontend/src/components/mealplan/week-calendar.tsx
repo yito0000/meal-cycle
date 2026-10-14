@@ -2,17 +2,21 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import type {
   BatchSummary,
   Entry,
+  RemovedEntry,
 } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
 import { Meal } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
 import { MealPlanService } from "../../../bindings/github.com/yito0000/meal-cycle/internal/service";
 import type { SpreadSelection } from "../../lib/spread-batch-selection";
+import { UNDO_TOAST_MS } from "../../lib/undo-toast";
 import { BatchMergeDialog } from "./batch-merge-dialog";
 import { CopyConflictDialog, type CopyConflictMode } from "./copy-conflict-dialog";
 import { CopyModeDialog } from "./copy-mode-dialog";
 import { previewCopy } from "./copy-planner";
+import { DissolveBatchDialog } from "./dissolve-batch-dialog";
 import { errorI18nKey } from "./error-messages";
 import {
   type DragSource,
@@ -53,6 +57,10 @@ type MergeDialogState =
   | { kind: "closed" }
   | { kind: "open"; date: string; meal: string; position: number; candidates: BatchSummary[] };
 
+type DissolveState =
+  | { kind: "closed" }
+  | { kind: "open"; date: string; meal: string; position: number; removedCount: number };
+
 type SpreadState =
   | { kind: "closed" }
   | {
@@ -90,14 +98,9 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
   const [pendingCopy, setPendingCopy] = useState<PendingCopy | null>(null);
   const [mergeDialog, setMergeDialog] = useState<MergeDialogState>({ kind: "closed" });
   const [spreadState, setSpreadState] = useState<SpreadState>({ kind: "closed" });
-  const [errorState, setErrorState] = useState<{ key: string } | null>(null);
+  const [dissolveState, setDissolveState] = useState<DissolveState>({ kind: "closed" });
   const [dragSource, setDragSource] = useState<DragSource | null>(null);
   const navigate = useNavigate();
-
-  const setErrorKey = (key: string | null) => {
-    if (key === null) setErrorState(null);
-    else setErrorState({ key });
-  };
 
   // 期間切替と前後ナビの再取得は queryKey ["mealplan", "period", …] を共通 prefix ["mealplan"] で
   // 全部落とすように統一する (design.md D4)。
@@ -107,13 +110,22 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
     promise
       .then((result) => {
         invalidate();
-        setErrorKey(null);
         return result;
       })
       .catch((err) => {
-        setErrorKey(errorI18nKey(err));
+        toast.error(t(errorI18nKey(err)));
         throw err;
       });
+
+  const showUndoToast = (message: string, removed: RemovedEntry[]) => {
+    toast(message, {
+      duration: UNDO_TOAST_MS,
+      action: {
+        label: t("pages.meal_plan.toast.undo"),
+        onClick: () => restoreMut.mutate(removed),
+      },
+    });
+  };
 
   const assignMut = useMutation({
     mutationFn: (v: { date: string; meal: string; recipeID: string }) =>
@@ -123,13 +135,30 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
     mutationFn: (v: { date: string; meal: string; position: number; recipeID: string }) =>
       withHandlers(MealPlanService.ReplaceEntry(v.date, v.meal, v.position, v.recipeID)),
   });
+  // 通知は mutate ごとではなく useMutation 側で出す。mutate に渡したコールバックは最後の呼び出しの分しか
+  // 呼ばれず、続けて 2 品を削除すると 1 品目の「元に戻す」が出なくなるため。
   const removeMut = useMutation({
-    mutationFn: (v: { date: string; meal: string; position: number }) =>
+    mutationFn: (v: { date: string; meal: string; position: number; recipeName: string }) =>
       withHandlers(MealPlanService.RemoveEntry(v.date, v.meal, v.position)),
+    onSuccess: (removed, v) =>
+      showUndoToast(t("pages.meal_plan.toast.removed", { name: v.recipeName }), [removed]),
   });
   const clearMut = useMutation({
     mutationFn: (v: { date: string; meal: string }) =>
       withHandlers(MealPlanService.ClearMeal(v.date, v.meal)),
+    onSuccess: (removed) => {
+      if (!removed || removed.length === 0) return;
+      showUndoToast(t("pages.meal_plan.toast.cleared", { count: removed.length }), removed);
+    },
+  });
+  // S05 と同じく「戻せなかった」を見出しにし、理由は説明に添える。
+  const restoreMut = useMutation({
+    mutationFn: (entries: RemovedEntry[]) => MealPlanService.RestoreEntries(entries),
+    onSuccess: () => invalidate(),
+    onError: (err) =>
+      toast.error(t("pages.meal_plan.toast.restore_failed"), {
+        description: t(errorI18nKey(err)),
+      }),
   });
   const copyMut = useMutation({
     mutationFn: (v: {
@@ -261,9 +290,8 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
     try {
       const candidates = (await MealPlanService.ListMergeCandidates(date, meal, recipeID)) ?? [];
       setMergeDialog({ kind: "open", date, meal, position, candidates });
-      setErrorKey(null);
     } catch (err) {
-      setErrorKey(errorI18nKey(err));
+      toast.error(t(errorI18nKey(err)));
     }
   };
 
@@ -287,7 +315,7 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
         setPicker({ kind: "replace", date, meal, position: entry.position });
         break;
       case "remove":
-        removeMut.mutate({ date, meal, position: entry.position });
+        removeMut.mutate({ date, meal, position: entry.position, recipeName: entry.recipeName });
         break;
       case "view-detail":
         navigate({
@@ -315,7 +343,13 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
         });
         break;
       case "split-batch":
-        splitMut.mutate({ date, meal, position: entry.position });
+        setDissolveState({
+          kind: "open",
+          date,
+          meal,
+          position: entry.position,
+          removedCount: entry.batchMemberCount - 1,
+        });
         break;
       case "merge-batch":
         void openMergeDialog(date, meal, entry.position, entry.recipeId);
@@ -402,11 +436,6 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
 
   return (
     <div className="flex flex-col gap-2">
-      {errorState && (
-        <p className="rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700">
-          {t(errorState.key)}
-        </p>
-      )}
       <div
         className="flex flex-col gap-3"
         data-testid="period-calendar"
@@ -533,6 +562,22 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
             });
           }
           setMergeDialog({ kind: "closed" });
+        }}
+      />
+
+      <DissolveBatchDialog
+        open={dissolveState.kind === "open"}
+        removedCount={dissolveState.kind === "open" ? dissolveState.removedCount : 0}
+        onCancel={() => setDissolveState({ kind: "closed" })}
+        onConfirm={() => {
+          if (dissolveState.kind === "open") {
+            splitMut.mutate({
+              date: dissolveState.date,
+              meal: dissolveState.meal,
+              position: dissolveState.position,
+            });
+          }
+          setDissolveState({ kind: "closed" });
         }}
       />
 

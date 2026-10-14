@@ -14,11 +14,15 @@ export function ReplaceEntry(date: string, meal: string, position: number, recip
 }
 
 export function RemoveEntry(date: string, meal: string, position: number) {
-  return call<void>("MealPlanService", "RemoveEntry", date, meal, position);
+  return call<mealplan$0.RemovedEntry>("MealPlanService", "RemoveEntry", date, meal, position);
 }
 
 export function ClearMeal(date: string, meal: string) {
-  return call<void>("MealPlanService", "ClearMeal", date, meal);
+  return call<mealplan$0.RemovedEntry[]>("MealPlanService", "ClearMeal", date, meal);
+}
+
+export function RestoreEntries(entries: mealplan$0.RemovedEntry[] | null) {
+  return call<void>("MealPlanService", "RestoreEntries", entries);
 }
 
 export function ReorderMeal(date: string, meal: string, orderedRecipeIDs: string[] | null) {

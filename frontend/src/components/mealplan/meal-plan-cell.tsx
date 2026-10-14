@@ -133,7 +133,7 @@ export function MealPlanCell({
       {visible.map((entry) => {
         const color = colorForBatch(entry.batchId, entry.batchMemberCount);
         // batchMemberCount > 1 の作り置き行は個別移動を禁止する (design.md D1)。移動したい場合は
-        // 品のメニューの「作り置きから外す」で単独行にしてから D&D する 2 段操作で扱う。
+        // 「作り置きをやめる」→ 残った最初の日の行を D&D →「作り置きを広げる」の順で扱う。
         const isBatchMember = entry.batchMemberCount > 1;
         // ドラッグ中の source 行はフェードした placeholder として描画する (design.md D5)。
         // ghost 用の一時色は onDragStart で DOM に直接付けて browser にキャプチャさせ、rAF で剥がした
