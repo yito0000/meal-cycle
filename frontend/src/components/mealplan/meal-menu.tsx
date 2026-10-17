@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { useSettingsValues } from "@/components/settings/settings-gate";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,7 +9,6 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import { MEALPLAN_DEFAULTS } from "./mealplan-config";
 
 interface Props {
   onClear: () => void;
@@ -18,6 +18,7 @@ interface Props {
 // 時間帯右下の `⋯` メニュー: 全クリア / 全体連続 N 日コピー。
 export function MealMenu({ onClear, onCopyDays }: Props) {
   const { t } = useTranslation();
+  const { leftoverCopyPresets } = useSettingsValues();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -35,7 +36,7 @@ export function MealMenu({ onClear, onCopyDays }: Props) {
             {t("pages.meal_plan.meal_menu.copy_days", { days: "N" })}
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent>
-            {MEALPLAN_DEFAULTS.leftoverCopyPresets.map((n) => (
+            {leftoverCopyPresets.map((n) => (
               <DropdownMenuItem key={n} onClick={() => onCopyDays(n)}>
                 {t("pages.meal_plan.copy.days_option", { days: n })}
               </DropdownMenuItem>

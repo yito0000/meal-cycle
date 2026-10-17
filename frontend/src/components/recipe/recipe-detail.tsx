@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { useSettingsValues } from "@/components/settings/settings-gate";
 import { Button } from "@/components/ui/button";
 import { formatTimestampDate } from "@/lib/format-date";
 import { formatQuantity } from "@/lib/format-quantity";
@@ -102,6 +103,7 @@ export function RecipeDetailBody({
 // S03 とインポートのプレビュー (S02a) で同じ表記にするため、材料、手順、メモの欄だけを切り出す (add-recipe-bulk-import D8)。
 export function RecipeContentSections({ recipe }: { recipe: Recipe }) {
   const { t } = useTranslation();
+  const { measuringUnits } = useSettingsValues();
   const ingredients = recipe.ingredients ?? [];
   return (
     <div className="grid grid-cols-1 gap-8 lg:grid-cols-[20rem_1fr]">
@@ -115,7 +117,7 @@ export function RecipeContentSections({ recipe }: { recipe: Recipe }) {
               <li key={i} className="flex gap-3">
                 <span className="min-w-32">{ing.name}</span>
                 <span className="text-neutral-700 tabular-nums">
-                  {formatQuantity(ing.amount, ing.unit)}
+                  {formatQuantity(ing.amount, ing.unit, measuringUnits)}
                 </span>
               </li>
             ))}

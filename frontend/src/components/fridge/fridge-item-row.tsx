@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { useSettingsValues } from "@/components/settings/settings-gate";
 import { Button } from "@/components/ui/button";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { formatQuantity } from "@/lib/format-quantity";
@@ -19,6 +20,7 @@ type Props = {
 
 export function FridgeItemRow({ item, disabled, onEdit, onDelete }: Props) {
   const { t } = useTranslation();
+  const { measuringUnits } = useSettingsValues();
   const none = t("pages.fridge.days_left.none");
   const expired = item.expiryStatus === ExpiryStatus.ExpiryExpired;
   return (
@@ -33,7 +35,9 @@ export function FridgeItemRow({ item, disabled, onEdit, onDelete }: Props) {
           <span>{item.name}</span>
         </span>
       </TableCell>
-      <TableCell className="tabular-nums">{formatQuantity(item.amount, item.unit)}</TableCell>
+      <TableCell className="tabular-nums">
+        {formatQuantity(item.amount, item.unit, measuringUnits)}
+      </TableCell>
       <TableCell className="tabular-nums text-neutral-700">{item.expiresAt || none}</TableCell>
       <TableCell
         className={cn(

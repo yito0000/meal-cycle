@@ -1,8 +1,7 @@
 // Package config は meal-cycle のユーザー可変な既定値を集約する。
 //
-// docs/product.md §1 に「本来 S09 設定画面で可変にする値」が列挙されており、
-// MVP 期は Defaults() が固定定数として返す。設定 UI が入っても呼び出し側は
-// Config を読むままにしておき、内部だけを settings store 読み込みに差し替える。
+// docs/product.md §1 に可変にする値が列挙されている。Defaults() は既定値の source of truth で、
+// S09 で利用者が変えた値は SettingsService がこの上に重ねて他サービスに渡す (add-settings-screen design.md D2/D3)。
 //
 // 呼び出し側の規約：「10 日」「3 日」のようなリテラル閾値を call site に書かない。
 // 必ず Config 経由で読む。
@@ -12,6 +11,10 @@ package config
 // 将来 ConfigService がフロントに丸ごと返せるよう、flat かつ JSON serializable に保つ。
 type Config struct {
 	// UI 既定値 --------------------------------------------------------
+
+	// 表示言語 ("ja" / "en")。Go は使わないが、保存と「既定に戻す」の経路を他の値と 1 本にするため持つ
+	// (add-settings-screen design.md D7)。
+	Language string `json:"language"`
 
 	// S01 初回表示で見せる meal。internal/domain/mealplan.Meal と同じ文字列値を
 	// []string で持つ (config が domain を import しないため)。
@@ -95,6 +98,7 @@ type CellSizePreset struct {
 // された既定値を返す (docs/product.md §1)。
 func Defaults() Config {
 	return Config{
+		Language:                    "ja",
 		DefaultVisibleMeals:         []string{"dinner"},
 		WeeklyFillPattern:           "mon-fri-dinner",
 		ItemsPerMealHint:            [2]int{1, 3},

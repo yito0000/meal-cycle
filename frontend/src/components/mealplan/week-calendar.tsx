@@ -12,6 +12,7 @@ import type {
 import { MealPlanService } from "../../../bindings/github.com/yito0000/meal-cycle/internal/service";
 import type { SpreadSelection, SpreadSource } from "../../lib/spread-batch-selection";
 import { UNDO_TOAST_MS } from "../../lib/undo-toast";
+import { useSettingsValues } from "../settings/settings-gate";
 import { BatchMergeDialog } from "./batch-merge-dialog";
 import { CopyConflictDialog, type CopyConflictMode } from "./copy-conflict-dialog";
 import { CopyModeDialog } from "./copy-mode-dialog";
@@ -25,12 +26,7 @@ import {
   type MealAction,
   MealPlanCell,
 } from "./meal-plan-cell";
-import {
-  MEAL_RENDER_ORDER,
-  MEALPLAN_DEFAULTS,
-  mealLabelKey,
-  pickCellPreset,
-} from "./mealplan-config";
+import { MEAL_RENDER_ORDER, mealLabelKey, pickCellPreset } from "./mealplan-config";
 import type { PeriodWeeks } from "./period-nav";
 import { RecipePickerDialog } from "./recipe-picker-dialog";
 import { SpreadBatchDialog } from "./spread-batch-dialog";
@@ -75,15 +71,16 @@ type SpreadState =
       sourceBatchId: string;
     };
 
-// 統合ダイアログの対象日は起点日 + 未来 (max(LeftoverCopyPresets) - 1) 日 = 4 行 (実装時点)。
-// SpreadEntry が同じ上限で検証するので、ここを広げると Go 側で拒否される。
 // expandStep=0 は「展開ボタンを出さない」意味 (範囲の拡張は別 proposal で扱う)。
-const SPREAD_INITIAL_FUTURE_DAYS = Math.max(...MEALPLAN_DEFAULTS.leftoverCopyPresets) - 1;
 const SPREAD_EXPAND_STEP = 0;
-const SPREAD_PRESET_DAYS = Math.min(...MEALPLAN_DEFAULTS.leftoverCopyPresets);
 
 export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }: Props) {
   const { t, i18n } = useTranslation();
+  const { leftoverCopyPresets } = useSettingsValues();
+  // 統合ダイアログの対象日は起点日 + 未来 (max(LeftoverCopyPresets) - 1) 日。
+  // SpreadEntry が同じ上限で検証するので、ここを広げると Go 側で拒否される。
+  const spreadInitialFutureDays = Math.max(...leftoverCopyPresets) - 1;
+  const spreadPresetDays = Math.min(...leftoverCopyPresets);
   const qc = useQueryClient();
   const [picker, setPicker] = useState<PickerState>({ kind: "closed" });
   const [pendingCopy, setPendingCopy] = useState<PendingCopy | null>(null);
@@ -526,9 +523,9 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
           sourceRecipeId={spreadState.sourceRecipeId}
           sourceBatchId={spreadState.sourceBatchId}
           existingEntries={entries}
-          initialFutureDays={SPREAD_INITIAL_FUTURE_DAYS}
+          initialFutureDays={spreadInitialFutureDays}
           expandStepDays={SPREAD_EXPAND_STEP}
-          presetDays={SPREAD_PRESET_DAYS}
+          presetDays={spreadPresetDays}
           onOpenChange={(next) => {
             if (!next) setSpreadState({ kind: "closed" });
           }}

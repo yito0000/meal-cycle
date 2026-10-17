@@ -8,8 +8,7 @@
     "recipes": "レシピ",
     "fridge": "冷蔵庫",
     "shopping": "買い物リスト",
-    "settings": "設定",
-    "settings_disabled_hint": "設定画面は MVP 後に追加予定"
+    "settings": "設定"
   },
   "breadcrumb": {
     "aria_label": "パンくずリスト"
@@ -426,6 +425,87 @@
         "copied": "買い物リストをコピーしました ({{count}} 件)",
         "failed": "コピーできませんでした"
       }
+    },
+    "settings": {
+      "title": "設定",
+      "section": {
+        "display": "表示",
+        "meal_plan": "献立",
+        "fridge": "冷蔵庫",
+        "shopping": "買い物リスト",
+        "recipe": "レシピ"
+      },
+      "field": {
+        "language": "表示言語",
+        "leftover_presets": "作り置きを広げる日数の候補",
+        "expiry_red": "🔴 の日数",
+        "expiry_yellow": "🟡 の日数",
+        "shopping_presets": "日数の候補",
+        "shopping_default": "サイドバーから開いたときの日数",
+        "measuring_units": "量る単位",
+        "unquantified_words": "量を持たない言葉",
+        "import_servings": "人数を省略したときの人数"
+      },
+      "hint": {
+        "language": "「保存」を押すと切り替わります",
+        "leftover_presets": "S01 の「時間帯全体を連続 N 日コピー」と「作り置きを広げる」で選べる日数です (2〜7 日)",
+        "expiry_red": "賞味期限まで N 日以内の在庫を 🔴 で表示します",
+        "expiry_yellow": "賞味期限まで N 日以内の在庫を 🟡 で表示します (🔴 の範囲を除く)",
+        "shopping_presets": "7 / 14 / 28 日は S01 の 1 / 2 / 4 週の期間を引き継ぐために使うので消せません",
+        "measuring_units": "量の前に表示し、買い物リストでは量を合算しません",
+        "unquantified_words": "レシピの取り込みで、量の欄にこの言葉があれば量 0 として読みます",
+        "import_servings": "取り込むファイルが人数を書いていないときに使います"
+      },
+      "suffix": {
+        "days": "日",
+        "servings": "人"
+      },
+      "day_chip": "{{count}} 日",
+      "remove": "{{value}} を消す",
+      "add": "追加",
+      "add_placeholder": {
+        "days": "日数",
+        "unit": "単位",
+        "word": "言葉"
+      },
+      "save": "保存",
+      "reset": "既定に戻す",
+      "reset_confirm": {
+        "title": "すべての設定を既定に戻しますか？",
+        "body": "表示言語を含むすべての値が既定値になります。",
+        "cancel": "キャンセル",
+        "confirm": "既定に戻す"
+      },
+      "toast": {
+        "saved": "設定を保存しました",
+        "reset": "設定を既定に戻しました",
+        "reset_failed": "設定を既定に戻せませんでした"
+      },
+      "errors": {
+        "invalid_language": "表示言語を選んでください",
+        "red_out_of_range": "🔴 の日数は 0 以上の整数で入力してください",
+        "yellow_out_of_range": "🟡 の日数は 60 以下の整数で入力してください",
+        "red_not_below_yellow": "🔴 の日数は 🟡 の日数より小さくしてください",
+        "leftover_count": "候補は 1 個以上 5 個以下にしてください",
+        "leftover_out_of_range": "候補は 2 日以上 7 日以下にしてください",
+        "leftover_duplicate": "同じ日数が重複しています",
+        "shopping_count": "候補は 8 個以下にしてください",
+        "shopping_out_of_range": "候補は 1 日以上 28 日以下にしてください",
+        "shopping_duplicate": "同じ日数が重複しています",
+        "shopping_required_missing": "7 / 14 / 28 日は候補から外せません",
+        "shopping_default_not_in_presets": "日数の候補から選んでください",
+        "units_count": "量る単位は 10 個以下にしてください",
+        "unit_length": "単位は 1 文字以上 20 文字以下にしてください",
+        "unit_duplicate": "同じ単位がすでにあります",
+        "words_count": "量を持たない言葉は 20 個以下にしてください",
+        "word_length": "言葉は 1 文字以上 20 文字以下にしてください",
+        "word_duplicate": "同じ言葉がすでにあります",
+        "servings_out_of_range": "人数は 1 以上 99 以下の整数で入力してください",
+        "day_duplicate": "同じ日数がすでにあります",
+        "not_integer": "整数で入力してください",
+        "blank": "空白だけの値は追加できません",
+        "unknown": "設定を保存できませんでした"
+      }
     }
   },
   "ingredient": {
@@ -447,5 +527,9 @@
     "db_path": "データベースの場所",
     "backup_dir": "控えの場所",
     "hint": "控えの場所にある .db ファイルを、データベースの場所へ同じ名前でコピーすると、更新前の状態に戻せます。アプリを終了してから行ってください。"
+  },
+  "settings_gate": {
+    "load_error": "設定を読み込めませんでした",
+    "retry": "再試行"
   }
 }

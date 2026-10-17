@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/yito0000/meal-cycle/internal/config"
 	"github.com/yito0000/meal-cycle/internal/domain/recipe"
 	"github.com/yito0000/meal-cycle/internal/storage/sqlite"
 )
@@ -61,13 +60,13 @@ var recipeImportIssueByErr = []struct {
 // に到達せず型付きエラーを返す。
 type RecipeService struct {
 	repo *sqlite.RecipeRepo
-	cfg  config.Config
+	cfg  configSource
 }
 
-func NewRecipeService(db *sql.DB) *RecipeService {
+func NewRecipeService(db *sql.DB, cfg configSource) *RecipeService {
 	return &RecipeService{
 		repo: sqlite.NewRecipeRepo(db),
-		cfg:  config.Defaults(),
+		cfg:  cfg,
 	}
 }
 
@@ -148,7 +147,8 @@ func (s *RecipeService) previewImportFile(f recipe.ImportFile) recipe.ImportCand
 		c.Issue = recipe.ImportIssueTooLarge
 		return c
 	}
-	parsed, issue, arg := recipe.ParseImportFile(f.Content, s.cfg.RecipeImportDefaultServings, s.cfg.MeasuringUnits, s.cfg.UnquantifiedWords)
+	cfg := s.cfg.current()
+	parsed, issue, arg := recipe.ParseImportFile(f.Content, cfg.RecipeImportDefaultServings, cfg.MeasuringUnits, cfg.UnquantifiedWords)
 	if issue != recipe.ImportIssueNone {
 		c.Issue, c.IssueArg = issue, arg
 		return c

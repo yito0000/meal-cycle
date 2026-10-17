@@ -40,7 +40,7 @@ func main() {
 	}
 
 	ctx := context.Background()
-	svc := service.NewRecipeService(db)
+	svc := service.NewRecipeService(db, service.NewSettingsService(db))
 
 	existing, err := svc.List(ctx)
 	if err != nil {

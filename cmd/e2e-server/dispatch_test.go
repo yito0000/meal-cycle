@@ -24,7 +24,8 @@ func setup(t *testing.T) http.Handler {
 	if err := sqlite.Migrate(db); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	return dispatchHandler(newRegistry(db, service.NewRecipeService(db)))
+	settingsSvc := service.NewSettingsService(db)
+	return dispatchHandler(newRegistry(db, settingsSvc, service.NewRecipeService(db, settingsSvc)))
 }
 
 func call(t *testing.T, h http.Handler, path, body string) *httptest.ResponseRecorder {
@@ -262,15 +263,16 @@ func TestDispatchHandler(t *testing.T) {
 // main.go の application.Options.Services と registry がずれると、E2E は通るのに
 // 本番で動かないサービスが生まれる。件数と名前をここで固定する。
 func TestNewRegistry(t *testing.T) {
-	t.Run("should register the same five services as main.go", func(t *testing.T) {
+	t.Run("should register the same six services as main.go", func(t *testing.T) {
 		db, err := sqlite.Open(filepath.Join(t.TempDir(), "e2e.db"))
 		if err != nil {
 			t.Fatalf("open db: %v", err)
 		}
 		defer db.Close()
 
-		reg := newRegistry(db, service.NewRecipeService(db))
-		want := []string{"HealthService", "MealPlanService", "RecipeService", "FridgeService", "ShoppingService"}
+		settingsSvc := service.NewSettingsService(db)
+		reg := newRegistry(db, settingsSvc, service.NewRecipeService(db, settingsSvc))
+		want := []string{"HealthService", "SettingsService", "MealPlanService", "RecipeService", "FridgeService", "ShoppingService"}
 		if len(reg) != len(want) {
 			t.Fatalf("want %d services, got %d", len(want), len(reg))
 		}

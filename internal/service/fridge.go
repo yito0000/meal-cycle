@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yito0000/meal-cycle/internal/config"
 	"github.com/yito0000/meal-cycle/internal/domain/fridge"
 	"github.com/yito0000/meal-cycle/internal/storage/sqlite"
 )
@@ -22,12 +21,12 @@ const (
 // FridgeService は S05 冷蔵庫在庫 / S06 追加・編集をフロントに公開する。
 type FridgeService struct {
 	repo *sqlite.StockRepo
-	cfg  config.Config
+	cfg  configSource
 	now  func() time.Time
 }
 
-func NewFridgeService(db *sql.DB) *FridgeService {
-	return &FridgeService{repo: sqlite.NewStockRepo(db), cfg: config.Defaults(), now: time.Now}
+func NewFridgeService(db *sql.DB, cfg configSource) *FridgeService {
+	return &FridgeService{repo: sqlite.NewStockRepo(db), cfg: cfg, now: time.Now}
 }
 
 // List は全在庫を返す。各行の ExpiryStatus / DaysLeft は呼び出し時点のローカル日付で算出する。
@@ -120,8 +119,9 @@ func (s *FridgeService) ListSuggestions(ctx context.Context) (fridge.Suggestions
 }
 
 func (s *FridgeService) withExpiry(item fridge.StockItem, today time.Time) fridge.StockItem {
+	cfg := s.cfg.current()
 	item.ExpiryStatus, item.DaysLeft = fridge.Evaluate(
-		item.ExpiresAt, today, s.cfg.ExpiryAlertRedDays, s.cfg.ExpiryAlertYellowDays,
+		item.ExpiresAt, today, cfg.ExpiryAlertRedDays, cfg.ExpiryAlertYellowDays,
 	)
 	return item
 }

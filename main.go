@@ -29,11 +29,14 @@ func main() {
 		application.NewService(service.NewHealthService(db, startup)),
 	}
 	if startup.Stage == "" {
+		// 他サービスは設定の現在値を SettingsService から読むので、先に作って渡す (add-settings-screen design.md D3)。
+		settingsSvc := service.NewSettingsService(db)
 		services = append(services,
-			application.NewService(service.NewMealPlanService(sqlite.NewMealPlanRepo(db))),
-			application.NewService(service.NewRecipeService(db)),
-			application.NewService(service.NewFridgeService(db)),
-			application.NewService(service.NewShoppingService(db)),
+			application.NewService(settingsSvc),
+			application.NewService(service.NewMealPlanService(sqlite.NewMealPlanRepo(db), settingsSvc)),
+			application.NewService(service.NewRecipeService(db, settingsSvc)),
+			application.NewService(service.NewFridgeService(db, settingsSvc)),
+			application.NewService(service.NewShoppingService(db, settingsSvc)),
 		)
 	}
 

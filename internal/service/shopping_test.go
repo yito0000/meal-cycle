@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/yito0000/meal-cycle/internal/config"
 	"github.com/yito0000/meal-cycle/internal/domain/fridge"
 	"github.com/yito0000/meal-cycle/internal/domain/mealplan"
 	"github.com/yito0000/meal-cycle/internal/domain/recipe"
@@ -37,14 +38,14 @@ func newShoppingServiceForTest(t *testing.T) shoppingDeps {
 	if err := sqlite.Migrate(db); err != nil {
 		t.Fatalf("Migrate: %v", err)
 	}
-	svc := NewShoppingService(db)
+	svc := NewShoppingService(db, staticConfig(config.Defaults()))
 	svc.now = func() time.Time { return shoppingToday }
-	fr := NewFridgeService(db)
+	fr := NewFridgeService(db, staticConfig(config.Defaults()))
 	fr.now = func() time.Time { return shoppingToday }
 	return shoppingDeps{
 		svc:    svc,
-		recipe: NewRecipeService(db),
-		meal:   NewMealPlanService(sqlite.NewMealPlanRepo(db)),
+		recipe: NewRecipeService(db, staticConfig(config.Defaults())),
+		meal:   NewMealPlanService(sqlite.NewMealPlanRepo(db), staticConfig(config.Defaults())),
 		fridge: fr,
 	}
 }

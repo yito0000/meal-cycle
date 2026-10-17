@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
+import { useSettingsValues } from "@/components/settings/settings-gate";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Label } from "@/components/ui/label";
-import { SHOPPING_DEFAULTS } from "./shopping-config";
 import type { ShoppingPeriod } from "./shopping-period";
 
 type Props = {
@@ -11,6 +11,7 @@ type Props = {
 
 export function ShoppingPeriodPicker({ value, onChange }: Props) {
   const { t } = useTranslation();
+  const { shoppingPeriodDayPresets } = useSettingsValues();
   return (
     <div className="flex flex-wrap items-center gap-4">
       <div className="flex items-center gap-2">
@@ -23,7 +24,7 @@ export function ShoppingPeriodPicker({ value, onChange }: Props) {
       </div>
       <fieldset className="inline-flex items-center rounded-md border border-neutral-200 bg-white text-sm">
         <legend className="sr-only">{t("pages.shopping.picker.days")}</legend>
-        {SHOPPING_DEFAULTS.periodDayPresets.map((days) => {
+        {shoppingPeriodDayPresets.map((days) => {
           const isActive = days === value.periodDays;
           return (
             <button

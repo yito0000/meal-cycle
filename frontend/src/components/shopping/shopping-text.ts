@@ -15,6 +15,7 @@ export function buildShoppingText(
   items: readonly TextItem[],
   period: ShoppingPeriod,
   t: TFunction,
+  measuringUnits: readonly string[],
 ): { text: string; count: number } {
   const tableLines = items
     .filter((it) => !isPantryItem(it) && it.stockStatus !== StockStatus.StockCovered)
@@ -23,7 +24,7 @@ export function buildShoppingText(
         it.stockStatus === StockStatus.StockPartial
           ? "pages.shopping.copy.item_partial"
           : "pages.shopping.copy.item",
-        { name: it.name, quantity: formatQuantity(it.amount, it.unit) },
+        { name: it.name, quantity: formatQuantity(it.amount, it.unit, measuringUnits) },
       ),
     );
   const pantryLines = items

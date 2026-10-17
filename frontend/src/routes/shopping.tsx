@@ -2,6 +2,7 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { useSettingsValues } from "@/components/settings/settings-gate";
 import { Button } from "@/components/ui/button";
 import { formatDisplayDate } from "@/lib/format-date";
 import { CopyShoppingTextButton } from "../components/shopping/copy-shopping-text-button";
@@ -31,7 +32,15 @@ export function ShoppingPage() {
   const search = useSearch({ from: "/shopping" });
   const navigate = useNavigate({ from: "/shopping" });
   // 「今日」はマウント時点で固定する。深夜 0 時をまたいでも、開き直すまでは同じ期間を見せる。
-  const period = useMemo(() => resolveShoppingPeriod(search, new Date()), [search]);
+  const { shoppingPeriodDayPresets, shoppingDefaultPeriodDays } = useSettingsValues();
+  const period = useMemo(
+    () =>
+      resolveShoppingPeriod(search, new Date(), {
+        dayPresets: shoppingPeriodDayPresets,
+        defaultDays: shoppingDefaultPeriodDays,
+      }),
+    [search, shoppingPeriodDayPresets, shoppingDefaultPeriodDays],
+  );
   const { data, isLoading, isError } = useShoppingList(period.periodStart, period.periodDays);
 
   const [checked, setChecked] = useState<Set<string>>(() => new Set());
