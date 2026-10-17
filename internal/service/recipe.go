@@ -6,9 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/yito0000/meal-cycle/internal/config"
 	"github.com/yito0000/meal-cycle/internal/domain/recipe"
@@ -44,6 +47,9 @@ var (
 	ErrRecipeNotesTooLong               = errors.New("recipe notes too long")
 	ErrRecipeTagTooLong                 = errors.New("recipe tag too long")
 	ErrRecipeImportTooManyFiles         = errors.New("recipe import too many files")
+	// ダイアログを開けなかったときもこれに寄せる。利用者から見てどちらも「書き出せなかった」で足りるため (add-recipe-export D6)。
+	ErrRecipeExportWrite = errors.New("recipe export write failed")
+	ErrRecipeExportEmpty = errors.New("recipe export empty")
 )
 
 // validateRecipeInput のエラーをインポートの問題コードに引く (add-recipe-bulk-import D4)。
@@ -65,14 +71,19 @@ var recipeImportIssueByErr = []struct {
 // Create / Update は保存前に validateRecipeInput を走らせ、違反時は Repository
 // に到達せず型付きエラーを返す。
 type RecipeService struct {
-	repo *sqlite.RecipeRepo
-	cfg  config.Config
+	repo   *sqlite.RecipeRepo
+	cfg    config.Config
+	picker FolderPicker
+	now    func() time.Time
 }
 
-func NewRecipeService(db *sql.DB) *RecipeService {
+// picker は書き出しでしか使わないので、書き出しを呼ばない呼び出し元は nil を渡してよい。
+func NewRecipeService(db *sql.DB, picker FolderPicker) *RecipeService {
 	return &RecipeService{
-		repo: sqlite.NewRecipeRepo(db),
-		cfg:  config.Defaults(),
+		repo:   sqlite.NewRecipeRepo(db),
+		cfg:    config.Defaults(),
+		picker: picker,
+		now:    time.Now,
 	}
 }
 
@@ -207,6 +218,63 @@ func (s *RecipeService) Import(ctx context.Context, inputs []recipe.Recipe) ([]r
 		normalized = append(normalized, n)
 	}
 	return s.repo.CreateMany(ctx, normalized)
+}
+
+// ExportToFolder は削除済みを除く全レシピを、選ばれたフォルダの中に新しく作るフォルダへ書き出す (add-recipe-export D2)。
+// 0 件で空のフォルダを作らないよう、ダイアログより先に DB を読む。
+func (s *RecipeService) ExportToFolder(ctx context.Context, dialogTitle string) (recipe.ExportResult, error) {
+	recipes, err := s.repo.ListDetailed(ctx)
+	if err != nil {
+		return recipe.ExportResult{}, err
+	}
+	if len(recipes) == 0 {
+		return recipe.ExportResult{}, ErrRecipeExportEmpty
+	}
+	if s.picker == nil {
+		return recipe.ExportResult{}, fmt.Errorf("%w: no folder picker", ErrRecipeExportWrite)
+	}
+	parent, err := s.picker.PickFolder(dialogTitle)
+	if err != nil {
+		return recipe.ExportResult{}, fmt.Errorf("%w: %v", ErrRecipeExportWrite, err)
+	}
+	if parent == "" {
+		return recipe.ExportResult{Cancelled: true}, nil
+	}
+
+	dir, err := makeExportDir(parent, s.now())
+	if err != nil {
+		return recipe.ExportResult{}, fmt.Errorf("%w: %v", ErrRecipeExportWrite, err)
+	}
+	used := make(map[string]bool, len(recipes))
+	for _, r := range recipes {
+		path := filepath.Join(dir, recipe.ExportFileName(r.Name, used))
+		if err := os.WriteFile(path, []byte(recipe.FormatExportFile(r)), 0o644); err != nil {
+			// 作りかけのフォルダを残すと、読み戻したときに一部のレシピだけが入る。
+			_ = os.RemoveAll(dir)
+			return recipe.ExportResult{}, fmt.Errorf("%w: %v", ErrRecipeExportWrite, err)
+		}
+	}
+	return recipe.ExportResult{Dir: dir, Count: len(recipes)}, nil
+}
+
+// 既存のファイルを壊さないよう、毎回新しいフォルダを作る。同じ秒に 2 回書き出したときは番号を付ける (add-recipe-export D5)。
+func makeExportDir(parent string, now time.Time) (string, error) {
+	parent, err := filepath.Abs(parent)
+	if err != nil {
+		return "", err
+	}
+	base := filepath.Join(parent, "meal-cycle-recipes-"+now.Format("20060102-150405"))
+	dir := base
+	for n := 2; ; n++ {
+		err := os.Mkdir(dir, 0o755)
+		if err == nil {
+			return dir, nil
+		}
+		if !errors.Is(err, os.ErrExist) {
+			return "", err
+		}
+		dir = base + "-" + strconv.Itoa(n)
+	}
 }
 
 // validateRecipeInput は入力を trim (name / ingredient.Name / tags / unit) しつつ

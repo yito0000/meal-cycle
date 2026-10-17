@@ -24,7 +24,7 @@ func setup(t *testing.T) http.Handler {
 	if err := sqlite.Migrate(db); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	return dispatchHandler(newRegistry(db, service.NewRecipeService(db)))
+	return dispatchHandler(newRegistry(db, service.NewRecipeService(db, nil)))
 }
 
 func call(t *testing.T, h http.Handler, path, body string) *httptest.ResponseRecorder {
@@ -269,7 +269,7 @@ func TestNewRegistry(t *testing.T) {
 		}
 		defer db.Close()
 
-		reg := newRegistry(db, service.NewRecipeService(db))
+		reg := newRegistry(db, service.NewRecipeService(db, nil))
 		want := []string{"HealthService", "MealPlanService", "RecipeService", "FridgeService", "ShoppingService"}
 		if len(reg) != len(want) {
 			t.Fatalf("want %d services, got %d", len(want), len(reg))

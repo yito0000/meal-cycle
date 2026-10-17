@@ -77,6 +77,53 @@ func (r *RecipeRepo) List(ctx context.Context) ([]recipe.Recipe, error) {
 	return out, nil
 }
 
+// ListDetailed は書き出し用に、削除済みを除く全件を材料、手順、メモごと返す。
+// 同名レシピのファイル名の番号を安定させるため、作成順に並べる。created_at は秒精度なので rowid で同時刻の順を決める (add-recipe-export D2)。
+func (r *RecipeRepo) ListDetailed(ctx context.Context) ([]recipe.Recipe, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, name, servings, tags_json, steps, notes, created_at, updated_at
+		FROM recipes
+		WHERE archived_at IS NULL
+		ORDER BY created_at ASC, rowid ASC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query recipes detailed: %w", err)
+	}
+	defer rows.Close()
+	out := make([]recipe.Recipe, 0)
+	for rows.Next() {
+		var (
+			rec      recipe.Recipe
+			tagsJSON string
+		)
+		if err := rows.Scan(
+			&rec.ID, &rec.Name, &rec.Servings, &tagsJSON, &rec.Steps,
+			&rec.Notes, &rec.CreatedAt, &rec.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan recipe row: %w", err)
+		}
+		if err := json.Unmarshal([]byte(tagsJSON), &rec.Tags); err != nil {
+			return nil, fmt.Errorf("decode tags_json: %w", err)
+		}
+		out = append(out, rec)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate recipes: %w", err)
+	}
+	// 材料のクエリを流す前に閉じ、接続を 2 本使わないようにする。
+	_ = rows.Close()
+
+	for i := range out {
+		ings, err := r.loadIngredients(ctx, out[i].ID)
+		if err != nil {
+			return nil, err
+		}
+		out[i].Ingredients = ings
+		out[i].IngredientCount = len(ings)
+	}
+	return out, nil
+}
+
 // GetByID は詳細フィールド込みで返す。該当なしは ErrRecipeNotFound。
 // S01 の品から削除済みレシピの S03 を開けるよう、削除済みも返す。
 func (r *RecipeRepo) GetByID(ctx context.Context, id string) (recipe.Recipe, error) {

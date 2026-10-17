@@ -558,3 +558,91 @@ func TestRecipeRepo_CreateMany(t *testing.T) {
 		}
 	})
 }
+
+func TestRecipeRepo_ListDetailed(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("returns empty slice when db is fresh", func(t *testing.T) {
+		repo := newRecipeRepoForTest(t)
+		got, err := repo.ListDetailed(ctx)
+		if err != nil {
+			t.Fatalf("ListDetailed: %v", err)
+		}
+		if got == nil || len(got) != 0 {
+			t.Errorf("want empty non-nil slice, got %#v", got)
+		}
+	})
+
+	t.Run("returns ingredients, tags, steps and notes filled in", func(t *testing.T) {
+		repo := newRecipeRepoForTest(t)
+		if _, err := repo.Create(ctx, recipe.Recipe{
+			Name: "肉じゃが", Servings: 3, Tags: []string{"和食"},
+			Ingredients: []recipe.RecipeIngredient{{Name: "じゃがいも", Amount: 3, Unit: "個"}, {Name: "塩", Unit: "少々"}},
+			Steps:       "煮る", Notes: "弱火で",
+		}); err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		got, err := repo.ListDetailed(ctx)
+		if err != nil {
+			t.Fatalf("ListDetailed: %v", err)
+		}
+		if len(got) != 1 {
+			t.Fatalf("want 1, got %d", len(got))
+		}
+		r := got[0]
+		if r.Name != "肉じゃが" || r.Servings != 3 || r.Steps != "煮る" || r.Notes != "弱火で" {
+			t.Errorf("fields: %+v", r)
+		}
+		if len(r.Tags) != 1 || r.Tags[0] != "和食" {
+			t.Errorf("tags: %v", r.Tags)
+		}
+		if len(r.Ingredients) != 2 || r.Ingredients[0].Name != "じゃがいも" || r.Ingredients[1].Unit != "少々" || r.IngredientCount != 2 {
+			t.Errorf("ingredients: %+v (count %d)", r.Ingredients, r.IngredientCount)
+		}
+	})
+
+	t.Run("excludes archived recipes", func(t *testing.T) {
+		repo := newRecipeRepoForTest(t)
+		kept, err := repo.Create(ctx, recipe.Recipe{Name: "肉じゃが", Servings: 1})
+		if err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		archived, err := repo.Create(ctx, recipe.Recipe{Name: "味噌汁", Servings: 1})
+		if err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		if err := repo.Archive(ctx, archived.ID); err != nil {
+			t.Fatalf("Archive: %v", err)
+		}
+		got, err := repo.ListDetailed(ctx)
+		if err != nil {
+			t.Fatalf("ListDetailed: %v", err)
+		}
+		if len(got) != 1 || got[0].ID != kept.ID {
+			t.Errorf("want only %q, got %+v", kept.Name, got)
+		}
+	})
+
+	t.Run("orders by creation ascending even within the same second", func(t *testing.T) {
+		repo := newRecipeRepoForTest(t)
+		if _, err := repo.CreateMany(ctx, []recipe.Recipe{{Name: "c", Servings: 1}, {Name: "a", Servings: 1}}); err != nil {
+			t.Fatalf("CreateMany: %v", err)
+		}
+		if _, err := repo.Create(ctx, recipe.Recipe{Name: "b", Servings: 1}); err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		got, err := repo.ListDetailed(ctx)
+		if err != nil {
+			t.Fatalf("ListDetailed: %v", err)
+		}
+		want := []string{"c", "a", "b"}
+		if len(got) != len(want) {
+			t.Fatalf("want %d, got %d", len(want), len(got))
+		}
+		for i, n := range want {
+			if got[i].Name != n {
+				t.Errorf("at %d: want %q, got %q", i, n, got[i].Name)
+			}
+		}
+	})
+}

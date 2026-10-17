@@ -43,7 +43,7 @@ func newShoppingServiceForTest(t *testing.T) shoppingDeps {
 	fr.now = func() time.Time { return shoppingToday }
 	return shoppingDeps{
 		svc:    svc,
-		recipe: NewRecipeService(db),
+		recipe: NewRecipeService(db, nil),
 		meal:   NewMealPlanService(sqlite.NewMealPlanRepo(db)),
 		fridge: fr,
 	}

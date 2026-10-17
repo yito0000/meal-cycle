@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test as base } from "@playwright/test";
@@ -13,6 +13,9 @@ type TestFixtures = {
   // describe 側で test.use({ seed: true }) と書くとサンプルレシピ入りで起動する。
   // 空状態のシナリオがあるため既定は false (design.md D6)。
   seed: boolean;
+  workDir: string;
+  // レシピの書き出しでフォルダ選択ダイアログの代わりに選ばれるフォルダ (add-recipe-export D1)。
+  exportDir: string;
   serverURL: string;
   baseURL: string;
 };
@@ -22,9 +25,33 @@ type TestFixtures = {
 export const test = base.extend<TestFixtures>({
   seed: [false, { option: true }],
 
-  serverURL: async ({ seed }, use) => {
+  // biome-ignore lint/correctness/noEmptyPattern: Playwright は第 1 引数の分割代入から依存する fixture を読むので、空でも書く必要がある
+  workDir: async ({}, use) => {
     const dir = mkdtempSync(join(tmpdir(), "meal-cycle-e2e-"));
-    const args = ["-db", join(dir, "e2e.db"), "-dist", "frontend/dist", "-port", "0"];
+    try {
+      await use(dir);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
+
+  exportDir: async ({ workDir }, use) => {
+    const dir = join(workDir, "exports");
+    mkdirSync(dir);
+    await use(dir);
+  },
+
+  serverURL: async ({ seed, workDir, exportDir }, use) => {
+    const args = [
+      "-db",
+      join(workDir, "e2e.db"),
+      "-dist",
+      "frontend/dist",
+      "-port",
+      "0",
+      "-export-dir",
+      exportDir,
+    ];
     if (seed) {
       args.push("-seed");
     }
@@ -34,7 +61,6 @@ export const test = base.extend<TestFixtures>({
       await use(await waitForURL(proc));
     } finally {
       proc.kill();
-      rmSync(dir, { recursive: true, force: true });
     }
   },
 

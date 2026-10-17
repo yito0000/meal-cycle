@@ -120,8 +120,7 @@ func splitImportBody(lines []string) (string, string) {
 	hasHeading := false
 	inFence := false
 	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+		if isFenceLine(line) {
 			inFence = !inFence
 		}
 		if !inFence && strings.HasPrefix(line, "## ") {
@@ -148,6 +147,12 @@ func splitImportBody(lines []string) (string, string) {
 		return trimBlankLines(lines), ""
 	}
 	return trimBlankLines(steps), trimBlankLines(notes)
+}
+
+// 書き出し (exportfile.go) と読み込みで、コードブロックの判定を食い違わせないために共有する。
+func isFenceLine(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	return strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~")
 }
 
 func trimBlankLines(lines []string) string {

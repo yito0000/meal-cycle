@@ -9,6 +9,10 @@ export function Delete(id: string) {
   return call<void>("RecipeService", "Delete", id);
 }
 
+export function ExportToFolder(dialogTitle: string) {
+  return call<recipe$0.ExportResult>("RecipeService", "ExportToFolder", dialogTitle);
+}
+
 export function GetByID(id: string) {
   return call<recipe$0.Recipe>("RecipeService", "GetByID", id);
 }

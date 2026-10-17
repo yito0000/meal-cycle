@@ -29,7 +29,7 @@ func newFridgeServiceForTest(t *testing.T) (*FridgeService, *RecipeService) {
 	}
 	svc := NewFridgeService(db)
 	svc.now = func() time.Time { return fridgeToday }
-	return svc, NewRecipeService(db)
+	return svc, NewRecipeService(db, nil)
 }
 
 func daysLater(n int) string {
