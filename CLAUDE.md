@@ -26,6 +26,8 @@ wails3 generate bindings    # Go サービスを追加/変更したら frontend/
 cd frontend && npm run type-check   # TypeScript 型チェック
 cd frontend && npm run build:dev    # Vite ビルド（import 解決の総合確認）
 
+task test:unit              # Vitest ユニットテスト（フロントの純関数 / hook）
+cd frontend && npm run test:watch   # Vitest を watch モードで起動
 task test:e2e               # Playwright E2E（実 React + 実 Go サービス + 実 SQLite）
 
 task lint                   # Go (golangci-lint) + Frontend (Biome) をまとめて実行
@@ -34,7 +36,7 @@ task lint:frontend          # Frontend 側だけ
 task format                 # Go + Frontend を自動整形（Biome fix + golangci-lint fmt）
 ```
 
-`frontend/bindings/` は `.gitignore` 対象、`task dev` / `task build` で再生成される。生成形式は呼び方で変わる: `task dev` / `task build` は `-ts -i` 付きで **`.ts`**、素の `wails3 generate bindings`（`task build:win` 含む）は **`.js`＋JSDoc** を出す。どちらでも型チェックが通るよう `tsconfig.json` で `allowJs` + `checkJs` を有効化している。
+`frontend/bindings/` は `.gitignore` 対象、`task dev` / `task build` で再生成される。生成形式は呼び方で変わる: `task dev` / `task build` は `-ts -i` 付きで **`.ts`**、素の `wails3 generate bindings`（`task build:win` 含む）は **`.js`＋JSDoc** を出す。どちらでも型チェックが通るよう `tsconfig.json` で `allowJs` + `checkJs` を有効化している。`npm run type-check` と `npm run test` は bindings が生成済みであることを前提にする（未生成なら `wails3 generate bindings -clean=true -ts -i`）。
 
 ## アーキテクチャ
 
@@ -100,7 +102,12 @@ func TestRecipeService_List(t *testing.T) {
 
 **ファイル配置**: `_test.go` は対象と同じパッケージ内（`package sqlite`）に置き、ホワイトボックスで書く。外部公開 API の観点だけで書きたい場合は `package sqlite_test` を切る。
 
-**フロントエンド（ユニット）**: 現状テストランナーは入れていない。純関数やコンポーネント単体の検証が欲しくなったら Vitest を追加する。
+**フロントエンド（ユニット）**: Vitest + happy-dom（設定は `frontend/vitest.config.ts`、TZ は `Asia/Tokyo` に固定）。`task test:unit` で実行する。
+
+- テストは対象と同じディレクトリに `<name>.test.ts(x)` で置く。Playwright の `.spec.ts` と拡張子で分け、Vitest は `src/**/*.test.{ts,tsx}` だけを拾う
+- `describe` / `it` / `expect` は `vitest` から明示 import する（`globals` は使わない）。Testing Library を使うファイルでは `afterEach(cleanup)` を書く
+- 純関数はドメイン層と同じく `it.each` の table-driven、hook はサービス層と同じく `it("should <期待動作> when <前提>")` で書く
+- フィクスチャは bindings の完全な型を組み立てず、対象関数が読むフィールドだけを持たせる（`.ts` / `.js` 生成の型差を避けるため）
 
 **E2E（`frontend/e2e/`）**: Playwright + headless Chromium。Wails の IPC 層だけを HTTP に差し替え、React / Go サービス / SQLite は本物のまま通す。`task test:e2e` で実行する。
 
@@ -213,7 +220,7 @@ WSL 側で `task dev` を叩いた DB は `~/.local/share/meal-cycle/meal-cycle.
 機能追加・改善・不具合修正のいずれでも、**実装の最後に必ずテストを走らせて全て pass することを確認**してから完了報告する。テストが落ちたまま「完了」と報告しない。
 
 - Go: `go test ./internal/... ./cmd/...`（`./...` は build/ios に main が無く落ちるので避ける。`./cmd/...` は E2E サーバの dispatch / サービス登録数のテストを含む）
-- Frontend: test runner がまだ入っていない（Vitest 導入は別 proposal）。代替として `cd frontend && npm run type-check` と `cd frontend && npm run build:dev` を実行する。runner が入ったらそちらを追加する
+- Frontend: `cd frontend && npm run test`、`cd frontend && npm run type-check`、`cd frontend && npm run build:dev` の 3 つを実行する
 - 画面の挙動に触れた変更では `task test:e2e` も走らせる
 - OpenSpec 経由の実装では [openspec/config.yaml](openspec/config.yaml) の `operations.apply.guidance` にも同ルールを載せてある
 
