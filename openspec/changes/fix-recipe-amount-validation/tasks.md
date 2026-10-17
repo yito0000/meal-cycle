@@ -49,5 +49,5 @@
 - [x] 5.1 `go test ./internal/... ./cmd/...` を実行し、すべて通ることを確かめる
 - [x] 5.2 `cd frontend && npm run type-check` を実行し、エラーが無いことを確かめる
 - [x] 5.3 `cd frontend && npm run build:dev` を実行し、ビルドが通ることを確かめる
-- [ ] 5.4 `task test:e2e` を実行し、すべて通ることを確かめる (`check:scenarios` を含む)
+- [x] 5.4 `task test:e2e` を実行し、すべて通ることを確かめる (`check:scenarios` を含む)
 - [x] 5.5 `task lint` を実行し、エラーが無いことを確かめる

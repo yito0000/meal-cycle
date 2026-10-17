@@ -285,7 +285,7 @@
 - [x] 10.1 `go test ./internal/... ./cmd/...` を走らせる。完了判定: 全テストが pass する
 - [x] 10.2 `cd frontend && npm run type-check` を走らせる。完了判定: エラーが出ない
 - [x] 10.3 `cd frontend && npm run build:dev` を走らせる。完了判定: ビルドが通る
-- [ ] 10.4 `task test:e2e` を走らせる。完了判定: `check:scenarios` を含む全テストが pass する
+- [x] 10.4 `task test:e2e` を走らせる。完了判定: `check:scenarios` を含む全テストが pass する
 - [x] 10.5 `task lint` を走らせる。完了判定: Go と Frontend の両方でエラーが出ない
 - [x] 10.6 `openspec validate add-settings-screen --strict` を走らせる。完了判定: エラーが出ない
 - [ ] 10.7 `task build:win` で Windows ビルドを作り、Windows 側で S09 の量る単位と量を持たない言葉に日本語を IME で入力して保存できることを確かめる。

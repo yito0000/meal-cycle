@@ -108,7 +108,7 @@
       完了判定: ビルド成功、かつ `grep -rl "vitest" frontend/dist` が何も返さない
 - [x] 5.4 `go test ./internal/... ./cmd/...` を実行する。
       完了判定: 全 pass (Go 側は変更しないが、テスト実行ルールに従い確認する)
-- [ ] 5.5 `task test:e2e` を実行し、Playwright が Vitest のテストファイルを拾わず、既存の E2E が通ることを確認する。
+- [x] 5.5 `task test:e2e` を実行し、Playwright が Vitest のテストファイルを拾わず、既存の E2E が通ることを確認する。
       完了判定: 全 pass、かつ実行対象に `*.test.ts` が含まれない
 - [x] 5.6 `task lint` を実行する。
       完了判定: エラーなし
