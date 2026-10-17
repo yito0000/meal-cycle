@@ -8,15 +8,13 @@ const _TAILWIND_JIT_KEEP =
   "min-h-16 min-h-20 min-h-24 min-h-32 min-h-40 min-h-48 text-xs text-sm text-base";
 void _TAILWIND_JIT_KEEP;
 
-// internal/config/defaults.go のフロント側 mirror。S09 で ConfigService が
-// Wails 経由で Defaults() を返すまで、Go の Config struct と手動で同期する。
-// source of truth の表は docs/product.md §1。
+// internal/config/defaults.go のフロント側 mirror。S09 で変えない値だけを残し、Go の Config struct と手動で同期する
+// (add-settings-screen design.md Non-Goals)。source of truth の表は docs/product.md §1。
 export const MEALPLAN_DEFAULTS = {
   defaultVisibleMeals: [Meal.MealDinner] as string[],
   // Deprecated: 参照は preset.visibleItems 経由に移行する (S09 で ConfigService に完全移行)。
   // 1 週 × 1 時間帯 プリセットの visibleItems と同じ値を保つ。
   mealPlanCellVisibleItems: 4,
-  leftoverCopyPresets: [2, 3, 4] as const,
 };
 
 // カレンダーで上から下へ並べる時間帯順。

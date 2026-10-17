@@ -49,7 +49,8 @@ func main() {
 		log.Fatalf("migrate db: %v", err)
 	}
 
-	recipeSvc := service.NewRecipeService(db, fixedFolderPicker{dir: *exportDir})
+	settingsSvc := service.NewSettingsService(db)
+	recipeSvc := service.NewRecipeService(db, settingsSvc, fixedFolderPicker{dir: *exportDir})
 	if *seed {
 		if err := seedRecipes(recipeSvc); err != nil {
 			log.Fatalf("seed: %v", err)
@@ -57,7 +58,7 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle(apiPrefix, dispatchHandler(newRegistry(db, recipeSvc)))
+	mux.Handle(apiPrefix, dispatchHandler(newRegistry(db, settingsSvc, recipeSvc)))
 	mux.Handle("/", spaHandler(*dist))
 
 	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", *port))
@@ -72,15 +73,17 @@ func main() {
 	}
 }
 
-// newRegistry は main.go の application.Options.Services と同じ 5 サービスを返す。
+// newRegistry は main.go の application.Options.Services と同じ 6 サービスを返す。
 // 片方だけ増えると E2E が本番と食い違うので、dispatch_test.go で件数を突き合わせる。
-func newRegistry(db *sql.DB, recipeSvc *service.RecipeService) serviceRegistry {
+// recipeSvc は seed にも使うので、settingsSvc を渡して main で作ったものを受け取る。
+func newRegistry(db *sql.DB, settingsSvc *service.SettingsService, recipeSvc *service.RecipeService) serviceRegistry {
 	return serviceRegistry{
 		"HealthService":   service.NewHealthService(db, service.StartupState{}),
-		"MealPlanService": service.NewMealPlanService(sqlite.NewMealPlanRepo(db)),
+		"SettingsService": settingsSvc,
+		"MealPlanService": service.NewMealPlanService(sqlite.NewMealPlanRepo(db), settingsSvc),
 		"RecipeService":   recipeSvc,
-		"FridgeService":   service.NewFridgeService(db),
-		"ShoppingService": service.NewShoppingService(db),
+		"FridgeService":   service.NewFridgeService(db, settingsSvc),
+		"ShoppingService": service.NewShoppingService(db, settingsSvc),
 	}
 }
 

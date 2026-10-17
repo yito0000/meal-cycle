@@ -8,8 +8,7 @@
     "recipes": "Recipes",
     "fridge": "Fridge",
     "shopping": "Shopping list",
-    "settings": "Settings",
-    "settings_disabled_hint": "Settings screen will be added post-MVP"
+    "settings": "Settings"
   },
   "breadcrumb": {
     "aria_label": "Breadcrumb"
@@ -439,6 +438,87 @@
         "copied": "Copied the shopping list ({{count}} items)",
         "failed": "Could not copy the shopping list"
       }
+    },
+    "settings": {
+      "title": "Settings",
+      "section": {
+        "display": "Display",
+        "meal_plan": "Meal plan",
+        "fridge": "Fridge",
+        "shopping": "Shopping list",
+        "recipe": "Recipes"
+      },
+      "field": {
+        "language": "Language",
+        "leftover_presets": "Leftover spread day options",
+        "expiry_red": "🔴 days",
+        "expiry_yellow": "🟡 days",
+        "shopping_presets": "Day options",
+        "shopping_default": "Days when opened from the sidebar",
+        "measuring_units": "Measuring units",
+        "unquantified_words": "Words without an amount",
+        "import_servings": "Servings when omitted"
+      },
+      "hint": {
+        "language": "Switches when you press Save",
+        "leftover_presets": "Days offered by \"Copy the whole meal for N days\" and \"Spread this batch\" in S01 (2-7 days)",
+        "expiry_red": "Items expiring within N days are shown in 🔴",
+        "expiry_yellow": "Items expiring within N days are shown in 🟡 (outside the 🔴 range)",
+        "shopping_presets": "7 / 14 / 28 days carry over the 1 / 2 / 4 week views of S01, so they cannot be removed",
+        "measuring_units": "Shown before the amount; amounts are not added up in the shopping list",
+        "unquantified_words": "When importing recipes, an amount with one of these words is read as 0",
+        "import_servings": "Used when an imported file does not state servings"
+      },
+      "suffix": {
+        "days": "days",
+        "servings": "servings"
+      },
+      "day_chip": "{{count}} days",
+      "remove": "Remove {{value}}",
+      "add": "Add",
+      "add_placeholder": {
+        "days": "Days",
+        "unit": "Unit",
+        "word": "Word"
+      },
+      "save": "Save",
+      "reset": "Restore defaults",
+      "reset_confirm": {
+        "title": "Restore all settings to defaults?",
+        "body": "Every value, including the language, goes back to its default.",
+        "cancel": "Cancel",
+        "confirm": "Restore defaults"
+      },
+      "toast": {
+        "saved": "Settings saved",
+        "reset": "Settings restored to defaults",
+        "reset_failed": "Could not restore the defaults"
+      },
+      "errors": {
+        "invalid_language": "Choose a language",
+        "red_out_of_range": "🔴 days must be an integer of 0 or more",
+        "yellow_out_of_range": "🟡 days must be an integer of 60 or less",
+        "red_not_below_yellow": "🔴 days must be smaller than 🟡 days",
+        "leftover_count": "Keep between 1 and 5 options",
+        "leftover_out_of_range": "Options must be between 2 and 7 days",
+        "leftover_duplicate": "The same number of days appears twice",
+        "shopping_count": "Keep 8 options or fewer",
+        "shopping_out_of_range": "Options must be between 1 and 28 days",
+        "shopping_duplicate": "The same number of days appears twice",
+        "shopping_required_missing": "7 / 14 / 28 days cannot be removed",
+        "shopping_default_not_in_presets": "Choose one of the day options",
+        "units_count": "Keep 10 measuring units or fewer",
+        "unit_length": "Units must be 1 to 20 characters",
+        "unit_duplicate": "This unit is already in the list",
+        "words_count": "Keep 20 words or fewer",
+        "word_length": "Words must be 1 to 20 characters",
+        "word_duplicate": "This word is already in the list",
+        "servings_out_of_range": "Servings must be an integer from 1 to 99",
+        "day_duplicate": "This number of days is already in the list",
+        "not_integer": "Enter an integer",
+        "blank": "Blank values cannot be added",
+        "unknown": "Could not save the settings"
+      }
     }
   },
   "ingredient": {
@@ -460,5 +540,9 @@
     "db_path": "Database location",
     "backup_dir": "Backup location",
     "hint": "To restore the state before the update, quit the app and copy a .db file from the backup location to the database location under the same name."
+  },
+  "settings_gate": {
+    "load_error": "Could not load the settings",
+    "retry": "Retry"
   }
 }

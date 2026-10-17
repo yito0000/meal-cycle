@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/yito0000/meal-cycle/internal/config"
 	"github.com/yito0000/meal-cycle/internal/domain/mealplan"
 	"github.com/yito0000/meal-cycle/internal/storage/sqlite"
 )
@@ -35,16 +34,16 @@ type mealPlanRepo interface {
 // MealPlanService は S01 献立カレンダーのデータをフロントに公開する。
 type MealPlanService struct {
 	repo mealPlanRepo
-	cfg  config.Config
+	cfg  configSource
 }
 
-func NewMealPlanService(repo *sqlite.MealPlanRepo) *MealPlanService {
-	return &MealPlanService{repo: repo, cfg: config.Defaults()}
+func NewMealPlanService(repo *sqlite.MealPlanRepo, cfg configSource) *MealPlanService {
+	return &MealPlanService{repo: repo, cfg: cfg}
 }
 
 // newMealPlanServiceWithRepo はテスト用に in-memory repo を差し込む入口。
-func newMealPlanServiceWithRepo(repo mealPlanRepo) *MealPlanService {
-	return &MealPlanService{repo: repo, cfg: config.Defaults()}
+func newMealPlanServiceWithRepo(repo mealPlanRepo, cfg configSource) *MealPlanService {
+	return &MealPlanService{repo: repo, cfg: cfg}
 }
 
 // ListPeriod は periodStart から periodWeeks 週分 (7 / 14 / 28 日) の Entry を返す。
@@ -296,7 +295,7 @@ func (s *MealPlanService) validateMealAddress(date, meal string) error {
 }
 
 func (s *MealPlanService) isAllowedCopyDays(days int) bool {
-	for _, allowed := range s.cfg.LeftoverCopyPresets {
+	for _, allowed := range s.cfg.current().LeftoverCopyPresets {
 		if days == allowed {
 			return true
 		}
@@ -308,7 +307,7 @@ func (s *MealPlanService) isAllowedCopyDays(days int) bool {
 // 格子の行数を「連続 N 日コピー」の最大日数にそろえる (起点日を含むので -1)。
 func (s *MealPlanService) maxSpreadOffsetDays() int {
 	max := 0
-	for _, d := range s.cfg.LeftoverCopyPresets {
+	for _, d := range s.cfg.current().LeftoverCopyPresets {
 		if d > max {
 			max = d
 		}

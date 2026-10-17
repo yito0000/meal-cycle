@@ -6,7 +6,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/yito0000/meal-cycle/internal/config"
 	"github.com/yito0000/meal-cycle/internal/domain/fridge"
 	"github.com/yito0000/meal-cycle/internal/domain/mealplan"
 	"github.com/yito0000/meal-cycle/internal/domain/shopping"
@@ -17,15 +16,15 @@ import (
 type ShoppingService struct {
 	repo  *sqlite.ShoppingRepo
 	stock *sqlite.StockRepo
-	cfg   config.Config
+	cfg   configSource
 	now   func() time.Time
 }
 
-func NewShoppingService(db *sql.DB) *ShoppingService {
+func NewShoppingService(db *sql.DB, cfg configSource) *ShoppingService {
 	return &ShoppingService{
 		repo:  sqlite.NewShoppingRepo(db),
 		stock: sqlite.NewStockRepo(db),
-		cfg:   config.Defaults(),
+		cfg:   cfg,
 		now:   time.Now,
 	}
 }
@@ -36,7 +35,8 @@ func (s *ShoppingService) List(ctx context.Context, periodStart string, periodDa
 	if err := mealplan.ValidateDate(periodStart); err != nil {
 		return shopping.List{}, err
 	}
-	if !slices.Contains(s.cfg.ShoppingPeriodDayPresets, periodDays) {
+	cfg := s.cfg.current()
+	if !slices.Contains(cfg.ShoppingPeriodDayPresets, periodDays) {
 		return shopping.List{}, shopping.ErrInvalidPeriodDays
 	}
 
@@ -55,7 +55,7 @@ func (s *ShoppingService) List(ctx context.Context, periodStart string, periodDa
 		PeriodEnd:   start.AddDate(0, 0, periodDays-1).Format(fridge.DateLayout),
 		PeriodDays:  periodDays,
 		Dishes:      shopping.Dishes(batches),
-		Items:       shopping.Aggregate(batches, stocks, s.cfg.MeasuringUnits),
+		Items:       shopping.Aggregate(batches, stocks, cfg.MeasuringUnits),
 	}, nil
 }
 
@@ -66,9 +66,10 @@ func (s *ShoppingService) usableStocks(ctx context.Context) ([]shopping.StockAmo
 		return nil, err
 	}
 	today := s.now()
+	cfg := s.cfg.current()
 	out := make([]shopping.StockAmount, 0, len(items))
 	for _, it := range items {
-		status, _ := fridge.Evaluate(it.ExpiresAt, today, s.cfg.ExpiryAlertRedDays, s.cfg.ExpiryAlertYellowDays)
+		status, _ := fridge.Evaluate(it.ExpiresAt, today, cfg.ExpiryAlertRedDays, cfg.ExpiryAlertYellowDays)
 		if status == fridge.ExpiryExpired {
 			continue
 		}

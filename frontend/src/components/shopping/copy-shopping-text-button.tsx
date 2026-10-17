@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { useSettingsValues } from "@/components/settings/settings-gate";
 import { Button } from "@/components/ui/button";
 import { writeClipboardText } from "@/lib/clipboard";
 import type { Item } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/shopping/models";
@@ -15,7 +16,8 @@ type Props = {
 export function CopyShoppingTextButton({ items, period }: Props) {
   const { t } = useTranslation();
   const [writing, setWriting] = useState(false);
-  const { text, count } = buildShoppingText(items, period, t);
+  const { measuringUnits } = useSettingsValues();
+  const { text, count } = buildShoppingText(items, period, t, measuringUnits);
 
   const onCopy = async () => {
     setWriting(true);

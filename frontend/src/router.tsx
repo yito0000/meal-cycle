@@ -15,6 +15,7 @@ import { RecipesPage } from "@/routes/recipes";
 import { RecipeDetailPage } from "@/routes/recipes/$recipeId";
 import { RecipeEditPage } from "@/routes/recipes/$recipeId.edit";
 import { RecipeNewPage } from "@/routes/recipes/new";
+import { SettingsPage } from "@/routes/settings";
 import { ShoppingPage } from "@/routes/shopping";
 
 const rootRoute = createRootRoute({ component: RootLayout });
@@ -83,6 +84,12 @@ const shoppingRoute = createRoute({
   validateSearch: shoppingSearchSchema,
 });
 
+const settingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings",
+  component: SettingsPage,
+});
+
 const routeTree = rootRoute.addChildren([
   mealPlanRoute,
   recipesRoute,
@@ -91,6 +98,7 @@ const routeTree = rootRoute.addChildren([
   recipeEditRoute,
   fridgeRoute,
   shoppingRoute,
+  settingsRoute,
 ]);
 
 // Wails は webview の URL が固定 (`/`) なので memory history にする。

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { useSettingsValues } from "@/components/settings/settings-gate";
 import {
   Table,
   TableBody,
@@ -25,6 +26,7 @@ type Props = {
 
 export function ShoppingTable({ items, checked, onCheckedChange }: Props) {
   const { t } = useTranslation();
+  const { measuringUnits } = useSettingsValues();
   const checkedCount = items.filter((it) => checked.has(itemKey(it))).length;
   const allChecked = items.length > 0 && checkedCount === items.length;
   const headerRef = useRef<HTMLInputElement>(null);
@@ -91,7 +93,7 @@ export function ShoppingTable({ items, checked, onCheckedChange }: Props) {
                 />
               </TableCell>
               <TableCell>{item.name}</TableCell>
-              <TableCell>{formatQuantity(item.amount, item.unit)}</TableCell>
+              <TableCell>{formatQuantity(item.amount, item.unit, measuringUnits)}</TableCell>
               <TableCell>
                 <StockStatusBadge status={item.stockStatus} />
               </TableCell>

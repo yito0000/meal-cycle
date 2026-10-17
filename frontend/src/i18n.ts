@@ -8,6 +8,7 @@ i18n.use(initReactI18next).init({
     ja: { translation: ja },
     en: { translation: en },
   },
+  // 保存した表示言語への切替は SettingsGate が行う。ここは設定を読めない起動時エラー画面の言語になる。
   lng: "ja",
   fallbackLng: "ja",
   interpolation: {

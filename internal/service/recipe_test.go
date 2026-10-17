@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/yito0000/meal-cycle/internal/config"
 	"github.com/yito0000/meal-cycle/internal/domain/recipe"
 	"github.com/yito0000/meal-cycle/internal/storage/sqlite"
 )
@@ -30,7 +31,7 @@ func newRecipeServiceWithPicker(t *testing.T, picker FolderPicker) *RecipeServic
 	if err := sqlite.Migrate(db); err != nil {
 		t.Fatalf("Migrate: %v", err)
 	}
-	return NewRecipeService(db, picker)
+	return NewRecipeService(db, staticConfig(config.Defaults()), picker)
 }
 
 // validRecipe は各テストで使う「バリデーションを通る最小の入力」。
@@ -495,7 +496,7 @@ func TestRecipeService_PreviewImport(t *testing.T) {
 		if err != nil {
 			t.Fatalf("PreviewImport: %v", err)
 		}
-		if got[0].Issue != "" || got[0].Recipe.Servings != svc.cfg.RecipeImportDefaultServings {
+		if got[0].Issue != "" || got[0].Recipe.Servings != svc.cfg.current().RecipeImportDefaultServings {
 			t.Errorf("got issue %q servings %d", got[0].Issue, got[0].Recipe.Servings)
 		}
 	})

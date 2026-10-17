@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/yito0000/meal-cycle/internal/config"
 	"github.com/yito0000/meal-cycle/internal/domain/mealplan"
 	"github.com/yito0000/meal-cycle/internal/domain/recipe"
 	"github.com/yito0000/meal-cycle/internal/storage/sqlite"
@@ -475,7 +476,7 @@ func TestMealPlanService_ListPeriod(t *testing.T) {
 
 	t.Run("should return entries from the repository when periodWeeks=1", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 
 		got, err := svc.ListPeriod(ctx, "2026-08-24", 1)
@@ -489,7 +490,7 @@ func TestMealPlanService_ListPeriod(t *testing.T) {
 
 	t.Run("periodWeeks=2 should include entries in the following week", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		_, _ = svc.AssignRecipe(ctx, "2026-08-31", "dinner", "r1")
 		_, _ = svc.AssignRecipe(ctx, "2026-09-07", "dinner", "r1") // 3 週目 (レンジ外)
@@ -505,7 +506,7 @@ func TestMealPlanService_ListPeriod(t *testing.T) {
 
 	t.Run("periodWeeks=4 should include entries across 4 weeks", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		_, _ = svc.AssignRecipe(ctx, "2026-09-14", "dinner", "r1") // 4 週目
 		_, _ = svc.AssignRecipe(ctx, "2026-09-21", "dinner", "r1") // 5 週目 (レンジ外)
@@ -521,7 +522,7 @@ func TestMealPlanService_ListPeriod(t *testing.T) {
 
 	t.Run("periodWeeks=3 should return ErrInvalidPeriodWeeks", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		_, err := svc.ListPeriod(ctx, "2026-08-24", 3)
 		if !errors.Is(err, mealplan.ErrInvalidPeriodWeeks) {
 			t.Errorf("err = %v, want ErrInvalidPeriodWeeks", err)
@@ -530,7 +531,7 @@ func TestMealPlanService_ListPeriod(t *testing.T) {
 
 	t.Run("with malformed date should return ErrInvalidDate", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		_, err := svc.ListPeriod(ctx, "2026/08/24", 1)
 		if !errors.Is(err, mealplan.ErrInvalidDate) {
 			t.Errorf("err = %v, want ErrInvalidDate", err)
@@ -543,7 +544,7 @@ func TestMealPlanService_AssignRecipe(t *testing.T) {
 
 	t.Run("should return an entry with a fresh position when the meal already has items", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A", "r2": "B"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		got, err := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r2")
 		if err != nil {
@@ -556,7 +557,7 @@ func TestMealPlanService_AssignRecipe(t *testing.T) {
 
 	t.Run("with malformed date should return ErrInvalidDate and leave meal_plans untouched", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		_, err := svc.AssignRecipe(ctx, "2026/08/24", "dinner", "r1")
 		if !errors.Is(err, mealplan.ErrInvalidDate) {
 			t.Errorf("err = %v, want ErrInvalidDate", err)
@@ -568,7 +569,7 @@ func TestMealPlanService_AssignRecipe(t *testing.T) {
 
 	t.Run("with meal=snack should return ErrInvalidMeal and leave meal_plans untouched", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		_, err := svc.AssignRecipe(ctx, "2026-08-24", "snack", "r1")
 		if !errors.Is(err, mealplan.ErrInvalidMeal) {
 			t.Errorf("err = %v, want ErrInvalidMeal", err)
@@ -584,7 +585,7 @@ func TestMealPlanService_ReplaceEntry(t *testing.T) {
 
 	t.Run("should replace only the target position and keep others", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A", "r2": "B", "r3": "C"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r2")
 		if err := svc.ReplaceEntry(ctx, repo.idAt("2026-08-24", "dinner", 1), "r3"); err != nil {
@@ -598,7 +599,7 @@ func TestMealPlanService_ReplaceEntry(t *testing.T) {
 
 	t.Run("with an empty entryID should return ErrEntryNotFound", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		err := svc.ReplaceEntry(ctx, "", "r1")
 		if !errors.Is(err, mealplan.ErrEntryNotFound) {
 			t.Errorf("err = %v, want ErrEntryNotFound", err)
@@ -607,7 +608,7 @@ func TestMealPlanService_ReplaceEntry(t *testing.T) {
 
 	t.Run("against a non-existent entry should return ErrEntryNotFound", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		err := svc.ReplaceEntry(ctx, "no-such-entry", "r1")
 		if !errors.Is(err, mealplan.ErrEntryNotFound) {
 			t.Errorf("err = %v, want ErrEntryNotFound", err)
@@ -620,7 +621,7 @@ func TestMealPlanService_RemoveEntry(t *testing.T) {
 
 	t.Run("should renumber positions when a middle entry is removed", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A", "r2": "B", "r3": "C"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r2")
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r3")
@@ -639,7 +640,7 @@ func TestMealPlanService_RemoveEntry(t *testing.T) {
 
 	t.Run("against a non-existent entry should return ErrEntryNotFound", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		_, err := svc.RemoveEntry(ctx, "no-such-entry")
 		if !errors.Is(err, mealplan.ErrEntryNotFound) {
 			t.Errorf("err = %v, want ErrEntryNotFound", err)
@@ -648,7 +649,7 @@ func TestMealPlanService_RemoveEntry(t *testing.T) {
 
 	t.Run("should return ErrEntryNotFound when entryID is empty", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		_, err := svc.RemoveEntry(ctx, "")
 		if !errors.Is(err, mealplan.ErrEntryNotFound) {
@@ -664,7 +665,7 @@ func TestMealPlanService_ClearMeal(t *testing.T) {
 	t.Run("should delete every entry in the target (date, meal)", func(t *testing.T) {
 		ctx := context.Background()
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A", "r2": "B"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r2")
 		removed, err := svc.ClearMeal(ctx, "2026-08-24", "dinner")
@@ -692,7 +693,7 @@ func TestMealPlanService_RestoreEntries(t *testing.T) {
 
 	t.Run("should pass valid entries to the repository", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(nil)
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		second := valid()
 		second.Position = 2
 		second.CookedAt = ""
@@ -706,7 +707,7 @@ func TestMealPlanService_RestoreEntries(t *testing.T) {
 
 	t.Run("should do nothing when entries is empty", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(nil)
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		if err := svc.RestoreEntries(ctx, nil); err != nil {
 			t.Fatalf("RestoreEntries: %v", err)
 		}
@@ -732,7 +733,7 @@ func TestMealPlanService_RestoreEntries(t *testing.T) {
 	for _, tc := range invalid {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := newFakeMealPlanRepo(nil)
-			svc := newMealPlanServiceWithRepo(repo)
+			svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 			e := valid()
 			tc.mutate(&e)
 			err := svc.RestoreEntries(ctx, []mealplan.RemovedEntry{valid(), e})
@@ -751,7 +752,7 @@ func TestMealPlanService_ReorderMeal(t *testing.T) {
 
 	t.Run("with entry ids missing an existing entry should return ErrReorderMismatch", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A", "r2": "B"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		a, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r2")
 		err := svc.ReorderMeal(ctx, "2026-08-24", "dinner", []string{a.ID})
@@ -762,7 +763,7 @@ func TestMealPlanService_ReorderMeal(t *testing.T) {
 
 	t.Run("should pass the ordered entry ids to the repository", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		a, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		b, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		if err := svc.ReorderMeal(ctx, "2026-08-24", "dinner", []string{b.ID, a.ID}); err != nil {
@@ -780,7 +781,7 @@ func TestMealPlanService_CopyLeftover(t *testing.T) {
 
 	t.Run("with mode=append should append every source entry into each target meal", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A", "r2": "B"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r2")
 
@@ -797,7 +798,7 @@ func TestMealPlanService_CopyLeftover(t *testing.T) {
 
 	t.Run("should copy all dishes of the meal", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A", "r2": "B", "r9": "既存"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r2")
 		_, _ = svc.AssignRecipe(ctx, "2026-08-25", "dinner", "r9")
@@ -813,7 +814,7 @@ func TestMealPlanService_CopyLeftover(t *testing.T) {
 
 	t.Run("with days=1 should be a no-op (target list contains only the source date itself)", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		// days=1 は preset に含まれないので ErrInvalidCopyDays が返る (config 側の下敷き)
 		err := svc.CopyLeftover(ctx, "2026-08-24", "dinner", 1, "append", false)
@@ -824,7 +825,7 @@ func TestMealPlanService_CopyLeftover(t *testing.T) {
 
 	t.Run("with days=5 should return ErrInvalidCopyDays when preset is [2, 3, 4]", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		err := svc.CopyLeftover(ctx, "2026-08-24", "dinner", 5, "append", false)
 		if !errors.Is(err, mealplan.ErrInvalidCopyDays) {
@@ -838,7 +839,7 @@ func TestMealPlanService_CopyLeftover_ShareBatch(t *testing.T) {
 
 	t.Run("should share the source BatchID across every copied row when shareBatch=true", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		src, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		if err := svc.CopyLeftover(ctx, "2026-08-24", "dinner", 3, "append", true); err != nil {
 			t.Fatalf("CopyLeftover: %v", err)
@@ -859,7 +860,7 @@ func TestMealPlanService_CopyLeftover_ShareBatch(t *testing.T) {
 
 	t.Run("should assign distinct BatchIDs per copied row when shareBatch=false", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		if err := svc.CopyLeftover(ctx, "2026-08-24", "dinner", 3, "append", false); err != nil {
 			t.Fatalf("CopyLeftover: %v", err)
@@ -881,7 +882,7 @@ func TestMealPlanService_SplitBatch(t *testing.T) {
 
 	t.Run("should keep only the origin day and re-tag it with a fresh BatchID", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		src, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		if err := svc.CopyLeftover(ctx, "2026-08-24", "dinner", 3, "append", true); err != nil {
 			t.Fatalf("CopyLeftover: %v", err)
@@ -904,7 +905,7 @@ func TestMealPlanService_SplitBatch(t *testing.T) {
 
 	t.Run("is a no-op for single-row batch", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		e, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		returned, err := svc.SplitBatch(ctx, e.ID)
 		if err != nil {
@@ -920,7 +921,7 @@ func TestMealPlanService_SplitBatch(t *testing.T) {
 
 	t.Run("returns ErrEntryNotFound for missing entry", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		_, err := svc.SplitBatch(ctx, "no-such-entry")
 		if !errors.Is(err, mealplan.ErrEntryNotFound) {
 			t.Errorf("err = %v, want ErrEntryNotFound", err)
@@ -933,7 +934,7 @@ func TestMealPlanService_MergeBatch(t *testing.T) {
 
 	t.Run("should re-tag row to the target BatchID when it exists in the same meal", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		monEntry, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1") // 月曜
 		_, _ = svc.AssignRecipe(ctx, "2026-08-25", "dinner", "r1")         // 火曜 (別バッチ)
 
@@ -949,7 +950,7 @@ func TestMealPlanService_MergeBatch(t *testing.T) {
 
 	t.Run("returns ErrBatchTargetNotFound when targetBatchID has no other row in the same meal", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		err := svc.MergeBatch(ctx, repo.idAt("2026-08-24", "dinner", 0), "ghost-batch-id")
 		if !errors.Is(err, mealplan.ErrBatchTargetNotFound) {
@@ -963,7 +964,7 @@ func TestMealPlanService_ListMergeCandidates(t *testing.T) {
 
 	t.Run("should return same-recipe within ±4 days batches from any meal", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが", "r2": "みそ汁"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1") // 起点行 (月曜・夕、r1)
 		_, _ = svc.AssignRecipe(ctx, "2026-08-25", "dinner", "r1") // 火曜・夕 (別バッチ、同レシピ)
 		_, _ = svc.AssignRecipe(ctx, "2026-08-25", "dinner", "r2") // 火曜・夕 (別レシピ、除外)
@@ -988,7 +989,7 @@ func TestMealPlanService_ListMergeCandidates(t *testing.T) {
 
 	t.Run("returns ErrEntryNotFound when entryID is empty", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		_, err := svc.ListMergeCandidates(ctx, "")
 		if !errors.Is(err, mealplan.ErrEntryNotFound) {
@@ -998,7 +999,7 @@ func TestMealPlanService_ListMergeCandidates(t *testing.T) {
 
 	t.Run("should take the recipe from the entry itself", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが", "r2": "みそ汁"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		miso, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r2")
 		_, _ = svc.AssignRecipe(ctx, "2026-08-25", "dinner", "r1")
@@ -1019,7 +1020,7 @@ func TestMealPlanService_MergeBatch_ConstraintChecks(t *testing.T) {
 
 	t.Run("returns ErrBatchMergeDenied when target batch has different recipe", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが", "r2": "みそ汁"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")          // 起点 r1
 		misoEntry, _ := svc.AssignRecipe(ctx, "2026-08-25", "dinner", "r2") // 別レシピ (みそ汁)
 		err := svc.MergeBatch(ctx, repo.idAt("2026-08-24", "dinner", 0), misoEntry.BatchID)
@@ -1030,7 +1031,7 @@ func TestMealPlanService_MergeBatch_ConstraintChecks(t *testing.T) {
 
 	t.Run("returns ErrBatchMergeDenied when target batch is beyond ±4 days", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")         // 起点
 		farEntry, _ := svc.AssignRecipe(ctx, "2026-09-05", "dinner", "r1") // 12 日後
 		err := svc.MergeBatch(ctx, repo.idAt("2026-08-24", "dinner", 0), farEntry.BatchID)
@@ -1041,7 +1042,7 @@ func TestMealPlanService_MergeBatch_ConstraintChecks(t *testing.T) {
 
 	t.Run("succeeds when 1 day is skipped (Mon-Tue leftover + Fri single)", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		monEntry, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")   // 月
 		_ = svc.CopyLeftover(ctx, "2026-08-24", "dinner", 2, "append", true) // 月火 leftover
 		_, _ = svc.AssignRecipe(ctx, "2026-08-28", "dinner", "r1")           // 金 (4 日後、同レシピ)
@@ -1062,7 +1063,7 @@ func TestMealPlanService_MergeBatch_ConstraintChecks(t *testing.T) {
 
 	t.Run("succeeds across different meals (dinner -> lunch, same recipe within ±4 days)", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		monDinner, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1") // 月・夕
 		tueLunch, _ := svc.AssignRecipe(ctx, "2026-08-25", "lunch", "r1")   // 火・昼 (別バッチ)
 
@@ -1078,7 +1079,7 @@ func TestMealPlanService_MergeBatch_ConstraintChecks(t *testing.T) {
 
 	t.Run("returns ErrBatchMergeDenied when target across meals is different recipe", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが", "r2": "みそ汁"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")         // 月・夕 r1
 		misoLunch, _ := svc.AssignRecipe(ctx, "2026-08-25", "lunch", "r2") // 火・昼 別レシピ
 		err := svc.MergeBatch(ctx, repo.idAt("2026-08-24", "dinner", 0), misoLunch.BatchID)
@@ -1096,7 +1097,7 @@ func TestMealPlanService_SpreadEntry(t *testing.T) {
 	setup := func(t *testing.T) (*MealPlanService, *fakeMealPlanRepo, string) {
 		t.Helper()
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		src, err := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		if err != nil {
 			t.Fatalf("AssignRecipe: %v", err)
@@ -1202,13 +1203,16 @@ func TestMealPlanService_SpreadEntry(t *testing.T) {
 
 	t.Run("should derive the range from LeftoverCopyPresets when presets change", func(t *testing.T) {
 		svc, _, src := setup(t)
-		svc.cfg.LeftoverCopyPresets = []int{2, 6}
+		cfg := config.Defaults()
+		cfg.LeftoverCopyPresets = []int{2, 6}
+		svc.cfg = staticConfig(cfg)
 		far := []mealplan.SpreadTarget{cell("2026-08-29", mealplan.MealDinner)}
 
 		if _, err := svc.SpreadEntry(ctx, src, far, "append", true); err != nil {
 			t.Errorf("5 days later with presets {2, 6}: err = %v, want nil", err)
 		}
-		svc.cfg.LeftoverCopyPresets = []int{2}
+		cfg.LeftoverCopyPresets = []int{2}
+		svc.cfg = staticConfig(cfg)
 		_, err := svc.SpreadEntry(ctx, src,
 			[]mealplan.SpreadTarget{cell("2026-08-26", mealplan.MealDinner)}, "append", true)
 		if !errors.Is(err, mealplan.ErrInvalidSpreadTarget) {
@@ -1228,7 +1232,7 @@ func TestMealPlanService_UndoSpread(t *testing.T) {
 
 	t.Run("should reject an undo whose removed entry has an invalid date", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(nil)
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		bad := removed()
 		bad.Date = "2026/08/25"
 
@@ -1243,7 +1247,7 @@ func TestMealPlanService_UndoSpread(t *testing.T) {
 
 	t.Run("should reject an undo whose removed entry has an empty id", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(nil)
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		bad := removed()
 		bad.ID = ""
 
@@ -1258,7 +1262,7 @@ func TestMealPlanService_UndoSpread(t *testing.T) {
 
 	t.Run("should reject an undo whose added entry id is empty", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(nil)
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 
 		err := svc.UndoSpread(ctx, mealplan.SpreadResult{AddedEntryIDs: []string{""}})
 		if !errors.Is(err, mealplan.ErrInvalidRestore) {
@@ -1268,7 +1272,7 @@ func TestMealPlanService_UndoSpread(t *testing.T) {
 
 	t.Run("should pass the result to the repository when the undo input is valid", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(nil)
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		in := mealplan.SpreadResult{AddedEntryIDs: []string{"a1", "a2"}, Removed: []mealplan.RemovedEntry{removed()}}
 
 		if err := svc.UndoSpread(ctx, in); err != nil {
@@ -1281,7 +1285,7 @@ func TestMealPlanService_UndoSpread(t *testing.T) {
 
 	t.Run("should do nothing when the undo result is empty", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(nil)
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 
 		if err := svc.UndoSpread(ctx, mealplan.SpreadResult{}); err != nil {
 			t.Fatalf("UndoSpread: %v", err)
@@ -1297,7 +1301,7 @@ func TestMealPlanService_MoveEntry(t *testing.T) {
 
 	t.Run("should move a single row from source cell to target cell", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 
 		if err := svc.MoveEntry(ctx, repo.idAt("2026-08-24", "dinner", 0), "2026-08-25", "dinner"); err != nil {
@@ -1314,7 +1318,7 @@ func TestMealPlanService_MoveEntry(t *testing.T) {
 
 	t.Run("should preserve batch_id when moving across meals", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		src, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 
 		if err := svc.MoveEntry(ctx, src.ID, "2026-08-24", "lunch"); err != nil {
@@ -1327,7 +1331,7 @@ func TestMealPlanService_MoveEntry(t *testing.T) {
 
 	t.Run("with malformed target date should return ErrInvalidDate and leave meal_plans untouched", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		src, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		err := svc.MoveEntry(ctx, src.ID, "2026/08/25", "dinner")
 		if !errors.Is(err, mealplan.ErrInvalidDate) {
@@ -1340,7 +1344,7 @@ func TestMealPlanService_MoveEntry(t *testing.T) {
 
 	t.Run("with target meal=snack should return ErrInvalidMeal", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		src, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		err := svc.MoveEntry(ctx, src.ID, "2026-08-25", "snack")
 		if !errors.Is(err, mealplan.ErrInvalidMeal) {
@@ -1350,7 +1354,7 @@ func TestMealPlanService_MoveEntry(t *testing.T) {
 
 	t.Run("with an empty entryID should return ErrEntryNotFound", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		err := svc.MoveEntry(ctx, "", "2026-08-25", "dinner")
 		if !errors.Is(err, mealplan.ErrEntryNotFound) {
 			t.Errorf("err = %v, want ErrEntryNotFound", err)
@@ -1359,7 +1363,7 @@ func TestMealPlanService_MoveEntry(t *testing.T) {
 
 	t.Run("with source == target cell should return ErrInvalidPosition", func(t *testing.T) {
 		repo := newFakeMealPlanRepo(map[string]string{"r1": "A"})
-		svc := newMealPlanServiceWithRepo(repo)
+		svc := newMealPlanServiceWithRepo(repo, staticConfig(config.Defaults()))
 		src, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
 		err := svc.MoveEntry(ctx, src.ID, "2026-08-24", "dinner")
 		if !errors.Is(err, mealplan.ErrInvalidPosition) {
@@ -1379,7 +1383,7 @@ func openMealPlanDB(t *testing.T, path string) (*MealPlanService, *RecipeService
 	if err := sqlite.Migrate(db); err != nil {
 		t.Fatalf("Migrate: %v", err)
 	}
-	return NewMealPlanService(sqlite.NewMealPlanRepo(db)), NewRecipeService(db, nil)
+	return NewMealPlanService(sqlite.NewMealPlanRepo(db), staticConfig(config.Defaults())), NewRecipeService(db, staticConfig(config.Defaults()), nil)
 }
 
 // entryIDAt は (date, meal, position) にいまある行の ID を返す。テストの前提を並び順で書くためのもの。

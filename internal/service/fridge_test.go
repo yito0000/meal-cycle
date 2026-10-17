@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/yito0000/meal-cycle/internal/config"
 	"github.com/yito0000/meal-cycle/internal/domain/fridge"
 	"github.com/yito0000/meal-cycle/internal/domain/recipe"
 	"github.com/yito0000/meal-cycle/internal/storage/sqlite"
@@ -27,9 +28,9 @@ func newFridgeServiceForTest(t *testing.T) (*FridgeService, *RecipeService) {
 	if err := sqlite.Migrate(db); err != nil {
 		t.Fatalf("Migrate: %v", err)
 	}
-	svc := NewFridgeService(db)
+	svc := NewFridgeService(db, staticConfig(config.Defaults()))
 	svc.now = func() time.Time { return fridgeToday }
-	return svc, NewRecipeService(db, nil)
+	return svc, NewRecipeService(db, staticConfig(config.Defaults()), nil)
 }
 
 func daysLater(n int) string {
@@ -93,8 +94,9 @@ func TestFridgeService_List(t *testing.T) {
 
 	t.Run("should use config thresholds when evaluating status", func(t *testing.T) {
 		svc, _ := newFridgeServiceForTest(t)
-		svc.cfg.ExpiryAlertRedDays = 1
-		svc.cfg.ExpiryAlertYellowDays = 2
+		cfg := config.Defaults()
+		cfg.ExpiryAlertRedDays, cfg.ExpiryAlertYellowDays = 1, 2
+		svc.cfg = staticConfig(cfg)
 		in := validStock("豚肉")
 		in.ExpiresAt = daysLater(3)
 		if _, err := svc.Add(ctx, in); err != nil {

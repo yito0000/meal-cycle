@@ -12,6 +12,7 @@ func TestDefaults(t *testing.T) {
 		got  any
 		want any
 	}{
+		{"Language", c.Language, "ja"},
 		{"WeeklyFillPattern", c.WeeklyFillPattern, "mon-fri-dinner"},
 		{"ItemsPerMealHint", c.ItemsPerMealHint, [2]int{1, 3}},
 		{"MealPlanCellVisibleItems", c.MealPlanCellVisibleItems, 4},

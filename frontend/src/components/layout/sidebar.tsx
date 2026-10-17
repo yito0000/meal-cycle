@@ -11,7 +11,7 @@ import { useTranslation } from "react-i18next";
 import { useHealth } from "./use-health";
 
 type NavItem = {
-  to: "/" | "/recipes" | "/fridge" | "/shopping";
+  to: "/" | "/recipes" | "/fridge" | "/shopping" | "/settings";
   labelKey: string;
   icon: LucideIcon;
   exact?: boolean;
@@ -35,20 +35,8 @@ export function Sidebar() {
     >
       <div className="mb-2 px-3 py-2 text-sm font-bold">meal-cycle</div>
 
-      {items.map(({ to, labelKey, icon: Icon, exact }) => (
-        <Link
-          key={to}
-          to={to}
-          activeOptions={{ exact: exact ?? false }}
-          className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-neutral-800 hover:bg-neutral-100"
-          activeProps={{
-            className:
-              "flex items-center gap-2 rounded-md px-3 py-2 text-sm bg-blue-100 text-blue-900 font-semibold hover:bg-blue-100",
-          }}
-        >
-          <Icon className="h-4 w-4" />
-          {t(labelKey)}
-        </Link>
+      {items.map((item) => (
+        <NavLink key={item.to} {...item} />
       ))}
 
       <div className="mt-auto flex flex-col gap-2 border-t border-neutral-100 pt-3">
@@ -61,16 +49,26 @@ export function Sidebar() {
             <span className="text-red-700">● {t("health.db_error_short")}</span>
           )}
         </div>
-        <button
-          type="button"
-          disabled
-          title={t("nav.settings_disabled_hint")}
-          className="flex w-full cursor-not-allowed items-center gap-2 rounded-md px-3 py-2 text-sm text-neutral-400"
-        >
-          <Settings className="h-4 w-4" />
-          {t("nav.settings")}
-        </button>
+        <NavLink to="/settings" labelKey="nav.settings" icon={Settings} />
       </div>
     </nav>
+  );
+}
+
+function NavLink({ to, labelKey, icon: Icon, exact }: NavItem) {
+  const { t } = useTranslation();
+  return (
+    <Link
+      to={to}
+      activeOptions={{ exact: exact ?? false }}
+      className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-neutral-800 hover:bg-neutral-100"
+      activeProps={{
+        className:
+          "flex items-center gap-2 rounded-md px-3 py-2 text-sm bg-blue-100 text-blue-900 font-semibold hover:bg-blue-100",
+      }}
+    >
+      <Icon className="h-4 w-4" />
+      {t(labelKey)}
+    </Link>
   );
 }
