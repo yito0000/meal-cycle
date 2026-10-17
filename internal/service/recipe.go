@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -23,6 +24,8 @@ const (
 	recipeStepsMaxRunes = 4000
 	recipeNotesMaxRunes = 2000
 	recipeTagMaxRunes   = 30
+	// 冷蔵庫の在庫の上限 (stockAmountMax) と揃える。S07 の一括登録で必要量をそのまま在庫に入れるので、変えるときは一緒に変える。
+	recipeAmountMax = 99999
 )
 
 // インポートの上限。異常なフォルダを選んだときの歯止めで、ユーザーが変える値ではない (add-recipe-bulk-import D2)。
@@ -33,13 +36,14 @@ const (
 
 // 入力バリデーションエラー。フロントで i18n key に対応付ける (design.md D12)。
 var (
-	ErrRecipeNameTooLong         = errors.New("recipe name too long")
-	ErrRecipeServingsOutOfRange  = errors.New("recipe servings out of range")
-	ErrRecipeIngredientNameEmpty = errors.New("recipe ingredient name empty")
-	ErrRecipeStepsTooLong        = errors.New("recipe steps too long")
-	ErrRecipeNotesTooLong        = errors.New("recipe notes too long")
-	ErrRecipeTagTooLong          = errors.New("recipe tag too long")
-	ErrRecipeImportTooManyFiles  = errors.New("recipe import too many files")
+	ErrRecipeNameTooLong                = errors.New("recipe name too long")
+	ErrRecipeServingsOutOfRange         = errors.New("recipe servings out of range")
+	ErrRecipeIngredientNameEmpty        = errors.New("recipe ingredient name empty")
+	ErrRecipeIngredientAmountOutOfRange = errors.New("recipe ingredient amount out of range")
+	ErrRecipeStepsTooLong               = errors.New("recipe steps too long")
+	ErrRecipeNotesTooLong               = errors.New("recipe notes too long")
+	ErrRecipeTagTooLong                 = errors.New("recipe tag too long")
+	ErrRecipeImportTooManyFiles         = errors.New("recipe import too many files")
 )
 
 // validateRecipeInput のエラーをインポートの問題コードに引く (add-recipe-bulk-import D4)。
@@ -54,6 +58,7 @@ var recipeImportIssueByErr = []struct {
 	{ErrRecipeNotesTooLong, recipe.ImportIssueNotesTooLong},
 	{ErrRecipeTagTooLong, recipe.ImportIssueTagTooLong},
 	{ErrRecipeIngredientNameEmpty, recipe.ImportIssueIngredientNameEmpty},
+	{ErrRecipeIngredientAmountOutOfRange, recipe.ImportIssueAmountInvalid},
 }
 
 // RecipeService はレシピの List / GetByID / Create / Update / Delete をフロントに公開する。
@@ -178,6 +183,13 @@ func importIssueFromErr(err error, parsed recipe.Recipe) (recipe.ImportIssue, st
 				}
 			}
 		}
+		if m.issue == recipe.ImportIssueAmountInvalid {
+			for _, ing := range parsed.Ingredients {
+				if !recipeAmountInRange(ing.Amount) {
+					return m.issue, strings.TrimSpace(ing.Name)
+				}
+			}
+		}
 		return m.issue, ""
 	}
 	// 対応表に無いエラーは validateRecipeInput に制約を足したときの取りこぼし。形式の誤りとして見せる。
@@ -237,6 +249,9 @@ func validateRecipeInput(input recipe.Recipe) (recipe.Recipe, error) {
 		if name == "" {
 			return recipe.Recipe{}, ErrRecipeIngredientNameEmpty
 		}
+		if !recipeAmountInRange(ing.Amount) {
+			return recipe.Recipe{}, fmt.Errorf("%w: got %v", ErrRecipeIngredientAmountOutOfRange, ing.Amount)
+		}
 		trimmedIngs = append(trimmedIngs, recipe.RecipeIngredient{
 			Name:   name,
 			Amount: ing.Amount,
@@ -246,6 +261,14 @@ func validateRecipeInput(input recipe.Recipe) (recipe.Recipe, error) {
 	out.Ingredients = trimmedIngs
 
 	return out, nil
+}
+
+// 量 0 は「量を持たない材料」(塩 少々 など) を表すので下限に含める。
+func recipeAmountInRange(amount float64) bool {
+	if math.IsNaN(amount) || math.IsInf(amount, 0) {
+		return false
+	}
+	return amount >= 0 && amount <= recipeAmountMax
 }
 
 // rune 数を返す。byte ではなく文字数で制約を判定するため。

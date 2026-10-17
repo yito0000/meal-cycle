@@ -147,6 +147,56 @@ func TestRecipeService_Create(t *testing.T) {
 		}
 	})
 
+	t.Run("should reject an ingredient with a negative amount", func(t *testing.T) {
+		svc := newRecipeServiceForTest(t)
+		in := validRecipe("x")
+		in.Ingredients = []recipe.RecipeIngredient{{Name: "玉ねぎ", Amount: -1}}
+		_, err := svc.Create(ctx, in)
+		if !errors.Is(err, ErrRecipeIngredientAmountOutOfRange) {
+			t.Errorf("want ErrRecipeIngredientAmountOutOfRange, got %v", err)
+		}
+		list, _ := svc.List(ctx)
+		if len(list) != 0 {
+			t.Errorf("want no recipes, got %d", len(list))
+		}
+	})
+
+	t.Run("should reject an ingredient whose amount exceeds 99999", func(t *testing.T) {
+		svc := newRecipeServiceForTest(t)
+		in := validRecipe("x")
+		in.Ingredients = []recipe.RecipeIngredient{{Name: "玉ねぎ", Amount: 100000}}
+		_, err := svc.Create(ctx, in)
+		if !errors.Is(err, ErrRecipeIngredientAmountOutOfRange) {
+			t.Errorf("want ErrRecipeIngredientAmountOutOfRange, got %v", err)
+		}
+	})
+
+	t.Run("should accept an ingredient whose amount is 0", func(t *testing.T) {
+		svc := newRecipeServiceForTest(t)
+		in := validRecipe("x")
+		in.Ingredients = []recipe.RecipeIngredient{{Name: "塩", Amount: 0}}
+		created, err := svc.Create(ctx, in)
+		if err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		if created.Ingredients[0].Amount != 0 {
+			t.Errorf("want amount 0, got %v", created.Ingredients[0].Amount)
+		}
+	})
+
+	t.Run("should accept an ingredient whose amount is exactly 99999", func(t *testing.T) {
+		svc := newRecipeServiceForTest(t)
+		in := validRecipe("x")
+		in.Ingredients = []recipe.RecipeIngredient{{Name: "水", Amount: 99999, Unit: "ml"}}
+		created, err := svc.Create(ctx, in)
+		if err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		if created.Ingredients[0].Amount != 99999 {
+			t.Errorf("want amount 99999, got %v", created.Ingredients[0].Amount)
+		}
+	})
+
 	t.Run("should return ErrRecipeStepsTooLong when Steps exceeds 4000 characters", func(t *testing.T) {
 		svc := newRecipeServiceForTest(t)
 		_, err := svc.Create(ctx, recipe.Recipe{
@@ -245,6 +295,31 @@ func TestRecipeService_Update(t *testing.T) {
 		}
 		if len(got.Ingredients) != 1 || got.Ingredients[0].Name != "にんじん" {
 			t.Errorf("ingredients not replaced: %+v", got.Ingredients)
+		}
+	})
+
+	t.Run("should leave the recipe unchanged when an update has an out-of-range amount", func(t *testing.T) {
+		svc := newRecipeServiceForTest(t)
+		in := validRecipe("x")
+		in.Ingredients = []recipe.RecipeIngredient{{Name: "玉ねぎ", Amount: 1, Unit: "個"}}
+		created, err := svc.Create(ctx, in)
+		if err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		bad := validRecipe("x")
+		bad.Ingredients = []recipe.RecipeIngredient{{Name: "玉ねぎ", Amount: 100000, Unit: "個"}}
+		if _, err := svc.Update(ctx, created.ID, bad); !errors.Is(err, ErrRecipeIngredientAmountOutOfRange) {
+			t.Fatalf("want ErrRecipeIngredientAmountOutOfRange, got %v", err)
+		}
+		got, err := svc.GetByID(ctx, created.ID)
+		if err != nil {
+			t.Fatalf("GetByID: %v", err)
+		}
+		if len(got.Ingredients) != 1 || got.Ingredients[0].Amount != 1 {
+			t.Errorf("ingredients changed: %+v", got.Ingredients)
+		}
+		if got.UpdatedAt != created.UpdatedAt {
+			t.Errorf("updatedAt changed: %q -> %q", created.UpdatedAt, got.UpdatedAt)
 		}
 	})
 
@@ -476,6 +551,18 @@ func TestRecipeService_PreviewImport(t *testing.T) {
 		}
 	})
 
+	t.Run("should report amount_invalid with the ingredient name when a file has an amount over 99999", func(t *testing.T) {
+		svc := newRecipeServiceForTest(t)
+		content := "---\nname: x\ningredients:\n  - name: 玉ねぎ\n    amount: 1\n  - name: 水\n    amount: 100000\n---\n"
+		got, err := svc.PreviewImport(ctx, []recipe.ImportFile{{Name: "a.md", Content: content}})
+		if err != nil {
+			t.Fatalf("PreviewImport: %v", err)
+		}
+		if got[0].Issue != recipe.ImportIssueAmountInvalid || got[0].IssueArg != "水" {
+			t.Errorf("got issue %q arg %q", got[0].Issue, got[0].IssueArg)
+		}
+	})
+
 	t.Run("should mark duplicate when the name matches an existing recipe", func(t *testing.T) {
 		svc := newRecipeServiceForTest(t)
 		if _, err := svc.Create(ctx, validRecipe("肉じゃが")); err != nil {
@@ -589,6 +676,20 @@ func TestRecipeService_Import(t *testing.T) {
 		_, err := svc.Import(ctx, []recipe.Recipe{validRecipe("肉じゃが"), bad})
 		if !errors.Is(err, ErrRecipeServingsOutOfRange) {
 			t.Fatalf("want ErrRecipeServingsOutOfRange, got %v", err)
+		}
+		list, _ := svc.List(ctx)
+		if len(list) != 0 {
+			t.Errorf("want no recipes, got %d", len(list))
+		}
+	})
+
+	t.Run("should reject the whole import when one recipe has a negative amount", func(t *testing.T) {
+		svc := newRecipeServiceForTest(t)
+		bad := validRecipe("カレー")
+		bad.Ingredients = []recipe.RecipeIngredient{{Name: "玉ねぎ", Amount: -1}}
+		_, err := svc.Import(ctx, []recipe.Recipe{validRecipe("肉じゃが"), bad})
+		if !errors.Is(err, ErrRecipeIngredientAmountOutOfRange) {
+			t.Fatalf("want ErrRecipeIngredientAmountOutOfRange, got %v", err)
 		}
 		list, _ := svc.List(ctx)
 		if len(list) != 0 {
