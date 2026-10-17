@@ -795,6 +795,19 @@ func TestMealPlanRepo_CopyLeftover(t *testing.T) {
 	})
 }
 
+func spreadCell(date string, meal mealplan.Meal) mealplan.SpreadTarget {
+	return mealplan.SpreadTarget{Date: date, Meal: meal}
+}
+
+// spreadTo は entryID の行を targets へ作り置きとして広げる (同じ batch_id を共有する)。
+func spreadTo(t *testing.T, repo *MealPlanRepo, entryID string, targets ...mealplan.SpreadTarget) {
+	t.Helper()
+	if err := repo.Spread(context.Background(), entryID, targets,
+		mealplan.CopyModeAppend, mealplan.ShareBatchLeftover); err != nil {
+		t.Fatalf("Spread: %v", err)
+	}
+}
+
 func TestMealPlanRepo_Batch(t *testing.T) {
 	ctx := context.Background()
 
@@ -1095,7 +1108,131 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		}
 	})
 
-	t.Run("ListPeriod populates batch_member_count via window function", func(t *testing.T) {
+	t.Run("ListPeriod should count a row spread past the period end as a member of its batch", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが")
+		sun := assignID(t, repo, "2026-08-30", "dinner", rs[0].ID)
+		spreadTo(t, repo, sun, spreadCell("2026-08-31", mealplan.MealDinner))
+
+		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
+		if len(got) != 1 || got[0].BatchMemberCount != 2 {
+			t.Errorf("got %+v; want 1 row on 2026-08-30 with batch_member_count=2", got)
+		}
+	})
+
+	t.Run("ListPeriod should count every row of a batch that extends past the period end", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが")
+		sat := assignID(t, repo, "2026-08-29", "dinner", rs[0].ID)
+		spreadTo(t, repo, sat,
+			spreadCell("2026-08-30", mealplan.MealDinner), spreadCell("2026-08-31", mealplan.MealDinner))
+
+		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
+		if len(got) != 2 {
+			t.Fatalf("want 2 rows in period, got %d: %+v", len(got), got)
+		}
+		for _, e := range got {
+			if e.BatchMemberCount != 3 {
+				t.Errorf("date=%s batch_member_count = %d, want 3", e.Date, e.BatchMemberCount)
+			}
+		}
+	})
+
+	t.Run("ListPeriod should keep counting 2 for a batch whose rows all lie inside the period", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが")
+		mon := assignID(t, repo, "2026-08-24", "dinner", rs[0].ID)
+		spreadTo(t, repo, mon, spreadCell("2026-08-25", mealplan.MealDinner))
+
+		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
+		for _, e := range got {
+			if e.BatchMemberCount != 2 {
+				t.Errorf("date=%s batch_member_count = %d, want 2", e.Date, e.BatchMemberCount)
+			}
+		}
+	})
+
+	t.Run("ListPeriod should count 1 for a single row even when another batch shares the date", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが", "みそ汁")
+		mon := assignID(t, repo, "2026-08-24", "dinner", rs[0].ID)
+		spreadTo(t, repo, mon, spreadCell("2026-08-25", mealplan.MealDinner))
+		single := assignID(t, repo, "2026-08-24", "dinner", rs[1].ID)
+
+		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
+		for _, e := range got {
+			if e.ID == single && e.BatchMemberCount != 1 {
+				t.Errorf("single row batch_member_count = %d, want 1", e.BatchMemberCount)
+			}
+		}
+	})
+
+	t.Run("SplitBatch should keep the lunch row when the batch spans lunch and dinner of the same date", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "B", "A")
+		_ = assignID(t, repo, "2026-08-24", "lunch", rs[0].ID)
+		lunchA := assignID(t, repo, "2026-08-24", "lunch", rs[1].ID)
+		spreadTo(t, repo, lunchA, spreadCell("2026-08-24", mealplan.MealDinner))
+
+		if _, err := repo.SplitBatch(ctx, lunchA); err != nil {
+			t.Fatalf("SplitBatch: %v", err)
+		}
+		lunch, _ := repo.MealEntries(ctx, "2026-08-24", "lunch")
+		assertMealOrder(t, lunch, rs[0].ID, rs[1].ID)
+		dinner, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
+		assertMealOrder(t, dinner)
+	})
+
+	t.Run("SplitBatch should keep the lunch row even when called on the dinner row", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "B", "A")
+		_ = assignID(t, repo, "2026-08-24", "lunch", rs[0].ID)
+		lunchA := assignID(t, repo, "2026-08-24", "lunch", rs[1].ID)
+		spreadTo(t, repo, lunchA, spreadCell("2026-08-24", mealplan.MealDinner))
+
+		if _, err := repo.SplitBatch(ctx, idAt(t, repo, "2026-08-24", "dinner", 0)); err != nil {
+			t.Fatalf("SplitBatch: %v", err)
+		}
+		lunch, _ := repo.MealEntries(ctx, "2026-08-24", "lunch")
+		assertMealOrder(t, lunch, rs[0].ID, rs[1].ID)
+		if len(lunch) == 2 && lunch[1].ID != lunchA {
+			t.Errorf("remaining lunch A id = %q, want %q", lunch[1].ID, lunchA)
+		}
+		dinner, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
+		assertMealOrder(t, dinner)
+	})
+
+	t.Run("SplitBatch should keep the earlier date over the earlier meal", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "A")
+		monDinner := assignID(t, repo, "2026-08-24", "dinner", rs[0].ID)
+		spreadTo(t, repo, monDinner, spreadCell("2026-08-25", mealplan.MealBreakfast))
+
+		if _, err := repo.SplitBatch(ctx, idAt(t, repo, "2026-08-25", "breakfast", 0)); err != nil {
+			t.Fatalf("SplitBatch: %v", err)
+		}
+		dinner, _ := repo.MealEntries(ctx, "2026-08-24", "dinner")
+		assertMealOrder(t, dinner, rs[0].ID)
+		breakfast, _ := repo.MealEntries(ctx, "2026-08-25", "breakfast")
+		assertMealOrder(t, breakfast)
+	})
+
+	t.Run("SplitBatch should leave the other lunch row at position 0", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "B", "A")
+		lunchB := assignID(t, repo, "2026-08-24", "lunch", rs[0].ID)
+		lunchA := assignID(t, repo, "2026-08-24", "lunch", rs[1].ID)
+		spreadTo(t, repo, lunchA, spreadCell("2026-08-24", mealplan.MealDinner))
+
+		if _, err := repo.SplitBatch(ctx, lunchA); err != nil {
+			t.Fatalf("SplitBatch: %v", err)
+		}
+		if got := idAt(t, repo, "2026-08-24", "lunch", 0); got != lunchB {
+			t.Errorf("lunch position 0 = %q, want B %q", got, lunchB)
+		}
+	})
+
+	t.Run("ListPeriod populates batch_member_count from every row of the batch", func(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "肉じゃが")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)

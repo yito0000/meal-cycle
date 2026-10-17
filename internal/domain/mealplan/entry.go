@@ -22,7 +22,7 @@ const (
 // (Date, Meal) 内で一意、S01 セル内の縦の並び順 (主菜 → 副菜 → 汁物) を決める。
 // RecipeID は永続化の主参照で、RecipeName は表示用に recipes と JOIN した値。
 // BatchID は「同じバッチ = 1 回分の調理を共有」の識別子。BatchMemberCount は
-// 同じ BatchID を持つ行の全体数 (repo が COUNT(*) OVER (PARTITION BY batch_id) で返す)。
+// 同じ BatchID を持つ行の全体数 (表示期間の外の行も数える)。
 // Cooked は同じ (BatchID, RecipeID) の組に作った印が付いているか。
 type Entry struct {
 	ID               string `json:"id"`

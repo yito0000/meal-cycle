@@ -6,6 +6,7 @@ import {
   copyLeftover,
   createRecipeWithIngredients,
   dateAfter,
+  mealPlanCell,
   mealPlanItemRows,
   openItemMenu,
   openSpreadDialog,
@@ -32,6 +33,9 @@ const MON = nextWeekDay(0);
 const TUE = nextWeekDay(1);
 const WED = nextWeekDay(2);
 const THU = nextWeekDay(3);
+const SAT = nextWeekDay(5);
+const SUN = nextWeekDay(6);
+const MON_AFTER = nextWeekDay(7);
 
 async function openNextWeek(page: Page) {
   await page.goto("/");
@@ -373,6 +377,91 @@ test.describe("まとめ候補の一意性", () => {
     await expect(candidates).toHaveCount(1);
     await expect(candidates).toContainText(MON);
     await expect(candidates).toContainText(t.meal.lunch);
+  });
+});
+
+// days に来週の外の日を含めると、来週の 1 週表示には作り置きの端の行だけが出る。
+async function openBatchLeavingNextWeek(page: Page, from: string, days: string[]) {
+  const id = await createRecipeWithIngredients(page, "肉じゃが", []);
+  await assignRecipe(page, from, "dinner", id);
+  await spreadEntry(
+    page,
+    { date: from, meal: "dinner", position: 0 },
+    days.map((date) => ({ date, meal: "dinner" })),
+    true,
+  );
+  await openNextWeek(page);
+}
+
+test.describe("表示期間をまたぐ作り置き", () => {
+  test("期間の外に続く作り置きの行にも枠色が付く", async ({ page }) => {
+    await openBatchLeavingNextWeek(page, SUN, [MON_AFTER]);
+
+    const row = mealPlanItemRows(page, "肉じゃが");
+    await expect(row).toHaveCount(1);
+    await expect(row).toHaveAttribute("data-batch-member-count", "2");
+    await expect(row).not.toHaveClass(/border-transparent/);
+  });
+
+  test("期間の外に続く作り置きの行はドラッグできない", async ({ page }) => {
+    await openBatchLeavingNextWeek(page, SUN, [MON_AFTER]);
+
+    const row = mealPlanItemRows(page, "肉じゃが");
+    await expect(row).toHaveCount(1);
+    await expect(row).toHaveAttribute("draggable", "false");
+  });
+
+  test("期間の外に続く作り置きの行にも作り置きをやめる項目が出る", async ({ page }) => {
+    await openBatchLeavingNextWeek(page, SUN, [MON_AFTER]);
+
+    await openItemMenu(page, "肉じゃが");
+
+    await expect(page.getByRole("menuitem", { name: t.item_menu.split_batch })).toBeVisible();
+  });
+
+  test("作り置きをやめる確認には期間の外で削除される行も数える", async ({ page }) => {
+    await openBatchLeavingNextWeek(page, SAT, [SUN, MON_AFTER]);
+    await expect(mealPlanItemRows(page, "肉じゃが")).toHaveCount(2);
+
+    await openItemMenu(page, "肉じゃが", 1);
+    await page.getByRole("menuitem", { name: t.item_menu.split_batch }).click();
+
+    await expect(dissolveDialog(page)).toContainText(
+      t.dissolve.description.replace("{{count}}", "2"),
+    );
+  });
+});
+
+test.describe("作り置きをやめたときに残る行", () => {
+  test("同じ日の昼食と夕食にまたがる作り置きをやめると昼食の行が残る", async ({ page }) => {
+    const tonjiru = await createRecipeWithIngredients(page, "豚汁", []);
+    const nikujaga = await createRecipeWithIngredients(page, "肉じゃが", []);
+    await assignRecipe(page, MON, "lunch", tonjiru);
+    await assignRecipe(page, MON, "lunch", nikujaga);
+    await spreadEntry(
+      page,
+      { date: MON, meal: "lunch", position: 1 },
+      [{ date: MON, meal: "dinner" }],
+      true,
+    );
+    await openNextWeek(page);
+    await page.getByRole("checkbox", { name: t.meal.lunch }).check();
+    const lunch = mealPlanCell(page, MON, "lunch");
+    await expect(lunch.getByRole("listitem")).toHaveCount(2);
+
+    await lunch
+      .getByRole("listitem")
+      .filter({ has: page.getByText("肉じゃが", { exact: true }) })
+      .getByRole("button", { name: "肉じゃが", exact: true })
+      .click();
+    await page.getByRole("menuitem", { name: t.item_menu.split_batch }).click();
+    await dissolveDialog(page).getByRole("button", { name: t.dissolve.confirm }).click();
+
+    await expect(dissolveDialog(page)).toHaveCount(0);
+    const rows = await waitForRowCount(page, 2);
+    expect(rowsIn(rows, MON, "lunch").map((r) => r.recipeName)).toEqual(["豚汁", "肉じゃが"]);
+    expect(rowsIn(rows, MON, "dinner")).toHaveLength(0);
+    await expect(mealPlanCell(page, MON, "dinner").getByRole("listitem")).toHaveCount(0);
   });
 });
 

@@ -39,8 +39,8 @@ func (r *MealPlanRepo) mergeDayRange() int {
 }
 
 // ListPeriod は periodStart (月曜 "YYYY-MM-DD") から periodDays 日ぶんの Entry を position 順で返す。
-// recipes と JOIN してレシピ名を解決し、batch_member_count はウィンドウ関数で「同じ batch_id
-// を持つ全行の件数」を返す (design.md D6)。期間外の行も PARTITION に加算されるのが仕様。
+// batch_member_count は期間外の行も含めて数える。期間で絞った後に数えると、週をまたぐ作り置きの端の行が単独に見えるため。
+// 数え方は S07 の loadPlannedGroups とそろえる (fix-mealplan-batch-boundaries D1)。
 func (r *MealPlanRepo) ListPeriod(
 	ctx context.Context, periodStart string, periodDays int,
 ) ([]mealplan.Entry, error) {
@@ -50,7 +50,7 @@ func (r *MealPlanRepo) ListPeriod(
 	}
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT m.id, m.date, m.meal, m.position, m.recipe_id, r.name, m.batch_id,
-		       COUNT(*) OVER (PARTITION BY m.batch_id) AS batch_member_count,
+		       (SELECT COUNT(*) FROM meal_plans a WHERE a.batch_id = m.batch_id) AS batch_member_count,
 		       EXISTS (
 		           SELECT 1 FROM meal_plan_cooked c
 		           WHERE c.batch_id = m.batch_id AND c.recipe_id = m.recipe_id
@@ -554,8 +554,8 @@ func (r *MealPlanRepo) CopyLeftover(
 }
 
 // SplitBatch は「作り置きをやめる」= 連続 N 日コピーの逆演算を実行する。
-// 対象行が属する作り置き全体を対象に、起点日 (バッチ内で最も古い日付 → MIN(position) を tiebreaker
-// にした行) を残し、他の同バッチ行を全削除。残った起点行に新 batch_id を発行して返す。
+// 対象行が属する作り置き全体を対象に、起点行 (日付、朝昼夕の順、position の順で最も早い行) を残し、
+// 他の同バッチ行を全削除。残った起点行に新 batch_id を発行して返す。
 // バッチが元々 1 行しか含まない場合は no-op で現行 batch_id を返す (design.md D4a)。
 func (r *MealPlanRepo) SplitBatch(ctx context.Context, entryID string) (string, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
@@ -587,7 +587,9 @@ func (r *MealPlanRepo) SplitBatch(ctx context.Context, entryID string) (string, 
 	if err := tx.QueryRowContext(ctx, `
 		SELECT id, recipe_id FROM meal_plans
 		WHERE batch_id = ?
-		ORDER BY date, position
+		ORDER BY date,
+		         CASE meal WHEN 'breakfast' THEN 0 WHEN 'lunch' THEN 1 WHEN 'dinner' THEN 2 ELSE 3 END,
+		         position
 		LIMIT 1
 	`, currentBatchID).Scan(&originID, &originRecipeID); err != nil {
 		return "", fmt.Errorf("locate origin: %w", err)
