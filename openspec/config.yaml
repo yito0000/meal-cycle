@@ -68,7 +68,7 @@ rules:
     - |
       タスクグループ末尾（または最終グループ）で テストの実行と成功確認 を必ず入れる。
       - Go: `go test ./internal/... ./cmd/...`
-      - Frontend: `npm run type-check` と `npm run build:dev` (test runner 未導入のため)。画面の挙動に触れる proposal は `task test:e2e` も入れる
+      - Frontend: `npm run test` と `npm run type-check` と `npm run build:dev`。画面の挙動に触れる proposal は `task test:e2e` も入れる
     - |
       画面の挙動に触れる proposal では、E2E で確かめる Scenario を tasks.md のテスト作成タスクに列挙する。
       E2E のテスト名は spec.md の `#### Scenario:` と、最外の describe 名は `### Requirement:` と一字一句揃える
@@ -113,8 +113,7 @@ operations:
       - |
         実装完了時 (最終タスク or 全タスク完了時) には必ずテストコードを実行し、全テストが通ることを確認する。
         - Go: `go test ./internal/... ./cmd/...` を実行 (build/ios に main が無く落ちるため `./...` は使わない)
-        - Frontend: フロントに test runner が入っていれば実行。
-          無い場合は `npm run type-check` と `npm run build:dev` を代替として実行する。
+        - Frontend: `npm run test` (Vitest) と `npm run type-check` と `npm run build:dev` を実行する。
         - 画面の挙動に触れた場合は `task test:e2e` も通す
         - lint も通す: `task lint`
         - テストが失敗したら fix してから完了報告する。「テスト落ちてるけど完了」と報告しない。

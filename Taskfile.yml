@@ -44,6 +44,13 @@ tasks:
     cmds:
       - go run ./cmd/seed {{.CLI_ARGS}}
 
+  test:unit:
+    summary: Runs the Vitest unit tests for frontend pure functions and hooks
+    desc: Runs the Vitest unit tests for frontend pure functions and hooks
+    dir: frontend
+    cmds:
+      - npm run test
+
   test:e2e:
     summary: Runs the Playwright E2E suite (real React + Go services + SQLite)
     dir: frontend

@@ -28,5 +28,5 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["src", "bindings", "e2e", "vite-plugin-e2e-bindings.ts"]
+  "include": ["src", "bindings", "e2e", "vite-plugin-e2e-bindings.ts", "vitest.config.ts"]
 }

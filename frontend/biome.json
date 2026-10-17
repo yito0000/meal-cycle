@@ -15,6 +15,7 @@
       "vite.config.ts",
       "vite-plugin-e2e-bindings.ts",
       "playwright.config.ts",
+      "vitest.config.ts",
       "!!**/bindings",
       "!!**/dist",
       "!!**/node_modules"
