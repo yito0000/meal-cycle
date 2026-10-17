@@ -136,7 +136,9 @@ if now == existing.UpdatedAt { ... }
 
 ## 可変値は 1 箇所に集約
 
-設定画面（S09、MVP 後）で将来変更可能にする値は **すべて `internal/config/defaults.go`** に置く。**call site にリテラル閾値（`10 日` `3 日` など）を書かない**、必ず `config.Defaults()` から読む。可変対象の一覧は [product.md §1](docs/product.md) が正、数値の source of truth は `defaults_test.go`（デフォルト値を変えるならこのテストと product.md の両方を更新する）。
+設定画面（S09）で変更可能にする値は、既定値を **すべて `internal/config/defaults.go`** に置く。**call site にリテラル閾値（`10 日` `3 日` など）を書かない**。サービスはコンストラクタで受け取る `configSource` の `current()` から読み（S09 で保存した値が重なる）、フロントは `useSettingsValues()` から読む。可変対象の一覧は [product.md §1](docs/product.md) が正、数値の source of truth は `defaults_test.go`（デフォルト値を変えるならこのテストと product.md の両方を更新する）。
+
+S09 で変えられる値を足すときは、`internal/domain/settings` の `Values` と検証、`internal/service/settings.go` の key もあわせて直す（[design.md §5「設定の保存と反映」](docs/design.md)）。
 
 ## データモデルの癖
 

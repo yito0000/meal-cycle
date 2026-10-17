@@ -49,6 +49,7 @@ meal-cycle の各画面のワイヤーフレーム。ここに置いた drawio �
 - `S07_shopping_list.drawio.svg`
 - `S07_shopping_list.v2.drawio.svg` — 期間の切替、在庫の状態、献立の欄、購入済チェックを加えた現在の構成（add-shopping-purchase）
 - `S07a_purchase_dialog.drawio.svg` — 冷蔵庫への一括登録ダイアログ（add-shopping-purchase）
+- `S09_settings.drawio.svg` — 設定画面。表示 / 献立 / 冷蔵庫 / 買い物リスト / レシピの節と、保存と既定に戻す（add-settings-screen）
 
 サブ画面（ダイアログやポップオーバー等、S01 に紐づく副次的なビュー）は `S01a`, `S01b`, ... のように英小文字サフィックスで区別する。
 
@@ -96,6 +97,7 @@ meal-cycle の各画面のワイヤーフレーム。ここに置いた drawio �
 - `S01_meal_calendar.drawio.svg` の下部 CTA 「✨ 翌週の候補を出す（MVP 後）」 — 既存ファイルへの追記
 - `S07_shopping_list.v2.drawio.svg` / `S07a_purchase_dialog.drawio.svg` — 新規生成（ヘッダとサイドバーは S07 から流用）
 - `S03_recipe_detail.v2.drawio.svg` — 新規生成（ヘッダとサイドバーは S07 v2 から流用し、選択中を「レシピ」に移した）
+- `S09_settings.drawio.svg` — 新規生成（ヘッダとサイドバーは S00 から流用し、選択中を「設定」に移した）
 
 ## Markdown からの参照
 

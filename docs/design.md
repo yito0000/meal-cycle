@@ -219,7 +219,30 @@ PRIMARY KEY (batchId, recipeId)
 復元はファイルのコピーで行う。
 アプリを終了し、`backups/` の控えを DB の場所へ `meal-cycle.db` という名前でコピーする。
 同じフォルダに `meal-cycle.db-wal` / `meal-cycle.db-shm` が残っていれば、先に消す。
-画面からの復元と任意のタイミングでの書き出しは S09 (設定) で扱う。
+画面からの復元と任意のタイミングでの書き出しは、S09 (設定) に節を足す別の proposal で扱う。
+
+### 設定の保存と反映
+
+S09 で変えた値は、同じ DB の `settings` テーブルに持つ (`add-settings-screen`)。
+既定値の source of truth は `internal/config/defaults.go` のままで、テーブルには既定値から変えた項目だけを入れる。
+全項目を保存すると、のちの版で既定値を見直しても、値を一度も触っていない利用者に古い既定値が残り続けるためである。
+「既定に戻す」は、テーブルの全行を消す操作になる。
+
+- 1 行 = 1 key で、value は JSON。🔴 / 🟡 の日数のように互いに条件を持つ値は 1 つの key に束ね、key ごとに単独で検証できるようにする
+- 読めない key と条件を満たさない key は捨て、その項目だけ既定値で動く。設定が読めないだけでは起動を止めない
+- 既定値と同じく DB に入るので、スキーマ更新前の控え (`backups/`) にも含まれる
+
+サービスへの反映は、`SettingsService` が持つ現在値を他のサービスが読む形にする。
+`main.go` は `SettingsService` を先に作り、`MealPlanService` / `RecipeService` / `FridgeService` / `ShoppingService` のコンストラクタに渡す。
+他のサービスは非公開の interface (`current() config.Config`) で現在値を読み、`config.Defaults()` を直接読まない。
+メソッドを非公開にするのは、Wails が公開メソッドをすべて bindings に出し、`Config` 全体 (セルサイズの表など) がフロントに見えてしまうためである。
+`SettingsService` は保存が DB に書けてから現在値を差し替えるので、保存に失敗した値で他のサービスが動くことはない。
+
+フロントは起動時に `SettingsService.Get` を 1 回呼び、表示言語を当ててから最初の画面を描く (`SettingsGate`)。
+各部品は取得済みの値を `useSettingsValues()` で受け取り、Go の既定値を写した定数を持たない。
+保存すると、設定以外の TanStack Query のキャッシュをすべて捨てる。S05 の期限状態や S07 の合算はサービスが設定値で計算した結果なので、取り直さないと古い閾値のまま表示されるからである。
+
+S09 で変えられる値を足すときは、`internal/domain/settings` の `Values` と検証、`internal/service/settings.go` の key、S09 の欄を同じ proposal で足す。
 
 ---
 
@@ -289,6 +312,8 @@ Wails のサービス層を DDD で言う「アプリケーションサービス
 - ライブラリ候補: [`i18next`](https://www.i18next.com/) + フレームワーク別アダプタ（framework 選定後に確定）
 - 翻訳リソース: `frontend/src/locales/ja.json`, `en.json` の JSON ベース
 - **原則**: 画面に出す文字列は必ず翻訳キー経由。日本語のハードコード禁止
+- 表示言語は S09 で保存し、起動時に `SettingsGate` が `i18n.changeLanguage` で当てる。設定を読めない起動時のエラー画面は日本語で出す
+- 例外: S09 の表示言語の選択肢は、今の表示言語にかかわらず「日本語」「English」と各言語の名前で出すので、翻訳キーを通さない
 
 ### バックエンド（Go）
 
@@ -364,6 +389,7 @@ add-mealplan-assign-recipe ← 日付にレシピを割り当て
 add-mealplan-multi-week   ← 2週/4週表示切替
 add-shopping-list         ← 献立から不足食材を集計
 add-shopping-purchase     ← 購入済チェックと確認ダイアログで在庫追加
+add-settings-screen       ← S09 設定画面。実装済みの機能の可変値と表示言語を保存し、各サービスへ反映
 ```
 
 MVP 後（[product.md #5](product.md#5-献立候補の提示mvp-後拡張) の候補提示 3 軸）:
@@ -399,7 +425,9 @@ add-mealplan-suggest-week-preset ← 週プリセット: 5コマ分を貪欲生�
 
 - **献立候補の提示（3 軸）**: 使い切り / 久しぶりに / 時短。方針は [product.md #5](product.md#5-献立候補の提示mvp-後拡張)。全自動生成は AI 前提になるため採らず、根拠つきで候補を並べてユーザーが選ぶ形にする
 - **料理実施と在庫消費の連動**: 「作った」マークで材料分の在庫を減らす。上記「使い切り」軸の精度向上に必要
-- **設定 UI（S09）**: MVP 期に定数として持っている可変値（時間帯表示のデフォルト、「久しぶりに」の消費期間閾値、期限アラート日数、週プリセット品数など。全一覧は [product.md #1](product.md#1-想定利用シナリオ)）をユーザーが変更できる画面。データ import/export・表示言語切替もここに集約
+- **設定 UI（S09）の残り**: S09 自体と、実装済みの機能の可変値、表示言語の切替は `add-settings-screen` で入れた。
+  未実装の機能に属する値（「久しぶりに」の消費期間閾値、週プリセット品数など。全一覧は [product.md #1](product.md#1-想定利用シナリオ)）は、その機能の proposal で S09 に欄を足す。
+  データ import/export と控えからの復元も、S09 に節を足す形で別の proposal にする
 - レシピの検索・タグフィルタ
 - 献立テンプレート（お気に入りの 1 週間パターンを保存）
 - 栄養計算
@@ -423,4 +451,4 @@ add-mealplan-suggest-week-preset ← 週プリセット: 5コマ分を貪欲生�
 現時点で未決の項目なし。新しく発生したら追記する。
 
 設計と UI/UX の見直しで挙がった指摘（未対応を含む）は [reviews/](reviews/) に日付ごとに残している。
-最新は [2026-10-14 のレビュー](reviews/2026-10-14-design-ux-review.md)。
+最新は [2026-10-15 のレビュー](reviews/2026-10-15-design-ux-review.md)。
