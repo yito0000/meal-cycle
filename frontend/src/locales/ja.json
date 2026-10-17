@@ -216,7 +216,8 @@
           "ingredient_name_required": "材料名を入力してください",
           "steps_too_long": "手順は 4000 字以内で入力してください",
           "notes_too_long": "メモは 2000 字以内で入力してください",
-          "tag_too_long": "タグは 30 字以内で入力してください"
+          "tag_too_long": "タグは 30 字以内で入力してください",
+          "amount_out_of_range": "量は 0 以上 99999 以下の数で入力してください"
         },
         "validation": {
           "name_required": "レシピ名は必須です"

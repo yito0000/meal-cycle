@@ -23,6 +23,7 @@ const SERVINGS_MIN = 1;
 const SERVINGS_MAX = 99;
 const STEPS_MAX = 4000;
 const NOTES_MAX = 2000;
+const AMOUNT_MAX = 99999;
 
 type SaveInput = {
   name: string;
@@ -47,6 +48,7 @@ type FieldErrors = {
   steps?: string;
   notes?: string;
   ingredients?: (string | undefined)[];
+  ingredientAmounts?: (string | undefined)[];
 };
 
 // Wails v3 は型付きエラーコードをバインディングに乗せない (err.message にメッセージ
@@ -59,6 +61,8 @@ function mapErrorToI18nKey(err: unknown): string {
     return "pages.recipes.edit.save_error.servings_out_of_range";
   if (msg.includes("ingredient name empty"))
     return "pages.recipes.edit.save_error.ingredient_name_required";
+  if (msg.includes("ingredient amount out of range"))
+    return "pages.recipes.edit.save_error.amount_out_of_range";
   if (msg.includes("steps too long")) return "pages.recipes.edit.save_error.steps_too_long";
   if (msg.includes("notes too long")) return "pages.recipes.edit.save_error.notes_too_long";
   if (msg.includes("tag too long")) return "pages.recipes.edit.save_error.tag_too_long";
@@ -67,7 +71,8 @@ function mapErrorToI18nKey(err: unknown): string {
 }
 
 // Go 側 (最終防衛線) と同じルールを二重で書く。即時フィードバック用。
-function validate(values: SaveInput): FieldErrors {
+// 量は数に直す前の文字列で見る。Number("1e400") の Infinity は JSON で null になり、Go 側で量 0 に化けるため。
+function validate(values: SaveInput, amountTexts: string[]): FieldErrors {
   const errors: FieldErrors = {};
   const name = values.name.trim();
   if (name === "") errors.name = "pages.recipes.edit.validation.name_required";
@@ -98,6 +103,16 @@ function validate(values: SaveInput): FieldErrors {
     }
   }
   if (hasIngErr) errors.ingredients = ingErrors;
+
+  let hasAmountErr = false;
+  const amountErrors = amountTexts.map((text) => {
+    if (text.trim() === "") return undefined;
+    const n = Number(text);
+    if (Number.isFinite(n) && n >= 0 && n <= AMOUNT_MAX) return undefined;
+    hasAmountErr = true;
+    return "pages.recipes.edit.save_error.amount_out_of_range";
+  });
+  if (hasAmountErr) errors.ingredientAmounts = amountErrors;
 
   return errors;
 }
@@ -155,7 +170,10 @@ export function RecipeEditForm({ mode, initialRecipe, onSave, onCancel, breadcru
       steps: form.values.steps,
       notes: form.values.notes,
     };
-    const errs = validate(input);
+    const errs = validate(
+      input,
+      form.values.ingredients.map((ing) => ing.amount),
+    );
     setFieldErrors(errs);
     if (Object.keys(errs).length > 0) return;
     saveMutation.mutate(input);
@@ -233,6 +251,7 @@ export function RecipeEditForm({ mode, initialRecipe, onSave, onCancel, breadcru
                 key={i}
                 value={row}
                 nameError={fieldErrors.ingredients?.[i] ?? null}
+                amountError={fieldErrors.ingredientAmounts?.[i] ?? null}
                 nameSuggestions={suggestions.data?.names ?? []}
                 unitSuggestions={suggestions.data?.units ?? []}
                 onChange={(next) => {

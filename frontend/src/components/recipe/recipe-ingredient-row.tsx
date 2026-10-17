@@ -12,6 +12,7 @@ type Props = {
   onChange: (next: IngredientFormRow) => void;
   onRemove: () => void;
   nameError?: string | null;
+  amountError?: string | null;
   nameSuggestions: NameSuggestion[];
   unitSuggestions: string[];
 };
@@ -22,6 +23,7 @@ export function RecipeIngredientRow({
   onChange,
   onRemove,
   nameError,
+  amountError,
   nameSuggestions,
   unitSuggestions,
 }: Props) {
@@ -53,6 +55,7 @@ export function RecipeIngredientRow({
           value={value.amount}
           onChange={(e) => onChange({ ...value, amount: e.target.value })}
           aria-label={t("pages.recipes.edit.label.amount")}
+          aria-invalid={amountError != null}
         />
         <div>
           <Input
@@ -79,6 +82,7 @@ export function RecipeIngredientRow({
         </Button>
       </div>
       {nameError && <p className="text-xs text-red-700">{t(nameError)}</p>}
+      {amountError && <p className="text-xs text-red-700">{t(amountError)}</p>}
     </div>
   );
 }

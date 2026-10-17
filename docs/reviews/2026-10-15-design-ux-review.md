@@ -118,7 +118,7 @@ S01 の `Entry` は削除済みかどうかを持たないので、利用者は�
 
 ### R41. レシピの材料の量を Go 側で検証していない
 
-- [ ] 対応済み
+- [x] 対応済み（proposal: fix-recipe-amount-validation）
 
 `validateRecipeInput` は材料の名前だけを検証し、量は見ていない。
 S04 の量の欄は `type="number" min={0}` だが、`min` は入力を止めないので `-1` を打てば保存される。

@@ -246,6 +246,63 @@ test.describe("数値欄の入力途中の保持", () => {
   });
 });
 
+test.describe("入力バリデーション", () => {
+  test("材料の量が負の値だと保存できない", async ({ page }) => {
+    await openNewRecipeForm(page);
+    await page.locator("#recipe-name").fill("x");
+    await fillFirstIngredient(page, "玉ねぎ", "-1", "");
+
+    await page.getByRole("button", { name: e.save }).click();
+
+    await expect(page.getByRole("spinbutton", { name: e.label.amount })).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+    await expect(page.getByText(e.save_error.amount_out_of_range)).toBeVisible();
+    await expect(page.getByRole("heading", { name: e.title_new })).toBeVisible();
+    await openRecipeListDiscarding(page);
+    await expect(page.getByText(t.empty.no_recipes)).toBeVisible();
+  });
+
+  test("材料の量が上限を超えると保存できない", async ({ page }) => {
+    await openNewRecipeForm(page);
+    await page.locator("#recipe-name").fill("x");
+    await fillFirstIngredient(page, "玉ねぎ", "100000", "");
+
+    await page.getByRole("button", { name: e.save }).click();
+
+    await expect(page.getByRole("spinbutton", { name: e.label.amount })).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+    await expect(page.getByText(e.save_error.amount_out_of_range)).toBeVisible();
+    await expect(page.getByRole("heading", { name: e.title_new })).toBeVisible();
+  });
+
+  test("量 0 と空の量は保存できる", async ({ page }) => {
+    await openNewRecipeForm(page);
+    await page.locator("#recipe-name").fill("x");
+    await fillFirstIngredient(page, "塩", "0", "");
+    await page.getByRole("button", { name: e.add_ingredient }).click();
+    await ingredientNameInput(page).fill("胡椒");
+
+    await page.getByRole("button", { name: e.save }).click();
+    await expect(page.getByRole("heading", { name: t.title })).toBeVisible();
+    await openRecipeDetail(page, "x");
+
+    // 量 0 は S03 で量を出さない材料として表示される。
+    const ingredients = page
+      .getByRole("main")
+      .locator("section")
+      .filter({
+        has: page.getByRole("heading", { name: t.detail.section.ingredients, exact: true }),
+      });
+    await expect(ingredients).toContainText("塩");
+    await expect(ingredients).toContainText("胡椒");
+    await expect(ingredients).not.toContainText("0");
+  });
+});
+
 test.describe("S03 から S04 編集画面への遷移", () => {
   test("編集を押すと既存値がロードされた S04 に遷移する", async ({ page }) => {
     await createRecipe(page, "肉じゃが");

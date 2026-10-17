@@ -216,7 +216,8 @@
           "ingredient_name_required": "Please enter an ingredient name",
           "steps_too_long": "Steps must be 4000 characters or fewer",
           "notes_too_long": "Notes must be 2000 characters or fewer",
-          "tag_too_long": "Tags must be 30 characters or fewer"
+          "tag_too_long": "Tags must be 30 characters or fewer",
+          "amount_out_of_range": "Amount must be a number from 0 to 99999"
         },
         "validation": {
           "name_required": "Recipe name is required"
