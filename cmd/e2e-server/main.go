@@ -32,6 +32,7 @@ func main() {
 	port := flag.Int("port", 0, "待受ポート (0 なら OS 任せ)")
 	dist := flag.String("dist", "frontend/dist", "配信する frontend のビルド成果物ディレクトリ")
 	seed := flag.Bool("seed", false, "起動時にサンプルレシピを投入する")
+	exportDir := flag.String("export-dir", "", "レシピの書き出しでフォルダ選択ダイアログの代わりに返すフォルダ")
 	flag.Parse()
 
 	if *dbPath == "" {
@@ -48,7 +49,7 @@ func main() {
 		log.Fatalf("migrate db: %v", err)
 	}
 
-	recipeSvc := service.NewRecipeService(db)
+	recipeSvc := service.NewRecipeService(db, fixedFolderPicker{dir: *exportDir})
 	if *seed {
 		if err := seedRecipes(recipeSvc); err != nil {
 			log.Fatalf("seed: %v", err)
@@ -82,6 +83,11 @@ func newRegistry(db *sql.DB, recipeSvc *service.RecipeService) serviceRegistry {
 		"ShoppingService": service.NewShoppingService(db),
 	}
 }
+
+// Wails のダイアログは E2E で開けないので、決まったフォルダを選んだことにする (add-recipe-export D1)。
+type fixedFolderPicker struct{ dir string }
+
+func (p fixedFolderPicker) PickFolder(string) (string, error) { return p.dir, nil }
 
 func seedRecipes(svc *service.RecipeService) error {
 	ctx := context.Background()

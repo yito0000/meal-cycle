@@ -1267,7 +1267,7 @@ func openMealPlanDB(t *testing.T, path string) (*MealPlanService, *RecipeService
 	if err := sqlite.Migrate(db); err != nil {
 		t.Fatalf("Migrate: %v", err)
 	}
-	return NewMealPlanService(sqlite.NewMealPlanRepo(db)), NewRecipeService(db)
+	return NewMealPlanService(sqlite.NewMealPlanRepo(db)), NewRecipeService(db, nil)
 }
 
 // entryIDAt は (date, meal, position) にいまある行の ID を返す。テストの前提を並び順で書くためのもの。

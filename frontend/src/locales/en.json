@@ -240,6 +240,13 @@
         "error": "Could not delete the recipe. Please try again.",
         "done": "Deleted \"{{name}}\""
       },
+      "export": {
+        "button": "Export",
+        "dialog_title": "Choose a folder to export recipes to",
+        "done": "Exported {{count}} recipes",
+        "empty": "There are no recipes to export",
+        "failed": "Could not export the recipes"
+      },
       "import": {
         "button": "Import",
         "choose_files": "Choose files",

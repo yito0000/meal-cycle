@@ -3,15 +3,23 @@ package service
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/yito0000/meal-cycle/internal/domain/recipe"
 	"github.com/yito0000/meal-cycle/internal/storage/sqlite"
 )
 
 func newRecipeServiceForTest(t *testing.T) *RecipeService {
+	t.Helper()
+	return newRecipeServiceWithPicker(t, nil)
+}
+
+func newRecipeServiceWithPicker(t *testing.T, picker FolderPicker) *RecipeService {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "test.db")
 	db, err := sqlite.Open(path)
@@ -22,7 +30,7 @@ func newRecipeServiceForTest(t *testing.T) *RecipeService {
 	if err := sqlite.Migrate(db); err != nil {
 		t.Fatalf("Migrate: %v", err)
 	}
-	return NewRecipeService(db)
+	return NewRecipeService(db, picker)
 }
 
 // validRecipe は各テストで使う「バリデーションを通る最小の入力」。
@@ -593,6 +601,239 @@ func TestRecipeService_Import(t *testing.T) {
 		list, _ := svc.List(ctx)
 		if len(list) != 0 {
 			t.Errorf("want no recipes, got %d", len(list))
+		}
+	})
+}
+
+type stubFolderPicker struct {
+	dir   string
+	err   error
+	calls int
+}
+
+func (p *stubFolderPicker) PickFolder(string) (string, error) {
+	p.calls++
+	return p.dir, p.err
+}
+
+func exportedFiles(t *testing.T, dir string) map[string]string {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("ReadDir: %v", err)
+	}
+	out := make(map[string]string, len(entries))
+	for _, e := range entries {
+		b, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			t.Fatalf("ReadFile: %v", err)
+		}
+		out[e.Name()] = string(b)
+	}
+	return out
+}
+
+func TestRecipeService_ExportToFolder(t *testing.T) {
+	ctx := context.Background()
+
+	create := func(t *testing.T, svc *RecipeService, r recipe.Recipe) recipe.Recipe {
+		t.Helper()
+		created, err := svc.Create(ctx, r)
+		if err != nil {
+			t.Fatalf("Create %q: %v", r.Name, err)
+		}
+		return created
+	}
+
+	t.Run("should write every active recipe as one file when a folder is picked", func(t *testing.T) {
+		picked := t.TempDir()
+		svc := newRecipeServiceWithPicker(t, &stubFolderPicker{dir: picked})
+		create(t, svc, validRecipe("肉じゃが"))
+		create(t, svc, validRecipe("味噌汁"))
+
+		got, err := svc.ExportToFolder(ctx, "title")
+		if err != nil {
+			t.Fatalf("ExportToFolder: %v", err)
+		}
+		if got.Cancelled || got.Count != 2 {
+			t.Errorf("result: %+v", got)
+		}
+		if filepath.Dir(got.Dir) != picked || !strings.HasPrefix(filepath.Base(got.Dir), "meal-cycle-recipes-") {
+			t.Errorf("dir %q is not a new folder under %q", got.Dir, picked)
+		}
+		files := exportedFiles(t, got.Dir)
+		_, first := files["肉じゃが.md"]
+		_, second := files["味噌汁.md"]
+		if !first || !second || len(files) != 2 {
+			t.Errorf("files: %v", files)
+		}
+	})
+
+	t.Run("should skip archived recipes when some are deleted", func(t *testing.T) {
+		svc := newRecipeServiceWithPicker(t, &stubFolderPicker{dir: t.TempDir()})
+		create(t, svc, validRecipe("肉じゃが"))
+		archived := create(t, svc, validRecipe("味噌汁"))
+		if err := svc.Delete(ctx, archived.ID); err != nil {
+			t.Fatalf("Delete: %v", err)
+		}
+
+		got, err := svc.ExportToFolder(ctx, "title")
+		if err != nil {
+			t.Fatalf("ExportToFolder: %v", err)
+		}
+		files := exportedFiles(t, got.Dir)
+		if _, ok := files["肉じゃが.md"]; !ok || len(files) != 1 || got.Count != 1 {
+			t.Errorf("files: %v (count %d)", files, got.Count)
+		}
+	})
+
+	t.Run("should write nothing and report cancelled when the picker returns empty", func(t *testing.T) {
+		svc := newRecipeServiceWithPicker(t, &stubFolderPicker{dir: ""})
+		create(t, svc, validRecipe("肉じゃが"))
+
+		got, err := svc.ExportToFolder(ctx, "title")
+		if err != nil {
+			t.Fatalf("ExportToFolder: %v", err)
+		}
+		if !got.Cancelled || got.Dir != "" || got.Count != 0 {
+			t.Errorf("result: %+v", got)
+		}
+	})
+
+	t.Run("should return ErrRecipeExportWrite and leave the picked folder unchanged when it is not writable", func(t *testing.T) {
+		if os.Geteuid() == 0 {
+			t.Skip("root ignores directory permissions")
+		}
+		picked := t.TempDir()
+		if err := os.WriteFile(filepath.Join(picked, "keep.txt"), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(picked, 0o555); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(picked, 0o755) })
+		svc := newRecipeServiceWithPicker(t, &stubFolderPicker{dir: picked})
+		create(t, svc, validRecipe("肉じゃが"))
+
+		_, err := svc.ExportToFolder(ctx, "title")
+		if !errors.Is(err, ErrRecipeExportWrite) {
+			t.Fatalf("want ErrRecipeExportWrite, got %v", err)
+		}
+		files := exportedFiles(t, picked)
+		if len(files) != 1 || files["keep.txt"] != "x" {
+			t.Errorf("picked folder changed: %v", files)
+		}
+	})
+
+	t.Run("should return ErrRecipeExportWrite when the picker fails", func(t *testing.T) {
+		svc := newRecipeServiceWithPicker(t, &stubFolderPicker{err: errors.New("dialog broken")})
+		create(t, svc, validRecipe("肉じゃが"))
+
+		if _, err := svc.ExportToFolder(ctx, "title"); !errors.Is(err, ErrRecipeExportWrite) {
+			t.Fatalf("want ErrRecipeExportWrite, got %v", err)
+		}
+	})
+
+	t.Run("should return ErrRecipeExportEmpty without opening the picker when no recipes exist", func(t *testing.T) {
+		picker := &stubFolderPicker{dir: t.TempDir()}
+		svc := newRecipeServiceWithPicker(t, picker)
+
+		if _, err := svc.ExportToFolder(ctx, "title"); !errors.Is(err, ErrRecipeExportEmpty) {
+			t.Fatalf("want ErrRecipeExportEmpty, got %v", err)
+		}
+		if picker.calls != 0 {
+			t.Errorf("picker opened %d times", picker.calls)
+		}
+	})
+
+	t.Run("should create a suffixed folder when the timestamped folder already exists", func(t *testing.T) {
+		picked := t.TempDir()
+		svc := newRecipeServiceWithPicker(t, &stubFolderPicker{dir: picked})
+		fixed := time.Date(2026, 10, 18, 9, 30, 15, 0, time.Local)
+		svc.now = func() time.Time { return fixed }
+		if err := os.Mkdir(filepath.Join(picked, "meal-cycle-recipes-20261018-093015"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		create(t, svc, validRecipe("肉じゃが"))
+
+		got, err := svc.ExportToFolder(ctx, "title")
+		if err != nil {
+			t.Fatalf("ExportToFolder: %v", err)
+		}
+		if want := filepath.Join(picked, "meal-cycle-recipes-20261018-093015-2"); got.Dir != want {
+			t.Errorf("dir: got %q, want %q", got.Dir, want)
+		}
+	})
+
+	t.Run("should number files when two recipes share a name", func(t *testing.T) {
+		svc := newRecipeServiceWithPicker(t, &stubFolderPicker{dir: t.TempDir()})
+		create(t, svc, validRecipe("カレー"))
+		create(t, svc, validRecipe("カレー"))
+
+		got, err := svc.ExportToFolder(ctx, "title")
+		if err != nil {
+			t.Fatalf("ExportToFolder: %v", err)
+		}
+		files := exportedFiles(t, got.Dir)
+		_, first := files["カレー.md"]
+		_, second := files["カレー-2.md"]
+		if !first || !second || len(files) != 2 {
+			t.Errorf("files: %v", files)
+		}
+	})
+
+	t.Run("should replace characters unusable in file names", func(t *testing.T) {
+		svc := newRecipeServiceWithPicker(t, &stubFolderPicker{dir: t.TempDir()})
+		create(t, svc, validRecipe("鶏/豚の生姜焼き"))
+
+		got, err := svc.ExportToFolder(ctx, "title")
+		if err != nil {
+			t.Fatalf("ExportToFolder: %v", err)
+		}
+		files := exportedFiles(t, got.Dir)
+		content, ok := files["鶏_豚の生姜焼き.md"]
+		if !ok {
+			t.Fatalf("files: %v", files)
+		}
+		if !strings.Contains(content, "鶏/豚の生姜焼き") {
+			t.Errorf("recipe name changed in content:\n%s", content)
+		}
+	})
+
+	t.Run("should produce files that PreviewImport reads back without issues and with the same contents", func(t *testing.T) {
+		svc := newRecipeServiceWithPicker(t, &stubFolderPicker{dir: t.TempDir()})
+		orig := create(t, svc, recipe.Recipe{
+			Name: "肉じゃが", Servings: 3, Tags: []string{"和食"},
+			Ingredients: []recipe.RecipeIngredient{
+				{Name: "じゃがいも", Amount: 3, Unit: "個"},
+				{Name: "醤油", Amount: 2, Unit: "大さじ"},
+				{Name: "塩", Amount: 0, Unit: "少々"},
+			},
+			Steps: "1. 切る\n2. 煮る", Notes: "弱火で",
+		})
+
+		got, err := svc.ExportToFolder(ctx, "title")
+		if err != nil {
+			t.Fatalf("ExportToFolder: %v", err)
+		}
+		files := exportedFiles(t, got.Dir)
+		inputs := make([]recipe.ImportFile, 0, len(files))
+		for name, content := range files {
+			inputs = append(inputs, recipe.ImportFile{Name: name, Content: content})
+		}
+		candidates, err := svc.PreviewImport(ctx, inputs)
+		if err != nil {
+			t.Fatalf("PreviewImport: %v", err)
+		}
+		if len(candidates) != 1 || candidates[0].Issue != recipe.ImportIssueNone {
+			t.Fatalf("candidates: %+v", candidates)
+		}
+		back := candidates[0].Recipe
+		if back.Name != orig.Name || back.Servings != orig.Servings || back.Steps != orig.Steps || back.Notes != orig.Notes {
+			t.Errorf("fields: got %+v, want %+v", back, orig)
+		}
+		if !reflect.DeepEqual(back.Tags, orig.Tags) || !reflect.DeepEqual(back.Ingredients, orig.Ingredients) {
+			t.Errorf("tags/ingredients: got %v %v, want %v %v", back.Tags, back.Ingredients, orig.Tags, orig.Ingredients)
 		}
 	})
 }

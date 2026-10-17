@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { router } from "@/router";
 import type { ImportFile } from "../../bindings/github.com/yito0000/meal-cycle/internal/domain/recipe/models";
 import { RecipeService } from "../../bindings/github.com/yito0000/meal-cycle/internal/service";
+import { RecipeExportButton } from "../components/recipe/recipe-export-button";
 import { RecipeImportButton } from "../components/recipe/recipe-import-button";
 import { RecipeImportDialog } from "../components/recipe/recipe-import-dialog";
 import { RecipeSearchInput } from "../components/recipe/recipe-search-input";
@@ -55,6 +56,7 @@ export function RecipesPage() {
       <header className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{t("pages.recipes.title")}</h1>
         <div className="flex items-center gap-2">
+          <RecipeExportButton disabled={!data || data.length === 0} />
           <RecipeImportButton
             onRead={(files) => {
               importSeq.current += 1;

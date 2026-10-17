@@ -31,7 +31,7 @@ func main() {
 	if startup.Stage == "" {
 		services = append(services,
 			application.NewService(service.NewMealPlanService(sqlite.NewMealPlanRepo(db))),
-			application.NewService(service.NewRecipeService(db)),
+			application.NewService(service.NewRecipeService(db, service.NewWailsFolderPicker())),
 			application.NewService(service.NewFridgeService(db)),
 			application.NewService(service.NewShoppingService(db)),
 		)
