@@ -40,7 +40,7 @@
       },
       "cell": {
         "more_items": "他 {{count}} 件",
-        "cooked": "作った",
+        "cooked": "{{name}}を作った",
         "overflow_list_label": "{{date}} {{meal}} の品"
       },
       "picker": {
@@ -113,7 +113,9 @@
         "confirm": "反映",
         "cancel": "キャンセル",
         "show_more": "さらに {{count}} 日表示",
-        "same_batch_cell_label": "すでに同じ作り置きが入っています"
+        "same_batch_cell_label": "すでに同じ作り置きが入っています",
+        "earlier_meal_cell_label": "起点より前の時間帯",
+        "load_failed": "格子の献立を読み込めませんでした"
       },
       "dnd": {
         "item_grabbable_label": "ドラッグして別セルへ移動",
@@ -130,7 +132,9 @@
         "removed": "「{{name}}」を削除しました",
         "cleared": "{{count}} 品を削除しました",
         "undo": "元に戻す",
-        "restore_failed": "元に戻せませんでした"
+        "restore_failed": "元に戻せませんでした",
+        "spread": "{{cells}} セルに広げました",
+        "spread_overwritten": "{{cells}} セルに広げ、{{replaced}} 品を置き換えました"
       },
       "errors": {
         "invalid_date": "日付の形式が不正です",
@@ -145,7 +149,8 @@
         "invalid_period_weeks": "選択できない期間長です",
         "invalid_spread_target": "広げる先に選べないセルが含まれています",
         "unknown": "処理に失敗しました",
-        "invalid_restore": "元に戻す内容が正しくありません"
+        "invalid_restore": "元に戻す内容が正しくありません",
+        "archived_recipe": "削除済みのレシピは広げられません"
       },
       "shopping_cta": "この期間の買い物リストを見る"
     },

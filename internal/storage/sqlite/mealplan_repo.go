@@ -324,20 +324,7 @@ func (r *MealPlanRepo) RestoreEntries(ctx context.Context, entries []mealplan.Re
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	// position の小さい順に戻さないと、先に戻した行が後の行の position を押し出してしまう。
-	sorted := append([]mealplan.RemovedEntry(nil), entries...)
-	sort.SliceStable(sorted, func(i, j int) bool {
-		a, b := sorted[i], sorted[j]
-		if a.Date != b.Date {
-			return a.Date < b.Date
-		}
-		if a.Meal != b.Meal {
-			return mealRank(a.Meal) < mealRank(b.Meal)
-		}
-		return a.Position < b.Position
-	})
-
-	for _, e := range sorted {
+	for _, e := range sortRemovedEntries(entries) {
 		if err := restoreEntryTx(ctx, tx, e); err != nil {
 			return err
 		}
@@ -346,6 +333,22 @@ func (r *MealPlanRepo) RestoreEntries(ctx context.Context, entries []mealplan.Re
 		return fmt.Errorf("commit tx: %w", err)
 	}
 	return nil
+}
+
+// sortRemovedEntries は戻す順に並べる。position の小さい順に戻さないと、先に戻した行が後の行の position を押し出してしまう。
+func sortRemovedEntries(entries []mealplan.RemovedEntry) []mealplan.RemovedEntry {
+	sorted := append([]mealplan.RemovedEntry(nil), entries...)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		a, b := sorted[i], sorted[j]
+		if a.Date != b.Date {
+			return a.Date < b.Date
+		}
+		if a.Meal != b.Meal {
+			return mealplan.MealRank(a.Meal) < mealplan.MealRank(b.Meal)
+		}
+		return a.Position < b.Position
+	})
+	return sorted
 }
 
 func restoreEntryTx(ctx context.Context, tx *sql.Tx, e mealplan.RemovedEntry) error {
@@ -515,6 +518,14 @@ func (r *MealPlanRepo) CopyLeftover(
 		return fmt.Errorf("begin tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
+
+	recipeIDs := make([]string, 0, len(sourceEntries))
+	for _, e := range sourceEntries {
+		recipeIDs = append(recipeIDs, e.RecipeID)
+	}
+	if err := ensureNotArchived(ctx, tx, recipeIDs); err != nil {
+		return err
+	}
 
 	source := prepareCopySource(sourceEntries, shareBatch)
 
@@ -783,40 +794,50 @@ func (r *MealPlanRepo) MealEntries(ctx context.Context, date, meal string) ([]me
 }
 
 // Spread は起点行の品を、targets の各セルに 1 行ずつ入れる。全セルを 1 トランザクションで反映する
-// (revise-mealplan-spread-api design.md D3)。
+// (revise-mealplan-spread-api design.md D3)。取り消しに使うため、追加した行の ID と上書きで消した行を返す
+// (revise-mealplan-spread-safety design.md D2)。
 func (r *MealPlanRepo) Spread(
 	ctx context.Context,
 	entryID string,
 	targets []mealplan.SpreadTarget,
 	mode mealplan.CopyMode,
 	shareBatch mealplan.ShareBatch,
-) error {
+) (mealplan.SpreadResult, error) {
+	result := mealplan.SpreadResult{AddedEntryIDs: []string{}, Removed: []mealplan.RemovedEntry{}}
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("begin tx: %w", err)
+		return result, fmt.Errorf("begin tx: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 
 	src, err := loadEntryByID(ctx, tx, entryID)
 	if err != nil {
-		return err
+		return result, err
 	}
 	recipeID, sourceBatchID := src.RecipeID, src.BatchID
+	if err := ensureNotArchived(ctx, tx, []string{recipeID}); err != nil {
+		return result, err
+	}
 
 	sorted := append([]mealplan.SpreadTarget(nil), targets...)
 	sort.SliceStable(sorted, func(i, j int) bool {
 		if sorted[i].Date != sorted[j].Date {
 			return sorted[i].Date < sorted[j].Date
 		}
-		return mealRank(sorted[i].Meal) < mealRank(sorted[j].Meal)
+		return mealplan.MealRank(sorted[i].Meal) < mealplan.MealRank(sorted[j].Meal)
 	})
 
 	for _, tg := range sorted {
 		if mode == mealplan.CopyModeOverwrite {
+			removed, err := loadRemovedEntries(ctx, tx, `m.date = ? AND m.meal = ?`, tg.Date, string(tg.Meal))
+			if err != nil {
+				return result, err
+			}
+			result.Removed = append(result.Removed, removed...)
 			if _, err := tx.ExecContext(ctx, `
 				DELETE FROM meal_plans WHERE date = ? AND meal = ?
 			`, tg.Date, string(tg.Meal)); err != nil {
-				return fmt.Errorf("clear target %s/%s: %w", tg.Date, tg.Meal, err)
+				return result, fmt.Errorf("clear target %s/%s: %w", tg.Date, tg.Meal, err)
 			}
 		} else {
 			var dup int
@@ -824,7 +845,7 @@ func (r *MealPlanRepo) Spread(
 				SELECT COUNT(*) FROM meal_plans
 				WHERE date = ? AND meal = ? AND recipe_id = ?
 			`, tg.Date, string(tg.Meal), recipeID).Scan(&dup); err != nil {
-				return fmt.Errorf("check target duplicate: %w", err)
+				return result, fmt.Errorf("check target duplicate: %w", err)
 			}
 			if dup > 0 {
 				continue
@@ -836,9 +857,59 @@ func (r *MealPlanRepo) Spread(
 		}
 		pos, err := nextPosition(ctx, tx, tg.Date, string(tg.Meal))
 		if err != nil {
+			return result, err
+		}
+		id := mealplan.NewEntryID()
+		if _, err := insertMealPlan(ctx, tx, id, tg.Date, string(tg.Meal), pos, recipeID, batchID); err != nil {
+			return result, err
+		}
+		result.AddedEntryIDs = append(result.AddedEntryIDs, id)
+	}
+	if err := pruneCookedMarks(ctx, tx); err != nil {
+		return result, err
+	}
+	if err := tx.Commit(); err != nil {
+		return result, fmt.Errorf("commit tx: %w", err)
+	}
+	return result, nil
+}
+
+// UndoSpread は Spread の結果を 1 トランザクションで戻す。追加した行のうち別の操作で消えたものは飛ばし、
+// 上書きで消した行は RestoreEntries と同じ規則で元のセルの元の並び順に戻す (revise-mealplan-spread-safety design.md D2)。
+func (r *MealPlanRepo) UndoSpread(ctx context.Context, result mealplan.SpreadResult) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	type cell struct{ date, meal string }
+	affected := make([]cell, 0)
+	seen := map[cell]bool{}
+	for _, id := range result.AddedEntryIDs {
+		var c cell
+		err := tx.QueryRowContext(ctx, `SELECT date, meal FROM meal_plans WHERE id = ?`, id).Scan(&c.date, &c.meal)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("locate added row: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM meal_plans WHERE id = ?`, id); err != nil {
+			return fmt.Errorf("delete added row: %w", err)
+		}
+		if !seen[c] {
+			seen[c] = true
+			affected = append(affected, c)
+		}
+	}
+	for _, c := range affected {
+		if err := renumberMeal(ctx, tx, c.date, c.meal); err != nil {
 			return err
 		}
-		if _, err := insertMealPlan(ctx, tx, mealplan.NewEntryID(), tg.Date, string(tg.Meal), pos, recipeID, batchID); err != nil {
+	}
+	for _, e := range sortRemovedEntries(result.Removed) {
+		if err := restoreEntryTx(ctx, tx, e); err != nil {
 			return err
 		}
 	}
@@ -956,19 +1027,6 @@ func copyCookedMark(ctx context.Context, q querier, fromBatchID, toBatchID, reci
 	return nil
 }
 
-// mealRank は時間帯を朝 / 昼 / 夕の順に並べるための順位。SQL 側の CASE meal と揃える。
-func mealRank(m mealplan.Meal) int {
-	switch m {
-	case mealplan.MealBreakfast:
-		return 0
-	case mealplan.MealLunch:
-		return 1
-	case mealplan.MealDinner:
-		return 2
-	}
-	return 3
-}
-
 // pruneCookedMarks は meal_plans に対応する行の無くなった印を消す (design.md D4)。
 func pruneCookedMarks(ctx context.Context, q querier) error {
 	if _, err := q.ExecContext(ctx, `
@@ -1072,6 +1130,23 @@ func ensureActiveRecipe(ctx context.Context, q querier, recipeID string) error {
 	}
 	if err != nil {
 		return fmt.Errorf("check recipe active: %w", err)
+	}
+	return nil
+}
+
+// ensureNotArchived は献立にある品を別のセルへ増やす前に、レシピが削除済みでないかを確かめる。
+// Assign と違い利用者の目の前にその品が見えているので、存在しない場合と区別して ErrArchivedRecipe を返す (revise-mealplan-spread-safety D5)。
+func ensureNotArchived(ctx context.Context, q querier, recipeIDs []string) error {
+	for _, id := range recipeIDs {
+		var archived int
+		if err := q.QueryRowContext(ctx, `
+			SELECT COUNT(*) FROM recipes WHERE id = ? AND archived_at IS NOT NULL
+		`, id).Scan(&archived); err != nil {
+			return fmt.Errorf("check recipe archived: %w", err)
+		}
+		if archived > 0 {
+			return mealplan.ErrArchivedRecipe
+		}
 	}
 	return nil
 }

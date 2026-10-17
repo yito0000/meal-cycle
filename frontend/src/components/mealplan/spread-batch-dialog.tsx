@@ -1,7 +1,9 @@
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { Entry } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
+import { toast } from "sonner";
 import { Meal } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
+import { MealPlanService } from "../../../bindings/github.com/yito0000/meal-cycle/internal/service";
 import type {
   SpreadConflictMode,
   SpreadSelection,
@@ -18,7 +20,6 @@ interface Props {
   sourceRecipeName: string;
   sourceRecipeId: string;
   sourceBatchId: string;
-  existingEntries: Entry[];
   // 初期表示する未来日数 (起点日を除く)。起点日 + initialFutureDays の合計行が最初に見える。
   initialFutureDays: number;
   // 「もっと表示」1 回で伸ばす未来日数。
@@ -55,14 +56,14 @@ function targetKey(date: string, meal: string): string {
 // 対象日レンジ = 起点日 + 未来 futureDays 日 × 時間帯 3 列の格子で複数選択させる統合ダイアログ。
 // 過去方向は「作り置きは翌日以降に伸ばす」意図に反するため対象外。行が足りない場合は
 // 下部の「もっと表示」で expandStepDays ずつ伸ばす。
-// 起点セル自身と、起点と同じ作り置きの同じレシピが入っているセルは選択不可。既存割当セルは warning tone で示唆する。
+// 起点セル自身、起点日の起点より前の時間帯、起点と同じ作り置きの同じレシピが入っているセルは選択不可。既存割当セルは warning tone で示唆する。
+// 格子は S01 の表示期間の外にはみ出すので、判定に使う献立は起点日から自分で取る (revise-mealplan-spread-safety design.md D1)。
 export function SpreadBatchDialog({
   open,
   source,
   sourceRecipeName,
   sourceRecipeId,
   sourceBatchId,
-  existingEntries,
   initialFutureDays,
   expandStepDays,
   presetDays,
@@ -85,24 +86,39 @@ export function SpreadBatchDialog({
     return dates;
   }, [source.date, futureDays]);
 
+  const gridQuery = useQuery({
+    queryKey: ["mealplan", "spread-grid", source.date],
+    queryFn: () => MealPlanService.ListPeriod(source.date, 1),
+    enabled: open,
+  });
+  const gridEntries = gridQuery.data;
+  const isLoaded = gridQuery.isSuccess;
+
+  useEffect(() => {
+    if (!gridQuery.isError) return;
+    onOpenChange(false);
+    toast.error(t("pages.meal_plan.spread.load_failed"));
+  }, [gridQuery.isError, onOpenChange, t]);
+
   const occupancy = useMemo(() => {
     const set = new Set<string>();
-    for (const e of existingEntries) {
+    for (const e of gridEntries ?? []) {
       set.add(targetKey(e.date, e.meal));
     }
     return set;
-  }, [existingEntries]);
+  }, [gridEntries]);
 
-  // 期間外 (翌週) の日は entries に無いので漏れるが、反映側の追加は同じレシピを二重に入れない (design.md D5)。
   const sameBatchCells = useMemo(() => {
     const set = new Set<string>();
-    for (const e of existingEntries) {
+    for (const e of gridEntries ?? []) {
       if (e.batchId === sourceBatchId && e.recipeId === sourceRecipeId) {
         set.add(targetKey(e.date, e.meal));
       }
     }
     return set;
-  }, [existingEntries, sourceBatchId, sourceRecipeId]);
+  }, [gridEntries, sourceBatchId, sourceRecipeId]);
+
+  const sourceMealIndex = (MEAL_RENDER_ORDER as readonly string[]).indexOf(source.meal);
 
   const defaultSelection = useMemo(() => {
     const set = new Set<string>();
@@ -160,7 +176,8 @@ export function SpreadBatchDialog({
     return out;
   }, [selected]);
 
-  const canSubmit = targets.length > 0;
+  // 取得前に反映すると、既存割当の背景色を見ないまま上書きを選べてしまう。
+  const canSubmit = isLoaded && targets.length > 0;
 
   const submit = () => {
     if (!canSubmit) return;
@@ -175,7 +192,7 @@ export function SpreadBatchDialog({
         </DialogHeader>
         <p className="text-xs text-neutral-500">
           {t("pages.meal_plan.spread.origin_hint", {
-            date: source.date,
+            date: formatRow(source.date),
             meal: t(mealLabelKey(source.meal)),
             recipeName: sourceRecipeName,
           })}
@@ -201,14 +218,17 @@ export function SpreadBatchDialog({
               {rowDates.map((date) => (
                 <tr key={date} className="border-b border-neutral-100 last:border-b-0">
                   <td className="px-2 py-1 text-xs text-neutral-700">{formatRow(date)}</td>
-                  {MEAL_RENDER_ORDER.map((meal) => {
+                  {MEAL_RENDER_ORDER.map((meal, mealIndex) => {
                     const isSource = date === source.date && meal === source.meal;
+                    const isEarlierMeal = date === source.date && mealIndex < sourceMealIndex;
                     const key = targetKey(date, meal);
-                    const isSameBatch = !isSource && sameBatchCells.has(key);
+                    const isSameBatch = !isSource && !isEarlierMeal && sameBatchCells.has(key);
                     const checked = selected.has(key);
                     const isOccupied = occupancy.has(key);
                     const conflictCls =
-                      isOccupied && !isSource && !isSameBatch ? "bg-amber-50" : "";
+                      isOccupied && !isSource && !isEarlierMeal && !isSameBatch
+                        ? "bg-amber-50"
+                        : "";
                     return (
                       <td
                         key={key}
@@ -216,13 +236,15 @@ export function SpreadBatchDialog({
                         data-date={date}
                         data-meal={meal}
                       >
-                        {isSource || isSameBatch ? (
+                        {isSource || isEarlierMeal || isSameBatch ? (
                           <span
                             role="img"
                             aria-label={t(
                               isSource
                                 ? "pages.meal_plan.spread.source_cell_label"
-                                : "pages.meal_plan.spread.same_batch_cell_label",
+                                : isEarlierMeal
+                                  ? "pages.meal_plan.spread.earlier_meal_cell_label"
+                                  : "pages.meal_plan.spread.same_batch_cell_label",
                             )}
                             className="text-neutral-400"
                           >
@@ -232,9 +254,10 @@ export function SpreadBatchDialog({
                           <input
                             type="checkbox"
                             checked={checked}
+                            disabled={!isLoaded}
                             onChange={() => toggle(date, meal)}
                             aria-label={t("pages.meal_plan.spread.cell_checkbox_label", {
-                              date,
+                              date: formatRow(date),
                               meal: t(mealLabelKey(meal)),
                             })}
                           />

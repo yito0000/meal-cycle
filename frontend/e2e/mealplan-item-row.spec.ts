@@ -60,8 +60,11 @@ test.describe("セル内の品表示", () => {
     await expect(rows).toHaveCount(2);
     await expect(rows.nth(0)).toContainText("肉じゃが");
     await expect(rows.nth(1)).toContainText("みそ汁");
-    for (const row of await rows.all()) {
-      await expect(row.getByRole("checkbox", { name: t.cell.cooked })).toBeVisible();
+    for (const [i, name] of ["肉じゃが", "みそ汁"].entries()) {
+      const row = rows.nth(i);
+      await expect(
+        row.getByRole("checkbox", { name: t.cell.cooked.replace("{{name}}", name) }),
+      ).toBeVisible();
       await expect(row).not.toContainText("⋯");
       await expect(row.getByRole("button")).toHaveCount(1);
     }
@@ -141,7 +144,7 @@ test.describe("セル内の品表示", () => {
     const checkbox = list
       .getByRole("listitem")
       .filter({ hasText: "ほうれん草の胡麻和え" })
-      .getByRole("checkbox", { name: t.cell.cooked });
+      .getByRole("checkbox", { name: t.cell.cooked.replace("{{name}}", "ほうれん草の胡麻和え") });
     await checkbox.click();
     await expect(checkbox).toBeChecked();
 
@@ -149,7 +152,9 @@ test.describe("セル内の品表示", () => {
     await page.getByTestId("period-weeks-1").click();
     await expect(page.getByTestId("period-calendar")).toHaveAttribute("data-period-weeks", "1");
     await expect(
-      mealPlanItemRows(page, "ほうれん草の胡麻和え").getByRole("checkbox", { name: t.cell.cooked }),
+      mealPlanItemRows(page, "ほうれん草の胡麻和え").getByRole("checkbox", {
+        name: t.cell.cooked.replace("{{name}}", "ほうれん草の胡麻和え"),
+      }),
     ).toBeChecked();
   });
 

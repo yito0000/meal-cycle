@@ -8,6 +8,7 @@ import type {
   Entry,
   Meal,
   RemovedEntry,
+  SpreadResult,
 } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
 import { MealPlanService } from "../../../bindings/github.com/yito0000/meal-cycle/internal/service";
 import type { SpreadSelection, SpreadSource } from "../../lib/spread-batch-selection";
@@ -170,6 +171,29 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
           v.selection.shareBatch,
         ),
       ),
+    onSuccess: (result) => {
+      const replaced = result.removed?.length ?? 0;
+      const cells = result.addedEntryIds?.length ?? 0;
+      const message =
+        replaced > 0
+          ? t("pages.meal_plan.toast.spread_overwritten", { cells, replaced })
+          : t("pages.meal_plan.toast.spread", { cells });
+      toast(message, {
+        duration: UNDO_TOAST_MS,
+        action: {
+          label: t("pages.meal_plan.toast.undo"),
+          onClick: () => undoSpreadMut.mutate(result),
+        },
+      });
+    },
+  });
+  const undoSpreadMut = useMutation({
+    mutationFn: (result: SpreadResult) => MealPlanService.UndoSpread(result),
+    onSuccess: () => invalidate(),
+    onError: (err) =>
+      toast.error(t("pages.meal_plan.toast.restore_failed"), {
+        description: t(errorI18nKey(err)),
+      }),
   });
   const cookedMut = useMutation({
     mutationFn: (v: { entryId: string; cooked: boolean }) =>
@@ -525,7 +549,6 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
           sourceRecipeName={spreadState.sourceRecipeName}
           sourceRecipeId={spreadState.sourceRecipeId}
           sourceBatchId={spreadState.sourceBatchId}
-          existingEntries={entries}
           initialFutureDays={SPREAD_INITIAL_FUTURE_DAYS}
           expandStepDays={SPREAD_EXPAND_STEP}
           presetDays={SPREAD_PRESET_DAYS}

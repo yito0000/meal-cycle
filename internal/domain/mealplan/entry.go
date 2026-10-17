@@ -13,6 +13,19 @@ const (
 	MealDinner    Meal = "dinner"
 )
 
+// MealRank は時間帯を朝 / 昼 / 夕の順に並べるための順位。SQL 側の CASE meal と揃える。
+func MealRank(m Meal) int {
+	switch m {
+	case MealBreakfast:
+		return 0
+	case MealLunch:
+		return 1
+	case MealDinner:
+		return 2
+	}
+	return 3
+}
+
 // Entry は (Date, Meal) の Position 位置に置かれる 1 品。
 //
 // ID は行そのものの識別子で、1 品に対する操作はこれで行を指す。Position は並べ替えや削除のたびに

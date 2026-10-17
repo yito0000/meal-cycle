@@ -26,7 +26,8 @@ type mealPlanRepo interface {
 	MergeBatch(ctx context.Context, entryID, targetBatchID string) error
 	ListMergeCandidates(ctx context.Context, entryID string) ([]mealplan.BatchSummary, error)
 	Spread(ctx context.Context, entryID string,
-		targets []mealplan.SpreadTarget, mode mealplan.CopyMode, shareBatch mealplan.ShareBatch) error
+		targets []mealplan.SpreadTarget, mode mealplan.CopyMode, shareBatch mealplan.ShareBatch) (mealplan.SpreadResult, error)
+	UndoSpread(ctx context.Context, result mealplan.SpreadResult) error
 	MoveEntry(ctx context.Context, entryID, targetDate, targetMeal string) error
 	SetCooked(ctx context.Context, entryID string, cooked bool) error
 }
@@ -102,6 +103,13 @@ func (s *MealPlanService) RestoreEntries(ctx context.Context, entries []mealplan
 	if len(entries) == 0 {
 		return nil
 	}
+	if err := s.validateRemovedEntries(entries); err != nil {
+		return err
+	}
+	return s.repo.RestoreEntries(ctx, entries)
+}
+
+func (s *MealPlanService) validateRemovedEntries(entries []mealplan.RemovedEntry) error {
 	for _, e := range entries {
 		if err := s.validateMealAddress(e.Date, string(e.Meal)); err != nil {
 			return err
@@ -121,7 +129,7 @@ func (s *MealPlanService) RestoreEntries(ctx context.Context, entries []mealplan
 			}
 		}
 	}
-	return s.repo.RestoreEntries(ctx, entries)
+	return nil
 }
 
 // ReorderMeal はセル内の品を orderedEntryIDs の順に並べ直す。同じレシピの品が 2 つあっても区別できるよう、
@@ -223,26 +231,44 @@ func (s *MealPlanService) ListMergeCandidates(ctx context.Context, entryID strin
 // SpreadEntry は起点行の品を、targets で選んだセルだけに 1 回の操作で入れる。
 // 1 セルでも反映できなければどのセルにも入れない (revise-mealplan-spread-api design.md D1)。
 // shareBatch=true は起点と同じ作り置き、false は各セルを独立した作り置きにする。
+// 戻り値は UndoSpread にそのまま渡して取り消すためのもの (revise-mealplan-spread-safety design.md D2)。
 func (s *MealPlanService) SpreadEntry(
 	ctx context.Context, entryID string,
 	targets []mealplan.SpreadTarget, mode string, shareBatch bool,
-) error {
+) (mealplan.SpreadResult, error) {
 	if entryID == "" {
-		return mealplan.ErrEntryNotFound
+		return mealplan.SpreadResult{}, mealplan.ErrEntryNotFound
 	}
 	cm := mealplan.CopyMode(mode)
 	if cm != mealplan.CopyModeAppend && cm != mealplan.CopyModeOverwrite {
-		return mealplan.ErrInvalidCopyMode
+		return mealplan.SpreadResult{}, mealplan.ErrInvalidCopyMode
 	}
 	// 対象セルの範囲は起点のセルから決まるので、起点の住所を先に読む。
 	src, err := s.repo.Entry(ctx, entryID)
 	if err != nil {
-		return err
+		return mealplan.SpreadResult{}, err
 	}
 	if err := mealplan.ValidateSpreadTargets(src.Date, src.Meal, targets, s.maxSpreadOffsetDays()); err != nil {
-		return err
+		return mealplan.SpreadResult{}, err
 	}
 	return s.repo.Spread(ctx, entryID, targets, cm, mealplan.ShareBatch(shareBatch))
+}
+
+// UndoSpread は SpreadEntry の結果を受け取り、追加した行を消して上書きで消した行を戻す。
+// 中身はフロントを経由して戻ってくるので、RestoreEntries と同じ検証を通す。
+func (s *MealPlanService) UndoSpread(ctx context.Context, result mealplan.SpreadResult) error {
+	if len(result.AddedEntryIDs) == 0 && len(result.Removed) == 0 {
+		return nil
+	}
+	for _, id := range result.AddedEntryIDs {
+		if id == "" {
+			return mealplan.ErrInvalidRestore
+		}
+	}
+	if err := s.validateRemovedEntries(result.Removed); err != nil {
+		return err
+	}
+	return s.repo.UndoSpread(ctx, result)
 }
 
 // MoveEntry は 1 行を別セル (targetDate, targetMeal) の末尾に移す (D&D による移動)。

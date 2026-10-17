@@ -31,7 +31,9 @@ async function openNextWeek(page: Page) {
 }
 
 function cookedCheckbox(page: Page, recipeName: string, nth: number) {
-  return mealPlanItemRows(page, recipeName).nth(nth).getByRole("checkbox", { name: t.cell.cooked });
+  return mealPlanItemRows(page, recipeName)
+    .nth(nth)
+    .getByRole("checkbox", { name: t.cell.cooked.replace("{{name}}", recipeName) });
 }
 
 async function expectCooked(page: Page, recipeName: string, flags: boolean[]) {
@@ -106,6 +108,26 @@ test.describe("作った印", () => {
     await openNextWeek(page);
 
     await expectCooked(page, "肉じゃが", [true]);
+  });
+});
+
+test.describe("作った印のチェックボックスの読み上げ名", () => {
+  test("チェックボックスの読み上げ名でどの品かわかる", async ({ page }) => {
+    const nikujaga = await createRecipeWithIngredients(page, "肉じゃが", []);
+    const miso = await createRecipeWithIngredients(page, "みそ汁", []);
+    await assignRecipe(page, nextWeekDay(0), "dinner", nikujaga);
+    await assignRecipe(page, nextWeekDay(0), "dinner", miso);
+
+    await openNextWeek(page);
+
+    for (const name of ["肉じゃが", "みそ汁"]) {
+      await expect(
+        mealPlanItemRows(page, name).getByRole("checkbox", {
+          name: t.cell.cooked.replace("{{name}}", name),
+          exact: true,
+        }),
+      ).toBeVisible();
+    }
   });
 });
 

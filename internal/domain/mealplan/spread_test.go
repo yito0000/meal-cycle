@@ -9,6 +9,7 @@ func TestValidateSpreadTargets(t *testing.T) {
 	const src = "2026-08-24"
 	cases := []struct {
 		name    string
+		source  Meal
 		targets []SpreadTarget
 		want    error
 	}{
@@ -23,8 +24,24 @@ func TestValidateSpreadTargets(t *testing.T) {
 			want: nil,
 		},
 		{
-			name:    "other-meal cell on the source date passes",
+			name:    "earlier lunch on the source date of a dinner source is ErrInvalidSpreadTarget",
 			targets: []SpreadTarget{{Date: src, Meal: MealLunch}},
+			want:    ErrInvalidSpreadTarget,
+		},
+		{
+			name:    "earlier breakfast on the source date of a dinner source is ErrInvalidSpreadTarget",
+			targets: []SpreadTarget{{Date: src, Meal: MealBreakfast}},
+			want:    ErrInvalidSpreadTarget,
+		},
+		{
+			name:    "later dinner on the source date of a lunch source passes",
+			source:  MealLunch,
+			targets: []SpreadTarget{{Date: src, Meal: MealDinner}},
+			want:    nil,
+		},
+		{
+			name:    "breakfast of the next day of a dinner source passes",
+			targets: []SpreadTarget{{Date: "2026-08-25", Meal: MealBreakfast}},
 			want:    nil,
 		},
 		{
@@ -65,7 +82,11 @@ func TestValidateSpreadTargets(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := ValidateSpreadTargets(src, MealDinner, tc.targets, 3)
+			source := tc.source
+			if source == "" {
+				source = MealDinner
+			}
+			err := ValidateSpreadTargets(src, source, tc.targets, 3)
 			if !errors.Is(err, tc.want) {
 				t.Errorf("err = %v, want %v", err, tc.want)
 			}

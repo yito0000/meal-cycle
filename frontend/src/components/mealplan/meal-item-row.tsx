@@ -105,7 +105,7 @@ export function MealItemRow({
       <input
         type="checkbox"
         className="mt-[0.2em] size-[0.9em] shrink-0 cursor-pointer accent-emerald-600"
-        aria-label={t("pages.meal_plan.cell.cooked")}
+        aria-label={t("pages.meal_plan.cell.cooked", { name: entry.recipeName })}
         checked={entry.cooked}
         onChange={() => onAction("toggle-cooked", entry)}
       />

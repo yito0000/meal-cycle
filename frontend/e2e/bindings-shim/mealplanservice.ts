@@ -57,7 +57,18 @@ export function SpreadEntry(
   mode: string,
   shareBatch: boolean,
 ) {
-  return call<void>("MealPlanService", "SpreadEntry", entryID, targets, mode, shareBatch);
+  return call<mealplan$0.SpreadResult>(
+    "MealPlanService",
+    "SpreadEntry",
+    entryID,
+    targets,
+    mode,
+    shareBatch,
+  );
+}
+
+export function UndoSpread(result: mealplan$0.SpreadResult) {
+  return call<void>("MealPlanService", "UndoSpread", result);
 }
 
 export function MoveEntry(entryID: string, targetDate: string, targetMeal: string) {

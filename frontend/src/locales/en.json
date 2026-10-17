@@ -40,7 +40,7 @@
       },
       "cell": {
         "more_items": "+{{count}} more",
-        "cooked": "Cooked",
+        "cooked": "Cooked {{name}}",
         "overflow_list_label": "Dishes for {{date}} {{meal}}"
       },
       "picker": {
@@ -113,7 +113,9 @@
         "confirm": "Apply",
         "cancel": "Cancel",
         "show_more": "Show {{count}} more day(s)",
-        "same_batch_cell_label": "Already in this batch"
+        "same_batch_cell_label": "Already in this batch",
+        "earlier_meal_cell_label": "Earlier meal than the source",
+        "load_failed": "Could not load the meal plan for the grid"
       },
       "dnd": {
         "item_grabbable_label": "Drag to move to another cell",
@@ -130,7 +132,9 @@
         "removed": "Removed \"{{name}}\"",
         "cleared": "Removed {{count}} dish(es)",
         "undo": "Undo",
-        "restore_failed": "Could not undo"
+        "restore_failed": "Could not undo",
+        "spread": "Spread to {{cells}} cell(s)",
+        "spread_overwritten": "Spread to {{cells}} cell(s) and replaced {{replaced}} dish(es)"
       },
       "errors": {
         "invalid_date": "Invalid date format",
@@ -145,7 +149,8 @@
         "invalid_period_weeks": "Unsupported period length",
         "invalid_spread_target": "Some selected cells cannot be used",
         "unknown": "Something went wrong",
-        "invalid_restore": "The data to restore is invalid"
+        "invalid_restore": "The data to restore is invalid",
+        "archived_recipe": "Deleted recipes cannot be spread"
       },
       "shopping_cta": "View shopping list for this period"
     },

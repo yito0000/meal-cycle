@@ -6,10 +6,12 @@ import {
   copyLeftover,
   createRecipeWithIngredients,
   dateAfter,
+  deleteRecipe,
   mealPlanCell,
   mealPlanItemRows,
   openItemMenu,
   openSpreadDialog,
+  setCooked,
   spreadCell,
   spreadEntry,
 } from "./helpers.js";
@@ -49,6 +51,7 @@ type Row = {
   recipeName: string;
   batchId: string;
   batchMemberCount: number;
+  cooked: boolean;
 };
 
 async function listNextWeek(page: Page): Promise<Row[]> {
@@ -352,6 +355,167 @@ test.describe("作り置きを広げる操作", () => {
     await expect(dialog).toHaveCount(0);
     await expect(mealPlanItemRows(page, "肉じゃが")).toHaveCount(1);
     expect(await listNextWeek(page)).toHaveLength(1);
+  });
+
+  test("起点より前の時間帯のセルは選べない", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "肉じゃが", []);
+    await assignRecipe(page, MON, "dinner", id);
+    await openNextWeek(page);
+
+    await openSpreadDialog(page, "肉じゃが");
+
+    for (const meal of ["breakfast", "lunch"]) {
+      const earlier = spreadCell(page, MON, meal);
+      await expect(earlier.getByRole("checkbox")).toHaveCount(0);
+      await expect(
+        earlier.getByRole("img", { name: t.spread.earlier_meal_cell_label }),
+      ).toBeVisible();
+    }
+    await expect(spreadCell(page, TUE, "breakfast").getByRole("checkbox")).toBeEnabled();
+  });
+
+  test("表示期間の外のセルでも既存割当が示される", async ({ page }) => {
+    const nikujaga = await createRecipeWithIngredients(page, "肉じゃが", []);
+    const miso = await createRecipeWithIngredients(page, "みそ汁", []);
+    await assignRecipe(page, SAT, "dinner", nikujaga);
+    await assignRecipe(page, MON_AFTER, "dinner", miso);
+    await openNextWeek(page);
+    await expect(mealPlanItemRows(page, "みそ汁")).toHaveCount(0);
+
+    await openSpreadDialog(page, "肉じゃが");
+
+    await expect(spreadCell(page, MON_AFTER, "dinner")).toHaveClass(/bg-amber-50/);
+    await expect(spreadCell(page, SUN, "dinner")).not.toHaveClass(/bg-amber-50/);
+  });
+
+  test("起点の日付は格子の行見出しと同じ表記で示される", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "肉じゃが", []);
+    await assignRecipe(page, MON, "dinner", id);
+    await openNextWeek(page);
+
+    const dialog = await openSpreadDialog(page, "肉じゃが");
+
+    const heading =
+      (await dialog.locator("tbody tr").first().locator("td").first().textContent()) ?? "";
+    expect(heading).not.toBe("");
+    const hint = dialog.getByText(t.spread.origin_hint.split(" ")[0], { exact: false });
+    await expect(hint).toContainText(heading);
+    await expect(hint).not.toContainText(MON);
+  });
+});
+
+// 広げたあとの通知は sonner の toast で main の外に描かれるので、page 起点で探す。
+function spreadUndoButton(page: Page) {
+  return page.getByRole("button", { name: t.toast.undo, exact: true });
+}
+
+// 月曜・夕食の肉じゃがの統合ダイアログで、既定の火曜・夕食に加えて extraDinners の夕食をチェックして反映する。
+async function spreadFromMonday(page: Page, extraDinners: string[], overwrite: boolean) {
+  const dialog = await openSpreadDialog(page, "肉じゃが");
+  await expect(spreadCell(page, TUE, "dinner").getByRole("checkbox")).toBeChecked();
+  for (const date of extraDinners) {
+    await setCheck(page, date, "dinner", true);
+  }
+  if (overwrite) {
+    await dialog.getByText(t.spread.conflict_overwrite_label, { exact: true }).click();
+  }
+  await dialog.getByRole("button", { name: t.spread.confirm }).click();
+  await expect(dialog).toHaveCount(0);
+}
+
+test.describe("作り置きを広げる操作の取り消し", () => {
+  test("広げた品を元に戻す", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "肉じゃが", []);
+    await assignRecipe(page, MON, "dinner", id);
+    await openNextWeek(page);
+    await spreadFromMonday(page, [WED], false);
+    await waitForRowCount(page, 3);
+
+    await spreadUndoButton(page).click();
+
+    const rows = await waitForRowCount(page, 1);
+    expect(rows[0].date).toBe(MON);
+    expect(rows[0].batchMemberCount).toBe(1);
+    const shown = mealPlanItemRows(page, "肉じゃが");
+    await expect(shown).toHaveCount(1);
+    await expect(shown).toHaveClass(/border-transparent/);
+  });
+
+  test("上書きで消えた品を元に戻す", async ({ page }) => {
+    const nikujaga = await createRecipeWithIngredients(page, "肉じゃが", []);
+    const miso = await createRecipeWithIngredients(page, "みそ汁", []);
+    const salad = await createRecipeWithIngredients(page, "サラダ", []);
+    await assignRecipe(page, MON, "dinner", nikujaga);
+    await assignRecipe(page, TUE, "dinner", miso);
+    await assignRecipe(page, TUE, "dinner", salad);
+    await openNextWeek(page);
+    await spreadFromMonday(page, [], true);
+    await expect(mealPlanItemRows(page, "みそ汁")).toHaveCount(0);
+
+    await spreadUndoButton(page).click();
+
+    await expect(mealPlanItemRows(page, "みそ汁")).toHaveCount(1);
+    const rows = await waitForRowCount(page, 3);
+    expect(rowsIn(rows, TUE, "dinner").map((r) => r.recipeName)).toEqual(["みそ汁", "サラダ"]);
+    await expect(mealPlanCell(page, TUE, "dinner").getByRole("listitem")).toHaveText([
+      "みそ汁",
+      "サラダ",
+    ]);
+  });
+
+  test("上書きで消えた品の作った印が戻る", async ({ page }) => {
+    const nikujaga = await createRecipeWithIngredients(page, "肉じゃが", []);
+    const miso = await createRecipeWithIngredients(page, "みそ汁", []);
+    await assignRecipe(page, MON, "dinner", nikujaga);
+    await assignRecipe(page, TUE, "dinner", miso);
+    await setCooked(page, TUE, "dinner", 0, true);
+    await openNextWeek(page);
+    await spreadFromMonday(page, [], true);
+    await expect(mealPlanItemRows(page, "みそ汁")).toHaveCount(0);
+
+    await spreadUndoButton(page).click();
+
+    await expect(mealPlanItemRows(page, "みそ汁")).toHaveCount(1);
+    const rows = await waitForRowCount(page, 2);
+    expect(rowsIn(rows, TUE, "dinner")[0].cooked).toBe(true);
+    await expect(
+      mealPlanItemRows(page, "みそ汁").getByRole("checkbox", {
+        name: t.cell.cooked.replace("{{name}}", "みそ汁"),
+      }),
+    ).toBeChecked();
+  });
+
+  test("広げると通知にセルの数と置き換えた品の数が示される", async ({ page }) => {
+    const nikujaga = await createRecipeWithIngredients(page, "肉じゃが", []);
+    const miso = await createRecipeWithIngredients(page, "みそ汁", []);
+    await assignRecipe(page, MON, "dinner", nikujaga);
+    await assignRecipe(page, TUE, "dinner", miso);
+    await openNextWeek(page);
+
+    await spreadFromMonday(page, [WED], true);
+
+    const message = t.toast.spread_overwritten
+      .replace("{{cells}}", "2")
+      .replace("{{replaced}}", "1");
+    await expect(page.locator("[data-sonner-toast]").getByText(message)).toBeVisible();
+    await expect(spreadUndoButton(page)).toBeVisible();
+  });
+});
+
+test.describe("削除済みレシピの品は広げられない", () => {
+  test("削除済みレシピの品を広げようとすると通知で知らされる", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "肉じゃが", []);
+    await assignRecipe(page, MON, "dinner", id);
+    await deleteRecipe(page, id);
+    await openNextWeek(page);
+
+    await spreadFromMonday(page, [], false);
+
+    await expect(
+      page.locator("[data-sonner-toast]").getByText(t.errors.archived_recipe),
+    ).toBeVisible();
+    expect(await listNextWeek(page)).toHaveLength(1);
+    await expect(mealPlanItemRows(page, "肉じゃが")).toHaveCount(1);
   });
 });
 

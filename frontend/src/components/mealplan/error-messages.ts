@@ -9,8 +9,6 @@ const RULES: [string, string][] = [
   ["mealplan: invalid date", "pages.meal_plan.errors.invalid_date"],
   ["mealplan: invalid meal", "pages.meal_plan.errors.invalid_meal"],
   ["mealplan: invalid position", "pages.meal_plan.errors.invalid_position"],
-  // MergeBatch のみ「合流先バッチが同 meal に無い」の文脈で ErrEntryNotFound を返すため、
-  // 判別できないメッセージ側で先に load される順序に頼らない (先勝ちで entry_not_found)。
   ["mealplan: entry not found", "pages.meal_plan.errors.entry_not_found"],
   ["mealplan: reorder mismatch", "pages.meal_plan.errors.reorder_mismatch"],
   ["mealplan: invalid copy days", "pages.meal_plan.errors.invalid_copy_days"],
@@ -21,6 +19,7 @@ const RULES: [string, string][] = [
   ["mealplan: invalid period weeks", "pages.meal_plan.errors.invalid_period_weeks"],
   ["mealplan: invalid spread target", "pages.meal_plan.errors.invalid_spread_target"],
   ["mealplan: invalid restore", "pages.meal_plan.errors.invalid_restore"],
+  ["mealplan: archived recipe", "pages.meal_plan.errors.archived_recipe"],
 ];
 
 export function errorI18nKey(err: unknown): string {

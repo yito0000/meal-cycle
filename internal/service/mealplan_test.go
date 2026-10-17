@@ -19,6 +19,7 @@ type fakeMealPlanRepo struct {
 	entries      []mealplan.Entry
 	knownRecipes map[string]string // id → name
 	spreadCalls  []spreadCall
+	undoCalls    []mealplan.SpreadResult
 	restoreCalls [][]mealplan.RemovedEntry
 	reorderCalls [][]string
 }
@@ -368,17 +369,26 @@ func (r *fakeMealPlanRepo) ListMergeCandidates(_ context.Context, entryID string
 	return out, nil
 }
 
-// Spread は呼び出しを記録するだけにする。反映の中身は sqlite/mealplan_repo_test.go で確かめる。
+// Spread は呼び出しを記録し、対象セルの数だけ仮の ID を返す。反映の中身は sqlite/mealplan_repo_test.go で確かめる。
 func (r *fakeMealPlanRepo) Spread(
 	_ context.Context,
 	entryID string,
 	targets []mealplan.SpreadTarget,
 	mode mealplan.CopyMode,
 	shareBatch mealplan.ShareBatch,
-) error {
+) (mealplan.SpreadResult, error) {
 	r.spreadCalls = append(r.spreadCalls, spreadCall{
 		entryID: entryID, targets: targets, mode: mode, shareBatch: shareBatch,
 	})
+	res := mealplan.SpreadResult{AddedEntryIDs: []string{}, Removed: []mealplan.RemovedEntry{}}
+	for _, tg := range targets {
+		res.AddedEntryIDs = append(res.AddedEntryIDs, "added-"+tg.Date+"-"+string(tg.Meal))
+	}
+	return res, nil
+}
+
+func (r *fakeMealPlanRepo) UndoSpread(_ context.Context, result mealplan.SpreadResult) error {
+	r.undoCalls = append(r.undoCalls, result)
 	return nil
 }
 
@@ -1098,7 +1108,7 @@ func TestMealPlanService_SpreadEntry(t *testing.T) {
 		svc, repo, src := setup(t)
 		targets := []mealplan.SpreadTarget{cell("2026-08-25", mealplan.MealDinner), cell("2026-08-27", mealplan.MealLunch)}
 
-		if err := svc.SpreadEntry(ctx, src, targets, "overwrite", false); err != nil {
+		if _, err := svc.SpreadEntry(ctx, src, targets, "overwrite", false); err != nil {
 			t.Fatalf("SpreadEntry: %v", err)
 		}
 		if len(repo.spreadCalls) != 1 {
@@ -1117,7 +1127,7 @@ func TestMealPlanService_SpreadEntry(t *testing.T) {
 		svc, repo, src := setup(t)
 		targets := []mealplan.SpreadTarget{cell("2026-08-25", mealplan.MealDinner), cell("2026-08-31", mealplan.MealDinner)}
 
-		err := svc.SpreadEntry(ctx, src, targets, "append", true)
+		_, err := svc.SpreadEntry(ctx, src, targets, "append", true)
 		if !errors.Is(err, mealplan.ErrInvalidSpreadTarget) {
 			t.Errorf("err = %v, want ErrInvalidSpreadTarget", err)
 		}
@@ -1129,7 +1139,7 @@ func TestMealPlanService_SpreadEntry(t *testing.T) {
 	t.Run("should return ErrInvalidSpreadTarget and not reach the repository when targets is empty", func(t *testing.T) {
 		svc, repo, src := setup(t)
 
-		err := svc.SpreadEntry(ctx, src, nil, "append", true)
+		_, err := svc.SpreadEntry(ctx, src, nil, "append", true)
 		if !errors.Is(err, mealplan.ErrInvalidSpreadTarget) {
 			t.Errorf("err = %v, want ErrInvalidSpreadTarget", err)
 		}
@@ -1141,7 +1151,7 @@ func TestMealPlanService_SpreadEntry(t *testing.T) {
 	t.Run("should return ErrInvalidCopyMode when mode is neither append nor overwrite", func(t *testing.T) {
 		svc, _, src := setup(t)
 
-		err := svc.SpreadEntry(ctx, src,
+		_, err := svc.SpreadEntry(ctx, src,
 			[]mealplan.SpreadTarget{cell("2026-08-25", mealplan.MealDinner)}, "unknown", true)
 		if !errors.Is(err, mealplan.ErrInvalidCopyMode) {
 			t.Errorf("err = %v, want ErrInvalidCopyMode", err)
@@ -1152,11 +1162,38 @@ func TestMealPlanService_SpreadEntry(t *testing.T) {
 		svc, repo, _ := setup(t)
 
 		for _, id := range []string{"", "no-such-entry"} {
-			err := svc.SpreadEntry(ctx, id,
+			_, err := svc.SpreadEntry(ctx, id,
 				[]mealplan.SpreadTarget{cell("2026-08-25", mealplan.MealDinner)}, "append", true)
 			if !errors.Is(err, mealplan.ErrEntryNotFound) {
 				t.Errorf("id %q: err = %v, want ErrEntryNotFound", id, err)
 			}
+		}
+		if len(repo.spreadCalls) != 0 {
+			t.Errorf("repo should not be called, got %d calls", len(repo.spreadCalls))
+		}
+	})
+
+	t.Run("should return the added entry ids when spreading succeeds", func(t *testing.T) {
+		svc, _, src := setup(t)
+
+		got, err := svc.SpreadEntry(ctx, src,
+			[]mealplan.SpreadTarget{cell("2026-08-25", mealplan.MealDinner), cell("2026-08-26", mealplan.MealLunch)}, "append", true)
+		if err != nil {
+			t.Fatalf("SpreadEntry: %v", err)
+		}
+		want := []string{"added-2026-08-25-dinner", "added-2026-08-26-lunch"}
+		if len(got.AddedEntryIDs) != 2 || got.AddedEntryIDs[0] != want[0] || got.AddedEntryIDs[1] != want[1] {
+			t.Errorf("AddedEntryIDs = %v, want %v", got.AddedEntryIDs, want)
+		}
+	})
+
+	t.Run("should reject a target in an earlier meal of the same day", func(t *testing.T) {
+		svc, repo, src := setup(t)
+
+		_, err := svc.SpreadEntry(ctx, src,
+			[]mealplan.SpreadTarget{cell("2026-08-24", mealplan.MealLunch)}, "append", true)
+		if !errors.Is(err, mealplan.ErrInvalidSpreadTarget) {
+			t.Errorf("err = %v, want ErrInvalidSpreadTarget", err)
 		}
 		if len(repo.spreadCalls) != 0 {
 			t.Errorf("repo should not be called, got %d calls", len(repo.spreadCalls))
@@ -1168,14 +1205,89 @@ func TestMealPlanService_SpreadEntry(t *testing.T) {
 		svc.cfg.LeftoverCopyPresets = []int{2, 6}
 		far := []mealplan.SpreadTarget{cell("2026-08-29", mealplan.MealDinner)}
 
-		if err := svc.SpreadEntry(ctx, src, far, "append", true); err != nil {
+		if _, err := svc.SpreadEntry(ctx, src, far, "append", true); err != nil {
 			t.Errorf("5 days later with presets {2, 6}: err = %v, want nil", err)
 		}
 		svc.cfg.LeftoverCopyPresets = []int{2}
-		err := svc.SpreadEntry(ctx, src,
+		_, err := svc.SpreadEntry(ctx, src,
 			[]mealplan.SpreadTarget{cell("2026-08-26", mealplan.MealDinner)}, "append", true)
 		if !errors.Is(err, mealplan.ErrInvalidSpreadTarget) {
 			t.Errorf("2 days later with presets {2}: err = %v, want ErrInvalidSpreadTarget", err)
+		}
+	})
+}
+
+func TestMealPlanService_UndoSpread(t *testing.T) {
+	ctx := context.Background()
+	removed := func() mealplan.RemovedEntry {
+		return mealplan.RemovedEntry{
+			ID: "e1", Date: "2026-08-25", Meal: mealplan.MealDinner, Position: 0,
+			RecipeID: "r1", BatchID: "b1", CreatedAt: "2026-08-20T09:00:00Z", CookedAt: "2026-08-24T19:00:00Z",
+		}
+	}
+
+	t.Run("should reject an undo whose removed entry has an invalid date", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(nil)
+		svc := newMealPlanServiceWithRepo(repo)
+		bad := removed()
+		bad.Date = "2026/08/25"
+
+		err := svc.UndoSpread(ctx, mealplan.SpreadResult{AddedEntryIDs: []string{"a1"}, Removed: []mealplan.RemovedEntry{bad}})
+		if !errors.Is(err, mealplan.ErrInvalidDate) {
+			t.Errorf("err = %v, want ErrInvalidDate", err)
+		}
+		if len(repo.undoCalls) != 0 {
+			t.Errorf("repo should not be called, got %d calls", len(repo.undoCalls))
+		}
+	})
+
+	t.Run("should reject an undo whose removed entry has an empty id", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(nil)
+		svc := newMealPlanServiceWithRepo(repo)
+		bad := removed()
+		bad.ID = ""
+
+		err := svc.UndoSpread(ctx, mealplan.SpreadResult{AddedEntryIDs: []string{"a1"}, Removed: []mealplan.RemovedEntry{bad}})
+		if !errors.Is(err, mealplan.ErrInvalidRestore) {
+			t.Errorf("err = %v, want ErrInvalidRestore", err)
+		}
+		if len(repo.undoCalls) != 0 {
+			t.Errorf("repo should not be called, got %d calls", len(repo.undoCalls))
+		}
+	})
+
+	t.Run("should reject an undo whose added entry id is empty", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(nil)
+		svc := newMealPlanServiceWithRepo(repo)
+
+		err := svc.UndoSpread(ctx, mealplan.SpreadResult{AddedEntryIDs: []string{""}})
+		if !errors.Is(err, mealplan.ErrInvalidRestore) {
+			t.Errorf("err = %v, want ErrInvalidRestore", err)
+		}
+	})
+
+	t.Run("should pass the result to the repository when the undo input is valid", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(nil)
+		svc := newMealPlanServiceWithRepo(repo)
+		in := mealplan.SpreadResult{AddedEntryIDs: []string{"a1", "a2"}, Removed: []mealplan.RemovedEntry{removed()}}
+
+		if err := svc.UndoSpread(ctx, in); err != nil {
+			t.Fatalf("UndoSpread: %v", err)
+		}
+		if len(repo.undoCalls) != 1 || len(repo.undoCalls[0].AddedEntryIDs) != 2 || len(repo.undoCalls[0].Removed) != 1 {
+			t.Errorf("undoCalls = %+v, want 1 call with the given result", repo.undoCalls)
+		}
+	})
+
+	t.Run("should do nothing when the undo result is empty", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(nil)
+		svc := newMealPlanServiceWithRepo(repo)
+
+		if err := svc.UndoSpread(ctx, mealplan.SpreadResult{}); err != nil {
+			t.Fatalf("UndoSpread: %v", err)
+		}
+		if len(repo.undoCalls) != 0 {
+			t.Errorf("repo should not be called, got %d calls", len(repo.undoCalls))
 		}
 	})
 }
