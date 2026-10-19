@@ -4,7 +4,8 @@
 
 すべてのデータはアプリを動かす PC 上の SQLite に保存され、外部サーバーやクラウドとは通信しません。
 開発者本人の個人利用のために作ったもので、UI は日本語のみです。
-配布用のバイナリは用意していないので、使う場合はソースからビルドしてください。
+Windows 版の実行ファイルは [Releases](https://github.com/yito0000/meal-cycle/releases) で配布しています。
+macOS と Linux で使う場合は、ソースからビルドしてください。
 
 ## 主な機能
 
@@ -14,6 +15,17 @@
 - **冷蔵庫在庫**：食材の在庫量と賞味期限を記録し、期限が近いものを目立たせる
 - **買い物リスト**：指定した期間の献立で使う材料を集計し、在庫の有無と並べて表示する
 
+## インストール（Windows）
+
+[Releases](https://github.com/yito0000/meal-cycle/releases) から `meal-cycle.exe` をダウンロードし、好きな場所に置いて起動します。
+インストーラーはなく、exe 1 つで動きます。
+画面の表示には Microsoft Edge WebView2 ランタイムを使います。
+Windows 11 には標準で入っており、Windows 10 でも Edge の更新で入っていることがほとんどです。
+
+exe にはコード署名をしていないので、初回起動時に「Windows によって PC が保護されました」という警告が出ます。
+「詳細情報」を押すと「実行」ボタンが表示されるので、そこから起動してください。
+ダウンロードしたファイルが改ざんされていないかは、同じリリースの `SHA256SUMS.txt` と PowerShell の `Get-FileHash meal-cycle.exe` の出力を見比べて確かめられます。
+
 ## ドキュメント
 
 - **プロダクト設計**（利用シナリオ、画面、遷移）：[docs/product.md](docs/product.md)
@@ -21,6 +33,7 @@
 - **ワイヤーフレーム**（drawio ファイル群）：[docs/wireframes/](docs/wireframes/)
 - **振る舞いの仕様**（capability ごとの Requirement と Scenario）：[openspec/specs/](openspec/specs/)
 - **開発規約**（テスト方針、コメント方針、コミット規約など）：[CLAUDE.md](CLAUDE.md)
+- **リリース運用**（バージョン番号、ブランチ、リリース手順）：[docs/release.md](docs/release.md)
 
 ## 技術スタック
 
