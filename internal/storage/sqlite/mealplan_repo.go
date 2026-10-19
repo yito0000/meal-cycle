@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yito0000/meal-cycle/internal/config"
 	"github.com/yito0000/meal-cycle/internal/domain/mealplan"
 )
 
@@ -18,24 +17,11 @@ import (
 const positionShiftOffset = 1000
 
 type MealPlanRepo struct {
-	db  *sql.DB
-	cfg config.Config
+	db *sql.DB
 }
 
 func NewMealPlanRepo(db *sql.DB) *MealPlanRepo {
-	return &MealPlanRepo{db: db, cfg: config.Defaults()}
-}
-
-// mergeDayRange は「他の作り置きにまとめる」で許容する日付レンジ (±N 日) を返す。
-// CopyLeftover が生成する連続日数の最大値と揃える (design.md D4b)。
-func (r *MealPlanRepo) mergeDayRange() int {
-	max := 0
-	for _, d := range r.cfg.LeftoverCopyPresets {
-		if d > max {
-			max = d
-		}
-	}
-	return max
+	return &MealPlanRepo{db: db}
 }
 
 // ListPeriod は periodStart (月曜 "YYYY-MM-DD") から periodDays 日ぶんの Entry を position 順で返す。
@@ -669,11 +655,11 @@ func (r *MealPlanRepo) SplitBatch(ctx context.Context, entryID string) (string, 
 }
 
 // MergeBatch は対象行の batch_id を targetBatchID に付け替える。
-// 2 条件 (同一レシピ / 対象行の日付から ±mergeDayRange 日以内) を防御的にチェックし、
+// 2 条件 (同一レシピ / 対象行の日付から ±dayRange 日以内) を防御的にチェックし、
 // 違反時は ErrBatchMergeDenied、そもそも targetBatchID の行が他に無ければ
 // ErrBatchTargetNotFound を返す (design.md D4b)。時間帯 (meal) の一致は要件から外れており、
 // 別時間帯の作り置きにも合流できる (proposal: add-mealplan-cross-meal-leftover)。
-func (r *MealPlanRepo) MergeBatch(ctx context.Context, entryID, targetBatchID string) error {
+func (r *MealPlanRepo) MergeBatch(ctx context.Context, entryID, targetBatchID string, dayRange int) error {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
@@ -696,7 +682,6 @@ func (r *MealPlanRepo) MergeBatch(ctx context.Context, entryID, targetBatchID st
 		return mealplan.ErrBatchTargetNotFound
 	}
 
-	dayRange := r.mergeDayRange()
 	var eligible int
 	if err := tx.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM meal_plans
@@ -735,41 +720,43 @@ func (r *MealPlanRepo) MergeBatch(ctx context.Context, entryID, targetBatchID st
 }
 
 // ListMergeCandidates は指定行から見た合流可能な作り置きの候補を列挙する。レシピと日付は行そのものから読む。
-// フィルタ条件: 同一 recipeID / 起点行 (date) から ±mergeDayRange 日以内 /
-// 起点行自身が属するバッチは除外 (design.md D4b)。各バッチにつき代表行 1 つを返す。
+// ±dayRange 日の範囲は作り置きを候補に出すかの判定だけに使い、代表行と件数は範囲の外も含めた同じレシピの全行から決める。
+// 範囲で絞ってから集計すると、範囲の外に続く作り置きの日付と件数がずれる (fix-mealplan-merge-range D2)。
 // 代表行は (日付, 朝昼夕, position) で最も早い行。時間帯を順序に含めないと同じ日の昼と夕が両方当たる (revise-mealplan-spread-api D6)。
-// 候補の時間帯は問わない (別時間帯の作り置きも
-// 候補に含める — proposal: add-mealplan-cross-meal-leftover)。BatchSummary の Meal
-// フィールドで候補側の時間帯を返し、UI 側で「月曜・昼食」のように表示分岐できる。
-func (r *MealPlanRepo) ListMergeCandidates(ctx context.Context, entryID string) ([]mealplan.BatchSummary, error) {
+// 候補の時間帯は問わず、BatchSummary.Meal で候補側の時間帯を返す (proposal: add-mealplan-cross-meal-leftover)。
+func (r *MealPlanRepo) ListMergeCandidates(ctx context.Context, entryID string, dayRange int) ([]mealplan.BatchSummary, error) {
 	own, err := loadEntryByID(ctx, r.db, entryID)
 	if err != nil {
 		return nil, err
 	}
 	ownBatchID, recipeID, date := own.BatchID, own.RecipeID, own.Date
 
-	dayRange := r.mergeDayRange()
 	rows, err := r.db.QueryContext(ctx, `
+		WITH eligible AS (
+			SELECT DISTINCT batch_id FROM meal_plans
+			WHERE recipe_id = ? AND batch_id <> ?
+			  AND ABS(julianday(date) - julianday(?)) <= ?
+		)
 		SELECT g.batch_id, g.date, g.meal, g.recipe_id, r.name, g.cnt
 		FROM (
-			SELECT batch_id, date, meal, recipe_id, position,
-			       COUNT(*) OVER (PARTITION BY batch_id) AS cnt,
+			SELECT m.batch_id, m.date, m.meal, m.recipe_id, m.position,
+			       COUNT(*) OVER (PARTITION BY m.batch_id) AS cnt,
 			       ROW_NUMBER() OVER (
-			           PARTITION BY batch_id
-			           ORDER BY date,
-			                    CASE meal WHEN 'breakfast' THEN 0 WHEN 'lunch' THEN 1 WHEN 'dinner' THEN 2 ELSE 3 END,
-			                    position
+			           PARTITION BY m.batch_id
+			           ORDER BY m.date,
+			                    CASE m.meal WHEN 'breakfast' THEN 0 WHEN 'lunch' THEN 1 WHEN 'dinner' THEN 2 ELSE 3 END,
+			                    m.position
 			       ) AS rn
-			FROM meal_plans
-			WHERE recipe_id = ?
-			  AND ABS(julianday(date) - julianday(?)) <= ?
+			FROM meal_plans m
+			JOIN eligible e ON e.batch_id = m.batch_id
+			WHERE m.recipe_id = ?
 		) g
 		JOIN recipes r ON r.id = g.recipe_id
-		WHERE g.rn = 1 AND g.batch_id <> ?
+		WHERE g.rn = 1
 		ORDER BY g.date,
 		         CASE g.meal WHEN 'breakfast' THEN 0 WHEN 'lunch' THEN 1 WHEN 'dinner' THEN 2 ELSE 3 END,
 		         g.position
-	`, recipeID, date, dayRange, ownBatchID)
+	`, recipeID, ownBatchID, date, dayRange, recipeID)
 	if err != nil {
 		return nil, fmt.Errorf("query merge candidates: %w", err)
 	}

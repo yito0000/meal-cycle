@@ -34,7 +34,7 @@ S09 は、他サービスが `configSource` から毎回値を読む作りで、
 
 ### R46. 「他の作り置きにまとめる」の探索範囲が、S09 で変えた日数に追従しない
 
-- [ ] 対応済み（proposal: fix-mealplan-merge-range）
+- [x] 対応済み（proposal: fix-mealplan-merge-range）
 
 `MealPlanRepo` はコンストラクタで `config.Defaults()` を抱え、`mergeDayRange` はそこから `LeftoverCopyPresets` の最大値を読む。
 `ListMergeCandidates` と `MergeBatch` はこの値で ±N 日を決めるので、S09 で候補を変えても探索範囲は ±4 日のままになる。
@@ -59,7 +59,7 @@ spec の振る舞いは変わらないので、proposal を通さない不具合
 
 ### R47. まとめる候補の件数と日付が、探索範囲の内側の行だけで決まる（再現済み）
 
-- [ ] 対応済み（proposal: fix-mealplan-merge-range）
+- [x] 対応済み（proposal: fix-mealplan-merge-range）
 
 `ListMergeCandidates` は、`WHERE` で「同じレシピ」かつ「±N 日以内」に絞ってから、`COUNT(*) OVER` と `ROW_NUMBER() OVER` を掛けている。
 前回の R36 と同じく、ウィンドウ関数は絞った後の行にしか掛からない。

@@ -22,8 +22,8 @@ type mealPlanRepo interface {
 		sourceEntries []mealplan.Entry, mode mealplan.CopyMode, shareBatch mealplan.ShareBatch) error
 	MealEntries(ctx context.Context, date, meal string) ([]mealplan.Entry, error)
 	SplitBatch(ctx context.Context, entryID string) (string, error)
-	MergeBatch(ctx context.Context, entryID, targetBatchID string) error
-	ListMergeCandidates(ctx context.Context, entryID string) ([]mealplan.BatchSummary, error)
+	MergeBatch(ctx context.Context, entryID, targetBatchID string, dayRange int) error
+	ListMergeCandidates(ctx context.Context, entryID string, dayRange int) ([]mealplan.BatchSummary, error)
 	Spread(ctx context.Context, entryID string,
 		targets []mealplan.SpreadTarget, mode mealplan.CopyMode, shareBatch mealplan.ShareBatch) (mealplan.SpreadResult, error)
 	UndoSpread(ctx context.Context, result mealplan.SpreadResult) error
@@ -204,7 +204,7 @@ func (s *MealPlanService) SetCooked(ctx context.Context, entryID string, cooked 
 
 // MergeBatch は 1 行の BatchID を targetBatchID に付け替え、既存の作り置きに合流させる。
 // targetBatchID を持つ他の行が 1 件も無ければ ErrBatchTargetNotFound、2 条件 (同一レシピ /
-// ±LeftoverCopyPresets max 日以内) を満たす行が無ければ ErrBatchMergeDenied。時間帯の一致は
+// S09 の作り置きの日数の候補の最大値 ±日以内) を満たす行が無ければ ErrBatchMergeDenied。時間帯の一致は
 // 要件から外れており、別時間帯の作り置きにも合流できる (proposal: add-mealplan-cross-meal-leftover)。
 func (s *MealPlanService) MergeBatch(ctx context.Context, entryID, targetBatchID string) error {
 	if entryID == "" {
@@ -213,10 +213,10 @@ func (s *MealPlanService) MergeBatch(ctx context.Context, entryID, targetBatchID
 	if targetBatchID == "" {
 		return mealplan.ErrBatchTargetNotFound
 	}
-	return s.repo.MergeBatch(ctx, entryID, targetBatchID)
+	return s.repo.MergeBatch(ctx, entryID, targetBatchID, s.mergeDayRange())
 }
 
-// ListMergeCandidates は合流候補ダイアログ用に、2 条件 (同一レシピ / ±日以内) を満たす
+// ListMergeCandidates は合流候補ダイアログ用に、2 条件 (同一レシピ / S09 の作り置きの日数の候補の最大値 ±日以内) を満たす
 // 他バッチ代表行を返す。レシピは行そのものから読むので、行とレシピの組を取り違えない。
 // 候補には別時間帯の作り置きも含まれ、BatchSummary.Meal で識別できる (proposal:
 // add-mealplan-cross-meal-leftover)。
@@ -224,7 +224,7 @@ func (s *MealPlanService) ListMergeCandidates(ctx context.Context, entryID strin
 	if entryID == "" {
 		return nil, mealplan.ErrEntryNotFound
 	}
-	return s.repo.ListMergeCandidates(ctx, entryID)
+	return s.repo.ListMergeCandidates(ctx, entryID, s.mergeDayRange())
 }
 
 // SpreadEntry は起点行の品を、targets で選んだセルだけに 1 回の操作で入れる。
@@ -303,14 +303,20 @@ func (s *MealPlanService) isAllowedCopyDays(days int) bool {
 	return false
 }
 
-// maxSpreadOffsetDays は「作り置きを広げる」の対象日の上限 (起点日から何日後まで)。
-// 格子の行数を「連続 N 日コピー」の最大日数にそろえる (起点日を含むので -1)。
-func (s *MealPlanService) maxSpreadOffsetDays() int {
+// mergeDayRange は「他の作り置きにまとめる」で許容する日付レンジ (±N 日)。
+// S09 で保存した値を再起動なしで効かせるため、呼ぶたびに configSource から読む (fix-mealplan-merge-range D1)。
+func (s *MealPlanService) mergeDayRange() int {
 	max := 0
 	for _, d := range s.cfg.current().LeftoverCopyPresets {
 		if d > max {
 			max = d
 		}
 	}
-	return max - 1
+	return max
+}
+
+// maxSpreadOffsetDays は「作り置きを広げる」の対象日の上限 (起点日から何日後まで)。
+// 格子の行数を「連続 N 日コピー」の最大日数にそろえる (起点日を含むので -1)。
+func (s *MealPlanService) maxSpreadOffsetDays() int {
+	return s.mergeDayRange() - 1
 }

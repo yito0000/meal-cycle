@@ -295,7 +295,7 @@ func (r *fakeMealPlanRepo) SplitBatch(_ context.Context, entryID string) (string
 	return newID, nil
 }
 
-func (r *fakeMealPlanRepo) MergeBatch(_ context.Context, entryID, targetBatchID string) error {
+func (r *fakeMealPlanRepo) MergeBatch(_ context.Context, entryID, targetBatchID string, dayRange int) error {
 	idx := r.indexOf(entryID)
 	if idx < 0 {
 		return mealplan.ErrEntryNotFound
@@ -303,7 +303,6 @@ func (r *fakeMealPlanRepo) MergeBatch(_ context.Context, entryID, targetBatchID 
 	src := r.entries[idx]
 	sameBatch := 0
 	eligible := 0
-	dayRange := r.mergeDayRange()
 	for _, e := range r.entries {
 		if e.BatchID != targetBatchID || e.ID == entryID {
 			continue
@@ -323,13 +322,12 @@ func (r *fakeMealPlanRepo) MergeBatch(_ context.Context, entryID, targetBatchID 
 	return nil
 }
 
-func (r *fakeMealPlanRepo) ListMergeCandidates(_ context.Context, entryID string) ([]mealplan.BatchSummary, error) {
+func (r *fakeMealPlanRepo) ListMergeCandidates(_ context.Context, entryID string, dayRange int) ([]mealplan.BatchSummary, error) {
 	idx := r.indexOf(entryID)
 	if idx < 0 {
 		return nil, mealplan.ErrEntryNotFound
 	}
 	own := r.entries[idx]
-	dayRange := r.mergeDayRange()
 	type rep struct {
 		date     string
 		meal     string
@@ -424,12 +422,6 @@ func (r *fakeMealPlanRepo) SetCooked(_ context.Context, entryID string, cooked b
 		}
 	}
 	return nil
-}
-
-func (r *fakeMealPlanRepo) mergeDayRange() int {
-	// service_test 独自の軽量な defaults 参照。config.Defaults() を読むと循環依存に近い形になるため、
-	// 実際のプロジェクト config と同値をハードコードしておく (LeftoverCopyPresets = [2,3,4] の max)。
-	return 4
 }
 
 func absDayGap(d1, d2 string) int {
@@ -1083,6 +1075,69 @@ func TestMealPlanService_MergeBatch_ConstraintChecks(t *testing.T) {
 		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")         // 月・夕 r1
 		misoLunch, _ := svc.AssignRecipe(ctx, "2026-08-25", "lunch", "r2") // 火・昼 別レシピ
 		err := svc.MergeBatch(ctx, repo.idAt("2026-08-24", "dinner", 0), misoLunch.BatchID)
+		if !errors.Is(err, mealplan.ErrBatchMergeDenied) {
+			t.Errorf("err = %v, want ErrBatchMergeDenied", err)
+		}
+	})
+}
+
+func TestMealPlanService_MergeRange(t *testing.T) {
+	ctx := context.Background()
+	setup := func(t *testing.T, presets []int) (*MealPlanService, *fakeMealPlanRepo) {
+		t.Helper()
+		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが"})
+		cfg := config.Defaults()
+		cfg.LeftoverCopyPresets = presets
+		return newMealPlanServiceWithRepo(repo, staticConfig(cfg)), repo
+	}
+
+	t.Run("should list a batch 6 days away as a merge candidate when leftover presets are 2 and 7", func(t *testing.T) {
+		svc, repo := setup(t, []int{2, 7})
+		mon, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
+		_, _ = svc.AssignRecipe(ctx, "2026-08-30", "dinner", "r1")
+
+		got, err := svc.ListMergeCandidates(ctx, repo.idAt("2026-08-30", "dinner", 0))
+		if err != nil {
+			t.Fatalf("ListMergeCandidates: %v", err)
+		}
+		if len(got) != 1 || got[0].BatchID != mon.BatchID {
+			t.Errorf("got %+v, want only the Monday batch %q", got, mon.BatchID)
+		}
+	})
+
+	t.Run("should not list a batch 3 days away as a merge candidate when leftover presets are only 2", func(t *testing.T) {
+		svc, repo := setup(t, []int{2})
+		_, _ = svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
+		_, _ = svc.AssignRecipe(ctx, "2026-08-27", "dinner", "r1")
+
+		got, err := svc.ListMergeCandidates(ctx, repo.idAt("2026-08-27", "dinner", 0))
+		if err != nil {
+			t.Fatalf("ListMergeCandidates: %v", err)
+		}
+		if len(got) != 0 {
+			t.Errorf("want no candidates, got %+v", got)
+		}
+	})
+
+	t.Run("should merge into a batch 6 days away when leftover presets are 2 and 7", func(t *testing.T) {
+		svc, repo := setup(t, []int{2, 7})
+		mon, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
+		_, _ = svc.AssignRecipe(ctx, "2026-08-30", "dinner", "r1")
+
+		if err := svc.MergeBatch(ctx, repo.idAt("2026-08-30", "dinner", 0), mon.BatchID); err != nil {
+			t.Fatalf("MergeBatch: %v", err)
+		}
+		if got := repo.entries[repo.indexOf(repo.idAt("2026-08-30", "dinner", 0))].BatchID; got != mon.BatchID {
+			t.Errorf("batchID = %q, want %q", got, mon.BatchID)
+		}
+	})
+
+	t.Run("should deny merging into a batch 5 days away with ErrBatchMergeDenied when leftover presets are 2, 3 and 4", func(t *testing.T) {
+		svc, repo := setup(t, []int{2, 3, 4})
+		mon, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
+		_, _ = svc.AssignRecipe(ctx, "2026-08-29", "dinner", "r1")
+
+		err := svc.MergeBatch(ctx, repo.idAt("2026-08-29", "dinner", 0), mon.BatchID)
 		if !errors.Is(err, mealplan.ErrBatchMergeDenied) {
 			t.Errorf("err = %v, want ErrBatchMergeDenied", err)
 		}

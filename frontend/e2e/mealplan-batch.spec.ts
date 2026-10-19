@@ -630,6 +630,33 @@ test.describe("まとめ候補の一意性", () => {
     await expect(candidates).toContainText(MON);
     await expect(candidates).toContainText(t.meal.lunch);
   });
+
+  test("探す範囲の外に続く作り置きは最初の行と全体の行数で候補に出る", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "肉じゃが", []);
+    await assignRecipe(page, MON, "dinner", id);
+    await spreadEntry(
+      page,
+      { date: MON, meal: "dinner", position: 0 },
+      [TUE, WED, THU].map((date) => ({ date, meal: "dinner" })),
+      true,
+    );
+    await assignRecipe(page, SAT, "dinner", id);
+    await openNextWeek(page);
+
+    // 月曜は土曜から 5 日前で、既定の ±4 日の外にある。品行は月〜木と土の 5 行。
+    await openItemMenu(page, "肉じゃが", 4);
+    await page.getByRole("menuitem", { name: t.item_menu.merge_batch }).click();
+
+    const dialog = page.getByRole("dialog", { name: t.batch.merge_dialog.title });
+    const candidates = dialog.getByRole("listitem");
+    await expect(candidates).toHaveCount(1);
+    await expect(candidates).toContainText(MON);
+    await expect(candidates).toContainText(t.meal.dinner);
+    const label = t.batch.merge_dialog.item_label;
+    await expect(candidates).toContainText(
+      label.slice(label.indexOf("(")).replace("{{count}}", "4"),
+    );
+  });
 });
 
 // days に来週の外の日を含めると、来週の 1 週表示には作り置きの端の行だけが出る。

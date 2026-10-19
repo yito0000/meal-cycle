@@ -1039,7 +1039,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		rs := seedRecipes(t, rr, "肉じゃが")
 		mon, _ := repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
 		_, _ = repo.Assign(ctx, "2026-08-25", "dinner", rs[0].ID)
-		if err := repo.MergeBatch(ctx, idAt(t, repo, "2026-08-25", "dinner", 0), mon.BatchID); err != nil {
+		if err := repo.MergeBatch(ctx, idAt(t, repo, "2026-08-25", "dinner", 0), mon.BatchID, 4); err != nil {
 			t.Fatalf("MergeBatch: %v", err)
 		}
 		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
@@ -1057,7 +1057,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		repo, rr := newMealPlanRepoForTest(t)
 		rs := seedRecipes(t, rr, "肉じゃが")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
-		err := repo.MergeBatch(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), "ghost-batch-id")
+		err := repo.MergeBatch(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), "ghost-batch-id", 4)
 		if !errors.Is(err, mealplan.ErrBatchTargetNotFound) {
 			t.Errorf("err = %v, want ErrBatchTargetNotFound", err)
 		}
@@ -1072,7 +1072,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		_, _ = repo.Assign(ctx, "2026-09-05", "dinner", rs[0].ID)     // 12 日後 (除外)
 		lunch, _ := repo.Assign(ctx, "2026-08-24", "lunch", rs[0].ID) // 別 meal 同レシピ (候補)
 
-		got, err := repo.ListMergeCandidates(ctx, idAt(t, repo, "2026-08-24", "dinner", 0))
+		got, err := repo.ListMergeCandidates(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), 4)
 		if err != nil {
 			t.Fatalf("ListMergeCandidates: %v", err)
 		}
@@ -1104,7 +1104,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		rs := seedRecipes(t, rr, "肉じゃが", "みそ汁")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)     // 起点 r1
 		miso, _ := repo.Assign(ctx, "2026-08-25", "dinner", rs[1].ID) // 別レシピ
-		err := repo.MergeBatch(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), miso.BatchID)
+		err := repo.MergeBatch(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), miso.BatchID, 4)
 		if !errors.Is(err, mealplan.ErrBatchMergeDenied) {
 			t.Errorf("err = %v, want ErrBatchMergeDenied", err)
 		}
@@ -1115,7 +1115,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		rs := seedRecipes(t, rr, "肉じゃが")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)    // 起点
 		far, _ := repo.Assign(ctx, "2026-09-05", "dinner", rs[0].ID) // 12 日後 (レンジ外)
-		err := repo.MergeBatch(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), far.BatchID)
+		err := repo.MergeBatch(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), far.BatchID, 4)
 		if !errors.Is(err, mealplan.ErrBatchMergeDenied) {
 			t.Errorf("err = %v, want ErrBatchMergeDenied", err)
 		}
@@ -1131,7 +1131,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover)
 		_, _ = repo.Assign(ctx, "2026-08-28", "dinner", rs[0].ID) // 金 (4 日後、同レシピ)
 
-		if err := repo.MergeBatch(ctx, idAt(t, repo, "2026-08-28", "dinner", 0), mon.BatchID); err != nil {
+		if err := repo.MergeBatch(ctx, idAt(t, repo, "2026-08-28", "dinner", 0), mon.BatchID, 4); err != nil {
 			t.Fatalf("MergeBatch: %v", err)
 		}
 		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
@@ -1302,7 +1302,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		mon, _ := repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID) // 月・夕 (target)
 		_, _ = repo.Assign(ctx, "2026-08-25", "lunch", rs[0].ID)     // 火・昼 (別バッチ、同レシピ)
 
-		if err := repo.MergeBatch(ctx, idAt(t, repo, "2026-08-25", "lunch", 0), mon.BatchID); err != nil {
+		if err := repo.MergeBatch(ctx, idAt(t, repo, "2026-08-25", "lunch", 0), mon.BatchID, 4); err != nil {
 			t.Fatalf("MergeBatch across meals: %v", err)
 		}
 		got, _ := repo.ListPeriod(ctx, "2026-08-24", 7)
@@ -1322,7 +1322,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		rs := seedRecipes(t, rr, "肉じゃが", "みそ汁")
 		_, _ = repo.Assign(ctx, "2026-08-24", "dinner", rs[0].ID)
 		miso, _ := repo.Assign(ctx, "2026-08-25", "lunch", rs[1].ID) // 別 meal、別レシピ
-		err := repo.MergeBatch(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), miso.BatchID)
+		err := repo.MergeBatch(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), miso.BatchID, 4)
 		if !errors.Is(err, mealplan.ErrBatchMergeDenied) {
 			t.Errorf("err = %v, want ErrBatchMergeDenied", err)
 		}
@@ -1339,7 +1339,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		}
 		_, _ = repo.Assign(ctx, "2026-08-25", "dinner", rs[0].ID)
 
-		got, err := repo.ListMergeCandidates(ctx, idAt(t, repo, "2026-08-25", "dinner", 0))
+		got, err := repo.ListMergeCandidates(ctx, idAt(t, repo, "2026-08-25", "dinner", 0), 4)
 		if err != nil {
 			t.Fatalf("ListMergeCandidates: %v", err)
 		}
@@ -1364,7 +1364,7 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		}
 		_, _ = repo.Assign(ctx, "2026-08-26", "dinner", rs[0].ID)
 
-		got, err := repo.ListMergeCandidates(ctx, idAt(t, repo, "2026-08-26", "dinner", 0))
+		got, err := repo.ListMergeCandidates(ctx, idAt(t, repo, "2026-08-26", "dinner", 0), 4)
 		if err != nil {
 			t.Fatalf("ListMergeCandidates: %v", err)
 		}
@@ -1373,6 +1373,110 @@ func TestMealPlanRepo_Batch(t *testing.T) {
 		}
 		if got[0].Date != "2026-08-24" || got[0].Meal != mealplan.MealLunch {
 			t.Errorf("representative = %s/%s, want 2026-08-24/lunch", got[0].Date, got[0].Meal)
+		}
+	})
+
+	dinners := func(dates ...string) []mealplan.SpreadTarget {
+		out := make([]mealplan.SpreadTarget, 0, len(dates))
+		for _, d := range dates {
+			out = append(out, mealplan.SpreadTarget{Date: d, Meal: mealplan.MealDinner})
+		}
+		return out
+	}
+	// 通常の操作では別レシピの行が同じ batch_id を持たないため、共有している状態を SQL で直接作る。
+	joinBatch := func(t *testing.T, repo *MealPlanRepo, batchID string, entryIDs ...string) {
+		t.Helper()
+		for _, id := range entryIDs {
+			if _, err := repo.db.Exec(`UPDATE meal_plans SET batch_id = ? WHERE id = ?`, batchID, id); err != nil {
+				t.Fatalf("join batch: %v", err)
+			}
+		}
+	}
+
+	t.Run("should use the earliest row and the whole count when the batch extends beyond the range", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが")
+		first, _ := repo.Assign(ctx, "2026-10-19", "dinner", rs[0].ID)
+		if _, err := repo.Spread(ctx, first.ID, dinners("2026-10-20", "2026-10-21", "2026-10-22"),
+			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover); err != nil {
+			t.Fatalf("Spread: %v", err)
+		}
+		_, _ = repo.Assign(ctx, "2026-10-24", "dinner", rs[0].ID)
+
+		got, err := repo.ListMergeCandidates(ctx, idAt(t, repo, "2026-10-24", "dinner", 0), 4)
+		if err != nil {
+			t.Fatalf("ListMergeCandidates: %v", err)
+		}
+		if len(got) != 1 {
+			t.Fatalf("want 1 candidate, got %d: %+v", len(got), got)
+		}
+		if got[0].BatchID != first.BatchID || got[0].Date != "2026-10-19" || got[0].MemberCount != 4 {
+			t.Errorf("candidate = %+v, want batch %q on 2026-10-19 with 4 members", got[0], first.BatchID)
+		}
+	})
+
+	t.Run("should use the lunch row as the representative when the batch starts at lunch beyond the range", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが")
+		first, _ := repo.Assign(ctx, "2026-10-19", "lunch", rs[0].ID)
+		if _, err := repo.Spread(ctx, first.ID, dinners("2026-10-19", "2026-10-20", "2026-10-21", "2026-10-22"),
+			mealplan.CopyModeAppend, mealplan.ShareBatchLeftover); err != nil {
+			t.Fatalf("Spread: %v", err)
+		}
+		_, _ = repo.Assign(ctx, "2026-10-24", "dinner", rs[0].ID)
+
+		got, err := repo.ListMergeCandidates(ctx, idAt(t, repo, "2026-10-24", "dinner", 0), 4)
+		if err != nil {
+			t.Fatalf("ListMergeCandidates: %v", err)
+		}
+		if len(got) != 1 {
+			t.Fatalf("want 1 candidate, got %d: %+v", len(got), got)
+		}
+		if got[0].Date != "2026-10-19" || got[0].Meal != mealplan.MealLunch || got[0].MemberCount != 5 {
+			t.Errorf("candidate = %+v, want 2026-10-19/lunch with 5 members", got[0])
+		}
+	})
+
+	t.Run("should not list a batch whose same-recipe rows are all out of range even if another recipe row is in range", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが", "みそ汁")
+		old, _ := repo.Assign(ctx, "2026-10-15", "dinner", rs[0].ID)
+		miso, _ := repo.Assign(ctx, "2026-10-22", "dinner", rs[1].ID)
+		joinBatch(t, repo, old.BatchID, miso.ID)
+		_, _ = repo.Assign(ctx, "2026-10-24", "dinner", rs[0].ID)
+
+		got, err := repo.ListMergeCandidates(ctx, idAt(t, repo, "2026-10-24", "dinner", 0), 4)
+		if err != nil {
+			t.Fatalf("ListMergeCandidates: %v", err)
+		}
+		if len(got) != 0 {
+			t.Errorf("want no candidates, got %+v", got)
+		}
+	})
+
+	t.Run("should count only same-recipe rows when another recipe shares the batch", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが", "みそ汁")
+		first, _ := repo.Assign(ctx, "2026-10-19", "dinner", rs[0].ID)
+		miso, _ := repo.Assign(ctx, "2026-10-19", "dinner", rs[1].ID)
+		days := dinners("2026-10-20", "2026-10-21", "2026-10-22")
+		if _, err := repo.Spread(ctx, first.ID, days, mealplan.CopyModeAppend, mealplan.ShareBatchLeftover); err != nil {
+			t.Fatalf("Spread: %v", err)
+		}
+		if _, err := repo.Spread(ctx, miso.ID, days, mealplan.CopyModeAppend, mealplan.ShareBatchLeftover); err != nil {
+			t.Fatalf("Spread: %v", err)
+		}
+		for _, d := range []string{"2026-10-19", "2026-10-20", "2026-10-21", "2026-10-22"} {
+			joinBatch(t, repo, first.BatchID, idAt(t, repo, d, "dinner", 1))
+		}
+		_, _ = repo.Assign(ctx, "2026-10-24", "dinner", rs[0].ID)
+
+		got, err := repo.ListMergeCandidates(ctx, idAt(t, repo, "2026-10-24", "dinner", 0), 4)
+		if err != nil {
+			t.Fatalf("ListMergeCandidates: %v", err)
+		}
+		if len(got) != 1 || got[0].MemberCount != 4 {
+			t.Errorf("got %+v, want 1 candidate with 4 members", got)
 		}
 	})
 
@@ -1613,7 +1717,7 @@ func TestMealPlanRepo_Cooked(t *testing.T) {
 		_, _ = repo.Assign(ctx, "2026-08-26", "dinner", rs[0].ID)
 		_ = repo.SetCooked(ctx, idAt(t, repo, "2026-08-24", "dinner", 0), true)
 
-		if err := repo.MergeBatch(ctx, idAt(t, repo, "2026-08-26", "dinner", 0), target.BatchID); err != nil {
+		if err := repo.MergeBatch(ctx, idAt(t, repo, "2026-08-26", "dinner", 0), target.BatchID, 4); err != nil {
 			t.Fatalf("MergeBatch: %v", err)
 		}
 		got := cookedByCell(t, repo, "2026-08-24")
@@ -1629,7 +1733,7 @@ func TestMealPlanRepo_Cooked(t *testing.T) {
 		_, _ = repo.Assign(ctx, "2026-08-26", "dinner", rs[0].ID)
 		_ = repo.SetCooked(ctx, idAt(t, repo, "2026-08-26", "dinner", 0), true)
 
-		if err := repo.MergeBatch(ctx, idAt(t, repo, "2026-08-26", "dinner", 0), target.BatchID); err != nil {
+		if err := repo.MergeBatch(ctx, idAt(t, repo, "2026-08-26", "dinner", 0), target.BatchID, 4); err != nil {
 			t.Fatalf("MergeBatch: %v", err)
 		}
 		got := cookedByCell(t, repo, "2026-08-24")
