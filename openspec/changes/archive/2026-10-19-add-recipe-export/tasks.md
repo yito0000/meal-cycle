@@ -93,4 +93,4 @@
 - [x] 8.2 `cd frontend && npm run type-check` と `cd frontend && npm run build:dev` が通ることを確認
 - [x] 8.3 `task test:e2e` がすべて pass することを確認
 - [x] 8.4 `task lint` が通ることを確認
-- [ ] 8.5 `task build:win` で Windows ビルドを作り、実機でフォルダ選択、キャンセル、日本語名のファイルの書き出し、書き出したファイルのインポートを確かめる
+- [x] 8.5 `task build:win` で Windows ビルドを作り、実機でフォルダ選択、キャンセル、日本語名のファイルの書き出し、書き出したファイルのインポートを確かめる

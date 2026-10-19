@@ -288,5 +288,5 @@
 - [x] 10.4 `task test:e2e` を走らせる。完了判定: `check:scenarios` を含む全テストが pass する
 - [x] 10.5 `task lint` を走らせる。完了判定: Go と Frontend の両方でエラーが出ない
 - [x] 10.6 `openspec validate add-settings-screen --strict` を走らせる。完了判定: エラーが出ない
-- [ ] 10.7 `task build:win` で Windows ビルドを作り、Windows 側で S09 の量る単位と量を持たない言葉に日本語を IME で入力して保存できることを確かめる。
+- [x] 10.7 `task build:win` で Windows ビルドを作り、Windows 側で S09 の量る単位と量を持たない言葉に日本語を IME で入力して保存できることを確かめる。
   完了判定: Windows 実機で目視確認する
