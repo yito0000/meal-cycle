@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import type { BatchSummary } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
 import { Meal } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
+import { formatMealDate } from "../../lib/format-meal-date";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog";
 
@@ -26,7 +27,7 @@ function mealLabelKey(meal: string): string {
 // (spec の合流候補要件、design.md D7)。時間帯は絞らず、別時間帯の作り置きも候補に含めて
 // item_label に 時間帯名を差し込む (proposal: add-mealplan-cross-meal-leftover)。
 export function BatchMergeDialog({ open, candidates, onOpenChange, onSelect }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -47,7 +48,7 @@ export function BatchMergeDialog({ open, candidates, onOpenChange, onSelect }: P
                   onClick={() => onSelect(c.batchId)}
                 >
                   {t("pages.meal_plan.batch.merge_dialog.item_label", {
-                    date: c.date,
+                    date: formatMealDate(c.date, i18n.language),
                     meal: t(mealLabelKey(c.meal)),
                     recipeName: c.recipeName,
                     count: c.memberCount,

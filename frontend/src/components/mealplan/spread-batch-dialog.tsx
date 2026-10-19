@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Meal } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
 import { MealPlanService } from "../../../bindings/github.com/yito0000/meal-cycle/internal/service";
+import { formatMealDate } from "../../lib/format-meal-date";
 import type {
   SpreadConflictMode,
   SpreadSelection,
@@ -22,8 +23,6 @@ interface Props {
   sourceBatchId: string;
   // 初期表示する未来日数 (起点日を除く)。起点日 + initialFutureDays の合計行が最初に見える。
   initialFutureDays: number;
-  // 「もっと表示」1 回で伸ばす未来日数。
-  expandStepDays: number;
   presetDays: number;
   onOpenChange: (open: boolean) => void;
   onConfirm: (selection: SpreadSelection) => void;
@@ -53,9 +52,8 @@ function targetKey(date: string, meal: string): string {
   return `${date}::${meal}`;
 }
 
-// 対象日レンジ = 起点日 + 未来 futureDays 日 × 時間帯 3 列の格子で複数選択させる統合ダイアログ。
-// 過去方向は「作り置きは翌日以降に伸ばす」意図に反するため対象外。行が足りない場合は
-// 下部の「もっと表示」で expandStepDays ずつ伸ばす。
+// 対象日レンジ = 起点日 + 未来 initialFutureDays 日 × 時間帯 3 列の格子で複数選択させる統合ダイアログ。
+// 過去方向は「作り置きは翌日以降に伸ばす」意図に反するため対象外。
 // 起点セル自身、起点日の起点より前の時間帯、起点と同じ作り置きの同じレシピが入っているセルは選択不可。既存割当セルは warning tone で示唆する。
 // 格子は S01 の表示期間の外にはみ出すので、判定に使う献立は起点日から自分で取る (revise-mealplan-spread-safety design.md D1)。
 export function SpreadBatchDialog({
@@ -65,26 +63,19 @@ export function SpreadBatchDialog({
   sourceRecipeId,
   sourceBatchId,
   initialFutureDays,
-  expandStepDays,
   presetDays,
   onOpenChange,
   onConfirm,
 }: Props) {
   const { t, i18n } = useTranslation();
 
-  const [futureDays, setFutureDays] = useState(initialFutureDays);
-
-  useEffect(() => {
-    if (open) setFutureDays(initialFutureDays);
-  }, [open, initialFutureDays]);
-
   const rowDates = useMemo(() => {
     const dates: string[] = [];
-    for (let i = 0; i <= futureDays; i++) {
+    for (let i = 0; i <= initialFutureDays; i++) {
       dates.push(addDaysISO(source.date, i));
     }
     return dates;
-  }, [source.date, futureDays]);
+  }, [source.date, initialFutureDays]);
 
   const gridQuery = useQuery({
     queryKey: ["mealplan", "spread-grid", source.date],
@@ -153,19 +144,7 @@ export function SpreadBatchDialog({
     });
   };
 
-  const dateFmt = useMemo(
-    () =>
-      new Intl.DateTimeFormat(i18n.language, {
-        month: "numeric",
-        day: "numeric",
-        weekday: "short",
-      }),
-    [i18n.language],
-  );
-  const formatRow = (date: string): string => {
-    const [y, m, d] = date.split("-").map(Number);
-    return dateFmt.format(new Date(y, m - 1, d));
-  };
+  const formatRow = (date: string): string => formatMealDate(date, i18n.language);
 
   const targets: SpreadTarget[] = useMemo(() => {
     const out: SpreadTarget[] = [];
@@ -270,17 +249,6 @@ export function SpreadBatchDialog({
             </tbody>
           </table>
         </div>
-        {expandStepDays > 0 && (
-          <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={() => setFutureDays((n) => n + expandStepDays)}
-              className="rounded-md border border-neutral-300 bg-white px-3 py-1 text-xs text-neutral-700 hover:bg-neutral-50"
-            >
-              {t("pages.meal_plan.spread.show_more", { count: expandStepDays })}
-            </button>
-          </div>
-        )}
         <div className="flex flex-col gap-3 text-sm">
           <fieldset className="flex flex-col gap-1">
             <legend className="text-xs font-medium text-neutral-500">

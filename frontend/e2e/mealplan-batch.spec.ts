@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { formatMealDate } from "../src/lib/format-meal-date";
 import ja from "../src/locales/ja.json" with { type: "json" };
 import { expect, test } from "./fixtures.js";
 import {
@@ -176,7 +177,10 @@ test.describe("作り置きをやめる操作とまとめる操作", () => {
     await openNextWeek(page);
 
     const dialog = await openMergeDialog(page, "肉じゃが", 1);
-    await dialog.getByRole("button").filter({ hasText: MON }).click();
+    await dialog
+      .getByRole("button")
+      .filter({ hasText: formatMealDate(MON, "ja") })
+      .click();
 
     await expect(dialog).toHaveCount(0);
     await expect
@@ -229,7 +233,10 @@ test.describe("作り置きをやめる操作とまとめる操作", () => {
     await openNextWeek(page);
 
     const dialog = await openMergeDialog(page, "肉じゃが", 2);
-    await dialog.getByRole("button").filter({ hasText: MON }).click();
+    await dialog
+      .getByRole("button")
+      .filter({ hasText: formatMealDate(MON, "ja") })
+      .click();
 
     await expect(dialog).toHaveCount(0);
     await expect
@@ -627,7 +634,7 @@ test.describe("まとめ候補の一意性", () => {
     const dialog = page.getByRole("dialog", { name: t.batch.merge_dialog.title });
     const candidates = dialog.getByRole("listitem");
     await expect(candidates).toHaveCount(1);
-    await expect(candidates).toContainText(MON);
+    await expect(candidates).toContainText(formatMealDate(MON, "ja"));
     await expect(candidates).toContainText(t.meal.lunch);
   });
 
@@ -650,12 +657,30 @@ test.describe("まとめ候補の一意性", () => {
     const dialog = page.getByRole("dialog", { name: t.batch.merge_dialog.title });
     const candidates = dialog.getByRole("listitem");
     await expect(candidates).toHaveCount(1);
-    await expect(candidates).toContainText(MON);
+    await expect(candidates).toContainText(formatMealDate(MON, "ja"));
     await expect(candidates).toContainText(t.meal.dinner);
     const label = t.batch.merge_dialog.item_label;
     await expect(candidates).toContainText(
       label.slice(label.indexOf("(")).replace("{{count}}", "4"),
     );
+  });
+});
+
+test.describe("まとめ候補の日付の表記", () => {
+  test("まとめ候補の日付は月/日と曜日で示される", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "肉じゃが", []);
+    await assignRecipe(page, MON, "dinner", id);
+    await assignRecipe(page, TUE, "dinner", id);
+    await openNextWeek(page);
+
+    await openItemMenu(page, "肉じゃが", 1);
+    await page.getByRole("menuitem", { name: t.item_menu.merge_batch }).click();
+
+    const dialog = page.getByRole("dialog", { name: t.batch.merge_dialog.title });
+    const candidates = dialog.getByRole("listitem");
+    await expect(candidates).toHaveCount(1);
+    await expect(candidates).toContainText(formatMealDate(MON, "ja"));
+    await expect(candidates).not.toContainText(MON);
   });
 });
 

@@ -1,10 +1,10 @@
 import { useTranslation } from "react-i18next";
 import type { Entry } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
+import { formatMealDate } from "../../lib/format-meal-date";
 import { CellOverflowList } from "./cell-overflow-list";
 import { DND_MIME, MealItemRow } from "./meal-item-row";
 import { MealMenu } from "./meal-menu";
 import { type CellSizePreset, mealLabelKey, minHeightClass } from "./mealplan-config";
-import { parseDate } from "./week-utils";
 
 export type EntryAction =
   | "toggle-cooked"
@@ -62,11 +62,6 @@ export function MealPlanCell({
   const limit = preset.visibleItems;
   const heightCls = minHeightClass(preset);
   const fontCls = preset.fontSizeClass;
-  const dateFmt = new Intl.DateTimeFormat(i18n.language, {
-    month: "numeric",
-    day: "numeric",
-    weekday: "short",
-  });
   // ドラッグ中は全セルに枠強調を出し、drop 可能であることを示す (design.md D5)。
   const dropOutlineCls = isAnyDragging ? "outline outline-2 outline-blue-400" : "";
 
@@ -157,7 +152,7 @@ export function MealPlanCell({
           sortedEntries={sorted}
           overflow={overflow}
           label={t("pages.meal_plan.cell.overflow_list_label", {
-            date: dateFmt.format(parseDate(date) ?? new Date()),
+            date: formatMealDate(date, i18n.language),
             meal: t(mealLabelKey(meal)),
           })}
           onEntryAction={onEntryAction}

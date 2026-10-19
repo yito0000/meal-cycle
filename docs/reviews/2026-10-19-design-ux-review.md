@@ -104,7 +104,7 @@ R17 の残り（`spreadInitialFutureDays` がフロントで `maxSpreadOffsetDay
 
 ### R49. まとめるダイアログの日付が `2026-10-20` の形で出る
 
-- [ ] 対応済み（proposal: fix-mealplan-dialog-polish）
+- [x] 対応済み（proposal: fix-mealplan-dialog-polish）
 
 前回の R42 は統合ダイアログの日付を `Intl.DateTimeFormat` に揃えた。
 `batch-merge-dialog.tsx` は候補の `c.date` をそのまま差し込んでおり、同じ直しが入っていない。
@@ -128,7 +128,7 @@ S04 と揃えるかは利用者が決めることなので、ここでは判断�
 
 ### R51. 統合ダイアログの「もっと表示」が使われない経路として残っている
 
-- [ ] 対応済み（proposal: fix-mealplan-dialog-polish）
+- [x] 対応済み（proposal: fix-mealplan-dialog-polish）
 
 `week-calendar.tsx` は `SPREAD_EXPAND_STEP = 0` を渡しており、`SpreadBatchDialog` の `expandStepDays > 0` の分岐（ボタンと `setFutureDays` の加算）は描かれない。
 Go 側が `maxSpreadOffsetDays` を超える対象を拒否するので、この経路を生かすことも無い。

@@ -111,7 +111,6 @@
         "conflict_overwrite_label": "上書き",
         "confirm": "反映",
         "cancel": "キャンセル",
-        "show_more": "さらに {{count}} 日表示",
         "same_batch_cell_label": "すでに同じ作り置きが入っています",
         "earlier_meal_cell_label": "起点より前の時間帯",
         "load_failed": "格子の献立を読み込めませんでした"

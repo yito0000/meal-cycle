@@ -72,9 +72,6 @@ type SpreadState =
       sourceBatchId: string;
     };
 
-// expandStep=0 は「展開ボタンを出さない」意味 (範囲の拡張は別 proposal で扱う)。
-const SPREAD_EXPAND_STEP = 0;
-
 export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }: Props) {
   const { t, i18n } = useTranslation();
   const { leftoverCopyPresets } = useSettingsValues();
@@ -547,7 +544,6 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
           sourceRecipeId={spreadState.sourceRecipeId}
           sourceBatchId={spreadState.sourceBatchId}
           initialFutureDays={spreadInitialFutureDays}
-          expandStepDays={SPREAD_EXPAND_STEP}
           presetDays={spreadPresetDays}
           onOpenChange={(next) => {
             if (!next) setSpreadState({ kind: "closed" });

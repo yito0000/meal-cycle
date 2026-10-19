@@ -111,7 +111,6 @@
         "conflict_overwrite_label": "Overwrite",
         "confirm": "Apply",
         "cancel": "Cancel",
-        "show_more": "Show {{count}} more day(s)",
         "same_batch_cell_label": "Already in this batch",
         "earlier_meal_cell_label": "Earlier meal than the source",
         "load_failed": "Could not load the meal plan for the grid"
