@@ -36,7 +36,7 @@ task lint:frontend          # Frontend 側だけ
 task format                 # Go + Frontend を自動整形（Biome fix + golangci-lint fmt）
 ```
 
-`frontend/bindings/` は `.gitignore` 対象、`task dev` / `task build` で再生成される。生成形式は呼び方で変わる: `task dev` / `task build` は `-ts -i` 付きで **`.ts`**、素の `wails3 generate bindings`（`task build:win` 含む）は **`.js`＋JSDoc** を出す。どちらでも型チェックが通るよう `tsconfig.json` で `allowJs` + `checkJs` を有効化している。`npm run type-check` と `npm run test` は bindings が生成済みであることを前提にする（未生成なら `wails3 generate bindings -clean=true -ts -i`）。
+`frontend/bindings/` は `.gitignore` 対象、`task dev` / `task build` で再生成される。生成形式は呼び方で変わる: `task dev` / `task build` は `-ts -i` 付きで **`.ts`**、素の `wails3 generate bindings` は **`.js`＋JSDoc** を出す。どちらでも型チェックが通るよう `tsconfig.json` で `allowJs` + `checkJs` を有効化している。`npm run type-check` と `npm run test` は bindings が生成済みであることを前提にする（未生成なら `wails3 generate bindings -clean=true -ts -i`）。
 
 ## アーキテクチャ
 
@@ -199,11 +199,11 @@ Windows ビルドはビルド時間と `.exe` サイズのコストがあるの�
 
 ### Windows ビルド手順
 
-WSL2 側で `task build:win` を実行する。内部で以下を順に走らせる:
+WSL2 側で `task build:win` を実行する。内部では Wails 標準の `task windows:build` を呼び、次を順に走らせる:
 
-1. `cd frontend && npm run build`
-2. `wails3 generate bindings`
-3. `GOOS=windows GOARCH=amd64 go build -tags production -trimpath -ldflags="-w -s" -o meal-cycle.exe ./`
+1. フロントエンドのビルドと bindings 生成（`-ts -i`）
+2. `wails3 generate syso` でアイコン・バージョン情報（`build/windows/info.json`）・manifest を埋め込む
+3. `GOOS=windows go build -tags production -trimpath -ldflags="-w -s -H windowsgui" -o bin/meal-cycle.exe`
 
 `WIN_DEST` を指定すると Windows 側のパスへ自動コピーする:
 
@@ -211,7 +211,7 @@ WSL2 側で `task build:win` を実行する。内部で以下を順に走らせ
 task build:win WIN_DEST=/mnt/c/Users/<Windows のユーザー名>/Desktop/
 ```
 
-`WIN_DEST` 未指定なら repo root に `meal-cycle.exe` (`.gitignore` 対象) が出力されるので手動で Windows 側へコピーする。Windows 側の PowerShell またはエクスプローラーからデスクトップの `meal-cycle.exe` を起動する。`modernc.org/sqlite` は Pure Go で CGO 不要のためクロスコンパイルが素直に通る。
+`WIN_DEST` 未指定なら `bin/meal-cycle.exe` (`.gitignore` 対象) が出力されるので手動で Windows 側へコピーする。Windows 側の PowerShell またはエクスプローラーからデスクトップの `meal-cycle.exe` を起動する。`modernc.org/sqlite` は Pure Go で CGO 不要のためクロスコンパイルが素直に通る。
 
 ### データベースが 2 系統になる点に注意
 

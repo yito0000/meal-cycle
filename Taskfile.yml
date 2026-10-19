@@ -59,27 +59,21 @@ tasks:
       - npm run test:e2e
 
   build:win:
-    summary: WSL→Windows 手動確認用ビルド (CLAUDE.md 動作確認 2 階建て構成)
+    summary: WSL→Windows 手動確認用・リリース用ビルド (CLAUDE.md 動作確認 2 階建て構成)
     desc: |
-      frontend build → wails3 generate bindings → Windows amd64 cross-compile。
-      repo root に meal-cycle.exe (.gitignore 対象) を出力する。
+      Wails 標準の windows:build で bin/meal-cycle.exe を出力する。
       WIN_DEST を渡すとビルド後にコピーする
       (例: task build:win WIN_DEST=/mnt/c/Users/yourname/Desktop/)。
     vars:
       WIN_DEST: '{{.WIN_DEST | default ""}}'
     cmds:
-      - task: build:win:frontend
-      - wails3 generate bindings
-      - GOOS=windows GOARCH=amd64 go build -tags production -trimpath -ldflags="-w -s" -o meal-cycle.exe ./
+      # 素の go build だと syso (アイコン / バージョン情報) と -H windowsgui が抜け、起動時にコンソール窓が開く
+      - task: windows:build
+        vars:
+          ARCH: amd64
       - task: build:win:copy
         vars:
           WIN_DEST: '{{.WIN_DEST}}'
-
-  build:win:frontend:
-    internal: true
-    dir: frontend
-    cmds:
-      - npm run build
 
   build:win:copy:
     internal: true
@@ -87,7 +81,7 @@ tasks:
     status:
       - test -z "{{.WIN_DEST}}"
     cmds:
-      - cp meal-cycle.exe "{{.WIN_DEST}}"
+      - cp bin/meal-cycle.exe "{{.WIN_DEST}}"
 
   lint:
     summary: Runs linters for both Go (golangci-lint) and frontend (Biome)
