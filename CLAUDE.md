@@ -236,6 +236,9 @@ Go とフロントの両方で lint/format を有効化している。実装後�
   - Biome CLI は `frontend/` の devDependency に入っているので `cd frontend && npm run lint`（= `biome check`）で走る
   - `frontend/bindings/` は Wails 生成物なので lint 対象外（`biome.json` の `files.includes` で除外）
 - 走らせるコマンド: 個別なら `task lint:go` / `task lint:frontend` / `task format:go` / `task format:frontend`
+- **シークレット / 個人情報**: [gitleaks](https://github.com/gitleaks/gitleaks) を golangci-lint と同じく `go tool` でピン留めしている。clone 後に `task hooks:install` を 1 回叩くと、`.githooks/pre-commit` がステージ済み差分を検査する。`task lint:secrets` は全履歴を検査する
+  - 共有ルールは [.gitleaks.toml](.gitleaks.toml)（既定ルール + メールアドレス）。氏名や住所など個人固有の文字列は、書くこと自体が漏洩になるので gitignore 済みの `.gitleaks.local.toml` に書く（雛形は `.gitleaks.local.toml.example`）
+  - 誤検知は該当行に `gitleaks:allow` コメントを付けて回避する
 
 ## コミット規約
 

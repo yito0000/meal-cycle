@@ -1,0 +1,9 @@
+#!/bin/sh
+# ステージ済みの差分にシークレット / 個人情報が含まれていないか検査する。
+# 誤検知で止まったときは該当行に `gitleaks:allow` コメントを付けるか、git commit --no-verify で回避する。
+set -e
+
+config=.gitleaks.toml
+[ -f .gitleaks.local.toml ] && config=.gitleaks.local.toml
+
+exec go tool gitleaks git --pre-commit --staged --no-banner --redact --config "$config"

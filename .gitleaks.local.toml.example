@@ -1,0 +1,10 @@
+# 個人固有の検出ルール。.gitleaks.local.toml にコピーして値を書き換える (コピー先は gitignore 済み)。
+# このファイルがあると pre-commit / task lint:secrets は .gitleaks.toml の代わりにこれを使う。
+
+[extend]
+path = ".gitleaks.toml"
+
+[[rules]]
+id = "personal-info"
+description = "Personal information"
+regex = '''(?:山田太郎|Taro Yamada|東京都千代田区|090-?1234-?5678)'''

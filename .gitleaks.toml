@@ -1,0 +1,25 @@
+# gitleaks 共有設定。既定ルール (API キー / トークン / 秘密鍵など) にメールアドレス検出を足す。
+# 氏名や住所など個人固有の文字列はここに書くとそれ自体が漏洩になるため、.gitleaks.local.toml (gitignore 済み) に書く。
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "email-address"
+description = "Email address"
+regex = '''[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}'''
+keywords = ["@"]
+
+[[rules.allowlists]]
+description = "noreply / 例示用ドメイン"
+regexTarget = "match"
+regexes = [
+  '''(?i)@users\.noreply\.github\.com$''',
+  '''(?i)noreply@anthropic\.com$''',
+  '''(?i)@(?:[a-z0-9-]+\.)*example\.(?:com|org|net)$''',
+]
+
+[[rules.allowlists]]
+description = "画像の解像度サフィックス (icon-20@2x.png など)"
+regexTarget = "match"
+regexes = ['''@[0-9.]+x\.png$''']

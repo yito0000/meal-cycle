@@ -88,6 +88,7 @@ tasks:
     cmds:
       - task: lint:go
       - task: lint:frontend
+      - task: lint:secrets
 
   lint:go:
     summary: Runs golangci-lint on Go code (skips build/ios, build/android)
@@ -99,6 +100,20 @@ tasks:
     dir: frontend
     cmds:
       - npm run lint
+
+  lint:secrets:
+    summary: Scans the whole git history for secrets and personal info (gitleaks)
+    vars:
+      # 個人固有ルールは gitignore 済みのローカル設定にだけ置く (.gitleaks.toml 冒頭参照)
+      CONFIG:
+        sh: '[ -f .gitleaks.local.toml ] && echo .gitleaks.local.toml || echo .gitleaks.toml'
+    cmds:
+      - go tool gitleaks git --no-banner --redact --config {{.CONFIG}}
+
+  hooks:install:
+    summary: Enables the repo's git hooks (.githooks/pre-commit runs gitleaks on staged changes)
+    cmds:
+      - git config core.hooksPath .githooks
 
   format:
     summary: Formats Go (gofmt/goimports via golangci-lint) and frontend (Biome)
