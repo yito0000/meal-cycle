@@ -188,7 +188,7 @@
         "add_tag": "+ Add tag",
         "remove_ingredient": "Remove ingredient row",
         "remove_tag": "Remove tag",
-        "markdown_hint": "Markdown supported (preview coming in S03)",
+        "markdown_hint": "Markdown supported. It is formatted on the recipe detail page after saving",
         "chars_remaining": "{{count}} characters left",
         "label": {
           "name": "Name",
@@ -460,10 +460,10 @@
       },
       "hint": {
         "language": "Switches when you press Save",
-        "leftover_presets": "Days offered by \"Copy the whole meal for N days\" and \"Spread this batch\" in S01 (2-7 days)",
+        "leftover_presets": "Days offered by \"Copy the whole meal for N days\" and \"Spread this batch\" in the meal calendar (2-7 days)",
         "expiry_red": "Items expiring within N days are shown in 🔴",
         "expiry_yellow": "Items expiring within N days are shown in 🟡 (outside the 🔴 range)",
-        "shopping_presets": "7 / 14 / 28 days carry over the 1 / 2 / 4 week views of S01, so they cannot be removed",
+        "shopping_presets": "7 / 14 / 28 days carry over the 1 / 2 / 4 week views of the meal calendar, so they cannot be removed",
         "measuring_units": "Shown before the amount; amounts are not added up in the shopping list",
         "unquantified_words": "When importing recipes, an amount with one of these words is read as 0",
         "import_servings": "Used when an imported file does not state servings"
