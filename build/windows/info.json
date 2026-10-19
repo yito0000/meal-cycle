@@ -1,15 +1,15 @@
 {
 	"fixed": {
-		"file_version": "0.1.0"
+		"file_version": "1.0.0"
 	},
 	"info": {
 		"0000": {
-			"ProductVersion": "0.1.0",
-			"CompanyName": "My Company",
-			"FileDescription": "A meal-cycle application",
-			"LegalCopyright": "© 2026, My Company",
-			"ProductName": "My Product",
-			"Comments": "This is a comment"
+			"ProductVersion": "1.0.0",
+			"CompanyName": "Yoshinobu Ito",
+			"FileDescription": "献立・レシピ・冷蔵庫在庫を管理するデスクトップアプリ",
+			"LegalCopyright": "(c) 2026 Yoshinobu Ito",
+			"ProductName": "meal-cycle",
+			"Comments": "https://github.com/yito0000/meal-cycle"
 		}
 	}
 }
