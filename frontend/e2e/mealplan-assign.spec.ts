@@ -32,6 +32,23 @@ async function seedDinner(page: import("@playwright/test").Page, date: string, n
   }
 }
 
+// date の夕食の `⋯` から「時間帯全体を連続 N 日コピー」で days 日を選び、コピー方法に「作り置き」を選んで進める。
+// コピー先に既存の割当があれば、続けて衝突のダイアログが開く。
+async function copyWholeMeal(page: import("@playwright/test").Page, date: string, days: number) {
+  await mealPlanCell(page, date, "dinner")
+    .getByRole("button", { name: t.cell_actions.meal_menu })
+    .click();
+  await page
+    .getByRole("menuitem", { name: t.meal_menu.copy_days.replace("{{days}}", "N") })
+    .click();
+  await page
+    .getByRole("menuitem", { name: t.copy.days_option.replace("{{days}}", String(days)) })
+    .click();
+  const mode = page.getByRole("dialog", { name: t.copy.mode.title });
+  await mode.getByText(t.copy.mode.leftover, { exact: true }).click();
+  await mode.getByRole("button", { name: t.copy.mode.confirm }).click();
+}
+
 // 画面上の全品行を DOM 順 (= 日付順、セル内は position 順) で取る。
 function allItemRows(page: import("@playwright/test").Page) {
   return page.locator('[role="listitem"]');
@@ -48,8 +65,16 @@ function shiftIsoDate(iso: string, days: number): string {
 }
 
 test.describe("セル内の品表示", () => {
-  test.skip("品数超過は省略表示になる", async () => {
-    // MealPlanCell は overflow 表示済み。E2E は Group 10 の次イテレーションで有効化する。
+  test("品数超過は省略表示になる", async ({ page }) => {
+    // 1 週 × 夕食のみの表示では、セル内表示上限は 4 件。
+    await seedDinner(page, dateAfter(0), ["肉じゃが", "みそ汁", "豚汁", "冷奴", "きんぴら"]);
+    await openMealCalendar(page);
+
+    const cell = mealPlanCell(page, dateAfter(0), "dinner");
+    await expect(cell.getByRole("listitem")).toHaveText(["肉じゃが", "みそ汁", "豚汁", "冷奴"]);
+    await expect(
+      cell.getByRole("button", { name: t.cell.more_items.replace("{{count}}", "1") }),
+    ).toBeVisible();
   });
 
   test("時間帯全体の `⋯` メニューには動かない項目を置かない", async ({ page }) => {
@@ -352,18 +377,47 @@ test.describe("空セルへの 1 品目割当", () => {
 });
 
 test.describe("割当済セルへの品追加", () => {
-  test.skip("1 品ある時間帯にもう 1 品追加すると 2 品目が下に並ぶ", async () => {
-    // 実装は Group 7 で通した右上 `＋` 経路。E2E は次イテレーションで有効化する。
+  test("1 品ある時間帯にもう 1 品追加すると 2 品目が下に並ぶ", async ({ page }) => {
+    await seedDinner(page, dateAfter(0), ["肉じゃが"]);
+    await createRecipe(page, "みそ汁");
+    await openMealCalendar(page);
+
+    const cell = mealPlanCell(page, dateAfter(0), "dinner");
+    await cell.getByRole("button", { name: t.cell_actions.add_more }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "みそ汁" }).click();
+
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(cell.getByRole("listitem")).toHaveText(["肉じゃが", "みそ汁"]);
   });
 });
 
 test.describe("1 品の入替 / 削除 / 詳細表示", () => {
-  test.skip("1 品だけ入れ替える", async () => {
-    // CellItemMenu → replace は実装済み。Radix DropdownMenu の Portal を選ぶ手順を整えたら有効化する。
+  test("1 品だけ入れ替える", async ({ page }) => {
+    await seedDinner(page, dateAfter(0), ["肉じゃが", "みそ汁"]);
+    await createRecipe(page, "豚汁");
+    await openMealCalendar(page);
+
+    await openItemMenu(page, "みそ汁");
+    await page.getByRole("menuitem", { name: t.item_menu.replace }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "豚汁" }).click();
+
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(mealPlanCell(page, dateAfter(0), "dinner").getByRole("listitem")).toHaveText([
+      "肉じゃが",
+      "豚汁",
+    ]);
   });
 
-  test.skip("1 品だけ削除する", async () => {
-    // 同上。
+  test("1 品だけ削除する", async ({ page }) => {
+    await seedDinner(page, dateAfter(0), ["肉じゃが", "みそ汁"]);
+    await openMealCalendar(page);
+
+    await openItemMenu(page, "みそ汁");
+    await page.getByRole("menuitem", { name: t.item_menu.remove }).click();
+
+    await expect(mealPlanCell(page, dateAfter(0), "dinner").getByRole("listitem")).toHaveText([
+      "肉じゃが",
+    ]);
   });
 
   test("詳細を開くと S02 を経由せずに S01 に戻れる", async ({ page }) => {
@@ -384,19 +438,53 @@ test.describe("1 品の入替 / 削除 / 詳細表示", () => {
 });
 
 test.describe("時間帯全体のクリア", () => {
-  test.skip("時間帯右下 `⋯ → 時間帯全体をクリア` で全削除", async () => {
-    // MealMenu → clear は実装済み。
+  test("時間帯右下 `⋯ → 時間帯全体をクリア` で全削除", async ({ page }) => {
+    await seedDinner(page, dateAfter(0), ["肉じゃが", "みそ汁"]);
+    await openMealCalendar(page);
+
+    const cell = mealPlanCell(page, dateAfter(0), "dinner");
+    await cell.getByRole("button", { name: t.cell_actions.meal_menu }).click();
+    await page.getByRole("menuitem", { name: t.meal_menu.clear }).click();
+
+    await expect(cell.getByRole("listitem")).toHaveCount(0);
+    await expect(cell.getByRole("button", { name: t.cell_actions.add_first })).toBeVisible();
   });
 });
 
 test.describe("作り置きコピー (時間帯全体)", () => {
-  test.skip("2 品構成を 3 日分コピーする", async () => {
-    // MealMenu の「時間帯全体を連続 N 日」→ CopyLeftover。
+  test("2 品構成を 3 日分コピーする", async ({ page }) => {
+    await seedDinner(page, dateAfter(0), ["肉じゃが", "みそ汁"]);
+    await openMealCalendar(page);
+    // 今日が週末だと 2〜3 日目が翌週になるので、2 週表示で 3 日分を画面に入れる。
+    await page.getByTestId("period-weeks-2").click();
+
+    await copyWholeMeal(page, dateAfter(0), 3);
+
+    for (const days of [0, 1, 2]) {
+      await expect(mealPlanCell(page, dateAfter(days), "dinner").getByRole("listitem")).toHaveText([
+        "肉じゃが",
+        "みそ汁",
+      ]);
+    }
+    await expect(mealPlanCell(page, dateAfter(3), "dinner").getByRole("listitem")).toHaveCount(0);
   });
 });
 
 test.describe("作り置きコピー先の衝突解決", () => {
-  test.skip("追加を選ぶと元の品と併存する", async () => {
-    // CopyConflictDialog は実装済み。
+  test("追加を選ぶと元の品と併存する", async ({ page }) => {
+    await seedDinner(page, dateAfter(0), ["肉じゃが"]);
+    await seedDinner(page, dateAfter(1), ["豚汁"]);
+    await openMealCalendar(page);
+    await page.getByTestId("period-weeks-2").click();
+
+    await copyWholeMeal(page, dateAfter(0), 3);
+    const conflict = page.getByRole("dialog", { name: t.copy.conflict.title });
+    await conflict.getByRole("button", { name: t.copy.conflict.append }).click();
+
+    await expect(conflict).toHaveCount(0);
+    await expect(mealPlanCell(page, dateAfter(1), "dinner").getByRole("listitem")).toHaveText([
+      "豚汁",
+      "肉じゃが",
+    ]);
   });
 });

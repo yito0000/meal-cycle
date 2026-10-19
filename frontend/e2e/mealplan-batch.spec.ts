@@ -35,6 +35,7 @@ const MON = nextWeekDay(0);
 const TUE = nextWeekDay(1);
 const WED = nextWeekDay(2);
 const THU = nextWeekDay(3);
+const FRI = nextWeekDay(4);
 const SAT = nextWeekDay(5);
 const SUN = nextWeekDay(6);
 const MON_AFTER = nextWeekDay(7);
@@ -101,7 +102,22 @@ async function chooseDissolveOnTuesday(page: Page) {
   await expect(dissolveDialog(page)).toBeVisible();
 }
 
-// Radix DropdownMenu の Portal 操作に依存するまとめるシナリオは、test.skip で名前だけ残している (design.md D6)。
+// 品のメニューの「他の作り置きにまとめる」を開き、まとめ先を選ぶダイアログを返す。
+async function openMergeDialog(page: Page, recipeName: string, nth = 0) {
+  await openItemMenu(page, recipeName, nth);
+  await page.getByRole("menuitem", { name: t.item_menu.merge_batch }).click();
+  const dialog = page.getByRole("dialog", { name: t.batch.merge_dialog.title });
+  await dialog.waitFor();
+  return dialog;
+}
+
+// rows の中の date / meal の行の batchId。
+function batchOf(rows: Row[], date: string, meal: string): string {
+  const row = rowsIn(rows, date, meal)[0];
+  if (!row) throw new Error(`no row at ${date} ${meal}`);
+  return row.batchId;
+}
+
 test.describe("作り置きをやめる操作とまとめる操作", () => {
   test("作り置きをやめると最初の日だけが残る", async ({ page }) => {
     await chooseDissolveOnTuesday(page);
@@ -153,24 +169,96 @@ test.describe("作り置きをやめる操作とまとめる操作", () => {
     await expect(page.getByRole("menuitem", { name: t.item_menu.split_batch })).toHaveCount(0);
   });
 
-  test.skip("同一レシピの近い日付の作り置きにまとめる", async () => {
-    // CellItemMenu → 「他の作り置きにまとめる」→ BatchMergeDialog。DropdownMenu Portal 対応時に有効化。
+  test("同一レシピの近い日付の作り置きにまとめる", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "肉じゃが", []);
+    await assignRecipe(page, MON, "dinner", id);
+    await assignRecipe(page, TUE, "dinner", id);
+    await openNextWeek(page);
+
+    const dialog = await openMergeDialog(page, "肉じゃが", 1);
+    await dialog.getByRole("button").filter({ hasText: MON }).click();
+
+    await expect(dialog).toHaveCount(0);
+    await expect
+      .poll(async () => {
+        const rows = await listNextWeek(page);
+        return batchOf(rows, TUE, "dinner") === batchOf(rows, MON, "dinner");
+      })
+      .toBe(true);
   });
 
-  test.skip("レシピが違う作り置きにはまとめられない", async () => {
-    // ListMealBatches が別レシピを候補から除外することを検証。同上。
+  test("レシピが違う作り置きにはまとめられない", async ({ page }) => {
+    const nikujaga = await createRecipeWithIngredients(page, "肉じゃが", []);
+    const miso = await createRecipeWithIngredients(page, "みそ汁", []);
+    await assignRecipe(page, MON, "dinner", miso);
+    await spreadLeftover(page, [WED]);
+    await assignRecipe(page, TUE, "dinner", nikujaga);
+    await openNextWeek(page);
+
+    const dialog = await openMergeDialog(page, "肉じゃが");
+
+    await expect(dialog.getByRole("listitem")).toHaveCount(0);
+    await expect(dialog).toContainText(t.batch.merge_dialog.empty);
   });
 
-  test.skip("日付レンジ外の作り置きにはまとめられない", async () => {
-    // ListMealBatches が ±4 日を超える候補を除外することを検証。同上。
+  test("日付レンジ外の作り置きにはまとめられない", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "肉じゃが", []);
+    // 金曜の 6 日前と 5 日前 (前の週の土曜と日曜) の作り置き。
+    const saturdayBefore = nextWeekDay(-2);
+    await assignRecipe(page, saturdayBefore, "dinner", id);
+    await spreadEntry(
+      page,
+      { date: saturdayBefore, meal: "dinner", position: 0 },
+      [{ date: nextWeekDay(-1), meal: "dinner" }],
+      true,
+    );
+    await assignRecipe(page, FRI, "dinner", id);
+    await openNextWeek(page);
+
+    const dialog = await openMergeDialog(page, "肉じゃが");
+
+    await expect(dialog.getByRole("listitem")).toHaveCount(0);
+    await expect(dialog).toContainText(t.batch.merge_dialog.empty);
   });
 
-  test.skip("1 日飛ばした同一レシピの行はまとめられる", async () => {
-    // ±4 日以内なら連続でなくてもまとめ可能。同上。
+  test("1 日飛ばした同一レシピの行はまとめられる", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "肉じゃが", []);
+    await assignRecipe(page, MON, "dinner", id);
+    await spreadLeftover(page, [TUE]);
+    await assignRecipe(page, FRI, "dinner", id);
+    await openNextWeek(page);
+
+    const dialog = await openMergeDialog(page, "肉じゃが", 2);
+    await dialog.getByRole("button").filter({ hasText: MON }).click();
+
+    await expect(dialog).toHaveCount(0);
+    await expect
+      .poll(async () => new Set((await listNextWeek(page)).map((r) => r.batchId)).size)
+      .toBe(1);
+    expect(await listNextWeek(page)).toHaveLength(3);
   });
 
-  test.skip("別時間帯の同一レシピ作り置きにもまとめられる", async () => {
-    // CellItemMenu → 「他の作り置きにまとめる」→ 別 meal 候補選択。同上。
+  test("別時間帯の同一レシピ作り置きにもまとめられる", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "肉じゃが", []);
+    await assignRecipe(page, MON, "dinner", id);
+    await assignRecipe(page, TUE, "lunch", id);
+    await openNextWeek(page);
+    await page.getByRole("checkbox", { name: t.meal.lunch }).check();
+
+    await mealPlanCell(page, TUE, "lunch")
+      .getByRole("button", { name: "肉じゃが", exact: true })
+      .click();
+    await page.getByRole("menuitem", { name: t.item_menu.merge_batch }).click();
+    const dialog = page.getByRole("dialog", { name: t.batch.merge_dialog.title });
+    await dialog.getByRole("button").filter({ hasText: t.meal.dinner }).click();
+
+    await expect(dialog).toHaveCount(0);
+    await expect
+      .poll(async () => {
+        const rows = await listNextWeek(page);
+        return batchOf(rows, TUE, "lunch") === batchOf(rows, MON, "dinner");
+      })
+      .toBe(true);
   });
 });
 
@@ -631,7 +719,8 @@ test.describe("作り置きをやめたときに残る行", () => {
 
 test.describe("作り置きの枠色による識別", () => {
   test.skip("2 つの作り置きが同時に存在すると別の色になる", async () => {
-    // 2 つの作り置きのセットアップに統合ダイアログの実行が要る。上記シナリオと同時に有効化。
+    // 枠色は作り置き ID のハッシュで 3 色から選ぶので、2 つの作り置きが同じ色になることがある。
+    // spec と実装が食い違っており (docs/reviews R8)、直すまでは有効にしても通らない回がある。
   });
 
   test("作り置きの品行には 🔗 アイコンを表示しない", async ({ page }) => {
@@ -653,30 +742,103 @@ test.describe("作り置きの枠色による識別", () => {
   });
 });
 
+// 品行の HTML5 D&D は、Playwright の dragTo (Chromium のネイティブのドラッグ) で発火する。
 test.describe("1 行 移動 (ドラッグ&ドロップ)", () => {
-  test.skip("別セルにドロップすると 1 行だけ移動する", async () => {
-    // Playwright の drag は onDragStart/onDragOver/onDrop を確実には triggering しないため、
-    // 手動 (Windows ネイティブビルド) で担保する。proposal: add-mealplan-drag-move
+  test("別セルにドロップすると 1 行だけ移動する", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "肉じゃが", []);
+    await assignRecipe(page, MON, "dinner", id);
+    await openNextWeek(page);
+
+    await mealPlanItemRows(page, "肉じゃが").dragTo(mealPlanCell(page, TUE, "dinner"));
+
+    await expect(mealPlanCell(page, MON, "dinner").getByRole("listitem")).toHaveCount(0);
+    await expect(mealPlanCell(page, TUE, "dinner").getByRole("listitem")).toHaveText(["肉じゃが"]);
+    const rows = await waitForRowCount(page, 1);
+    expect(rowsIn(rows, TUE, "dinner")).toHaveLength(1);
   });
 
-  test.skip("作り置みに属する行はドラッグできない", async () => {
-    // batch member 行は draggable=false。個別移動は禁止 (design.md D1)。
-    // 手動確認で担保。
+  test("作り置きに属する行はドラッグできない", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "肉じゃが", []);
+    await assignRecipe(page, MON, "dinner", id);
+    await spreadLeftover(page, [TUE, WED]);
+    await openNextWeek(page);
+    const before = await listNextWeek(page);
+    const wed = mealPlanCell(page, WED, "dinner").getByRole("listitem");
+    await expect(wed).toHaveAttribute("draggable", "false");
+
+    const from = await wed.boundingBox();
+    const to = await mealPlanCell(page, THU, "dinner").boundingBox();
+    if (!from || !to) throw new Error("no bounding box");
+    await page.mouse.move(from.x + 4, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 5 });
+    await expect(page.getByRole("group", { name: t.dnd.cell_drop_label })).toHaveCount(0);
+    await page.mouse.up();
+
+    expect(await listNextWeek(page)).toEqual(before);
+    await expect(mealPlanCell(page, THU, "dinner").getByRole("listitem")).toHaveCount(0);
   });
 
-  test.skip("別時間帯にドロップしても batch_id は維持される", async () => {
-    // 別 meal 間 (dinner → lunch 等) の 1 行移動。同上。
+  test("別時間帯にドロップしても batch_id は維持される", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "肉じゃが", []);
+    await assignRecipe(page, MON, "dinner", id);
+    await openNextWeek(page);
+    await page.getByRole("checkbox", { name: t.meal.lunch }).check();
+    const before = rowsIn(await listNextWeek(page), MON, "dinner")[0];
+
+    await mealPlanItemRows(page, "肉じゃが").dragTo(mealPlanCell(page, MON, "lunch"));
+
+    await expect(mealPlanCell(page, MON, "dinner").getByRole("listitem")).toHaveCount(0);
+    await expect(mealPlanCell(page, MON, "lunch").getByRole("listitem")).toHaveText(["肉じゃが"]);
+    const lunch = rowsIn(await listNextWeek(page), MON, "lunch");
+    expect(lunch).toHaveLength(1);
+    expect(lunch[0].batchId).toBe(before.batchId);
   });
 
-  test.skip("同一セル内でドロップすると並び替えとして扱う", async () => {
-    // 同一 (date, meal) で他の entry にドロップ → ReorderMeal 経由で position 差替え。同上。
+  test("同一セル内でドロップすると並び替えとして扱う", async ({ page }) => {
+    const nikujaga = await createRecipeWithIngredients(page, "肉じゃが", []);
+    const miso = await createRecipeWithIngredients(page, "みそ汁", []);
+    await assignRecipe(page, MON, "dinner", nikujaga);
+    await assignRecipe(page, MON, "dinner", miso);
+    await openNextWeek(page);
+    const items = mealPlanCell(page, MON, "dinner").getByRole("listitem");
+    await expect(items).toHaveText(["肉じゃが", "みそ汁"]);
+
+    await mealPlanItemRows(page, "みそ汁").dragTo(mealPlanItemRows(page, "肉じゃが"));
+
+    await expect(items).toHaveText(["みそ汁", "肉じゃが"]);
   });
 
-  test.skip("既存割当のあるセルにドロップすると末尾に追加される", async () => {
-    // ドロップ先セルに既存行があるとき、末尾 (position = max+1) に挿入。同上。
+  test("既存割当のあるセルにドロップすると末尾に追加される", async ({ page }) => {
+    const nikujaga = await createRecipeWithIngredients(page, "肉じゃが", []);
+    const miso = await createRecipeWithIngredients(page, "みそ汁", []);
+    await assignRecipe(page, MON, "dinner", nikujaga);
+    await assignRecipe(page, TUE, "dinner", miso);
+    await openNextWeek(page);
+
+    // 品行ではなくセルの余白に落とす。品行の上に落とすと、その位置への差し込みとして扱われる。
+    const target = mealPlanCell(page, TUE, "dinner");
+    const box = await target.boundingBox();
+    if (!box) throw new Error("no bounding box");
+    await mealPlanItemRows(page, "肉じゃが").dragTo(target, {
+      targetPosition: { x: box.width / 2, y: box.height - 4 },
+    });
+
+    await expect(mealPlanCell(page, MON, "dinner").getByRole("listitem")).toHaveCount(0);
+    await expect(target.getByRole("listitem")).toHaveText(["みそ汁", "肉じゃが"]);
   });
 
-  test.skip("ドラッグした品行では品のメニューが開かない", async () => {
-    // Playwright の D&D は発火が安定しないため、Windows 実機で確かめる (revise-mealplan-item-row design.md Risks)。
+  test("ドラッグした品行では品のメニューが開かない", async ({ page }) => {
+    const id = await createRecipeWithIngredients(page, "肉じゃが", []);
+    await assignRecipe(page, MON, "dinner", id);
+    await openNextWeek(page);
+
+    // レシピ名のボタンを掴む。ボタンの上で押してもクリックではなくドラッグとして扱われることを確かめる。
+    await mealPlanItemRows(page, "肉じゃが")
+      .getByRole("button", { name: "肉じゃが", exact: true })
+      .dragTo(mealPlanCell(page, TUE, "dinner"));
+
+    await expect(mealPlanCell(page, TUE, "dinner").getByRole("listitem")).toHaveText(["肉じゃが"]);
+    await expect(page.getByRole("menu")).toHaveCount(0);
   });
 });
