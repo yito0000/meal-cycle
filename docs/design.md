@@ -53,12 +53,12 @@
 
 | 要素 | 選定 |
 |---|---|
-| UI フレームワーク | **React 18 + TypeScript** |
+| UI フレームワーク | **React 19 + TypeScript** |
 | ビルドツール | Vite（Wails スキャフォールドのまま） |
-| スタイリング | **Tailwind CSS** |
+| スタイリング | **Tailwind CSS v4**（CSS-first の `@theme`、`tailwind.config.js` は持たない） |
 | コンポーネント | **[shadcn/ui](https://ui.shadcn.com/)**（コピペ導入、依存にせず自プロジェクト内に配置） |
 | サーバー状態管理 | **[TanStack Query](https://tanstack.com/query)**（Wails サービス呼び出しのキャッシュ・再取得） |
-| ルーティング | **[TanStack Router](https://tanstack.com/router)** または React Router（実装時に確定） |
+| ルーティング | **[TanStack Router](https://tanstack.com/router)**（memory history。Wails の webview は URL が `/` 固定で、ブラウザ履歴のモデルが合わないため） |
 | カレンダー | **自作**（CSS Grid ベース。既製カレンダーは機能過剰） |
 | i18n | **[i18next](https://www.i18next.com/) + react-i18next** |
 
@@ -75,9 +75,10 @@
 
 ---
 
-## 4. データモデル（初期案）
+## 4. データモデル
 
-エンティティは 4 つに整理する。ID は UUID v7（時系列ソート可能）を想定。
+実装済みのエンティティを示す。ID は UUID v7（時系列ソート可能）を使う。
+食材は名前の自由テキストで持ち、食材マスタはまだ無い（下の「Ingredient（食材マスタ）」）。
 
 ### Recipe（レシピ）
 
@@ -86,7 +87,7 @@ id           : string (UUID)
 name         : string
 servings     : int              // 何人分
 ingredients  : RecipeIngredient[]
-steps        : string[]         // 手順
+steps        : string           // 手順。Markdown で書く 1 つのテキスト
 tags         : string[]         // "和食", "簡単" など任意
 notes        : string           // 自由メモ
 createdAt    : timestamp
@@ -101,21 +102,19 @@ archivedAt   : timestamp | null // 論理削除の時刻。null = 未削除
 ### RecipeIngredient（レシピ内の食材）
 
 ```
-ingredientId : string           // Ingredient への参照
-amount       : number
+name         : string           // 食材名 (自由テキスト。在庫の StockItem.name と同じく食材マスタは未導入)
+amount       : number           // 0 以上 99999 以下。0 は「塩 少々」のような量を持たない材料
 unit         : string           // "g", "個", "本" など
 ```
 
+- 手順を行の配列ではなく 1 つのテキストにしたのは、S04 で Markdown を書き、S03 で描画する運用に決めたため
+  （docs/reviews/2026-09-25-design-ux-review.md R12）
+
 ### Ingredient（食材マスタ）
 
-レシピと在庫で共通に参照する食材の名寄せ辞書。
-
-```
-id           : string
-name         : string           // "玉ねぎ"
-defaultUnit  : string           // "個"
-category     : string           // "野菜", "肉" など
-```
+未導入。レシピの材料と在庫は、どちらも食材名の自由テキストで持つ。
+表記の揺れは、S04 と S06 の候補補完と、S07 の合算時の正規化で吸収している（proposal: add-ingredient-name-matching）。
+それで不満が残ったときに、別名の辞書のような軽い形から入れる（docs/reviews/2026-09-25-design-ux-review.md R19）。
 
 ### StockItem（冷蔵庫在庫）
 
@@ -148,7 +147,6 @@ createdAt    : timestamp
 - 主キーは `id`（proposal: add-mealplan-entry-id）。`position` は並び順だけを表し、削除や並べ替えのたびに振り直されるので行の指定には使わない。
   migration 00009 より前からある行の `id` は、UUID v7 ではなく無作為な hex で振ってある（中身を読まない不透明な文字列として扱う）
 - `(date, meal)` に一意制約はかけない。`(date, meal, position)` は一意制約として残し、「0 からの連番で欠番なし」を DB に守らせる
-- 「未定 = null」は現状の使い方（1 行必ずある + `recipeId` が null）から「行を作らない」に変える方が自然
 - `memo` は MVP からは外す。将来時間帯単位のメモが欲しくなれば `MealMemo(date, meal, memo)` を別テーブルで足す
 
 **作った印 `meal_plan_cooked`**（proposal: add-mealplan-cooked-mark）
@@ -167,8 +165,9 @@ PRIMARY KEY (batchId, recipeId)
 
 ### 議論ポイント
 
-- **食材マスタを分けるか、レシピ内に文字列で持つか**: 分けたほうが在庫連動や名寄せが効くが初期実装は重い。→ **最初から分ける方針**（後で統合し直すコストのほうが高い）
-- 単位変換（g ⇔ 個）は最初は扱わない。両方 `Ingredient.defaultUnit` に合わせて記録する運用でよい
+- **食材マスタを分けるか、レシピ内に文字列で持つか**: 当初は最初から分ける方針だったが、実装は自由テキストで始めた。
+  導入するなら上の「Ingredient（食材マスタ）」のとおり軽い形から入れる
+- 単位変換（g ⇔ 個）は扱わない。S07 は表記をそろえた食材名と単位が同じ材料を合算し、量を持たない材料と量る単位の材料は食材名だけで合算する
 
 ---
 
@@ -193,8 +192,8 @@ PRIMARY KEY (batchId, recipeId)
 
 ### マイグレーション
 
-- スキーマ変更は連番マイグレーション方式で管理
-- ライブラリ候補: [`golang-migrate/migrate`](https://github.com/golang-migrate/migrate) または [`pressly/goose`](https://github.com/pressly/goose)（実装時に確定）
+- スキーマ変更は連番マイグレーション方式で管理する
+- ライブラリは [`pressly/goose`](https://github.com/pressly/goose)。SQL ファイルを `//go:embed` でバイナリに同梱する
 - マイグレーションファイルは `internal/storage/sqlite/migrations/` に置く
 
 ### データ配置先
@@ -268,38 +267,46 @@ Wails v3 の構造に沿って、以下のレイヤに分ける。
 └──────────────┬──────────────────────────┘
 ┌──────────────▼──────────────────────────┐
 │  Repository (Go)                         │
-│  - 永続化の抽象。実装は JSON or SQLite    │
+│  - 永続化。実装は SQLite                  │
 └─────────────────────────────────────────┘
 ```
 
 Wails のサービス層を DDD で言う「アプリケーションサービス」相当と捉える。ドメインは framework 非依存で書く。
 
-### ディレクトリ構成（案）
+### ディレクトリ構成
 
 ```
 .
 ├── main.go
+├── cmd/
+│   ├── e2e-server/       # E2E 用に Wails の IPC を HTTP に差し替えるサーバ
+│   └── seed/             # 開発用のサンプルデータ投入
 ├── internal/
-│   ├── domain/           # エンティティとビジネスルール
+│   ├── config/           # 可変値の既定値 (defaults.go)
+│   ├── domain/           # エンティティとビジネスルール (capability 単位)
 │   │   ├── recipe/
 │   │   ├── mealplan/
-│   │   ├── ingredient/
-│   │   └── stock/
-│   ├── service/          # Wails に公開するサービス
-│   │   ├── recipe_service.go
-│   │   ├── mealplan_service.go
-│   │   └── ...
+│   │   ├── fridge/
+│   │   ├── shopping/
+│   │   └── settings/
+│   ├── service/          # Wails に公開するサービス (1 capability = 1 ファイル)
+│   │   ├── recipe.go
+│   │   ├── mealplan.go
+│   │   ├── fridge.go
+│   │   ├── shopping.go
+│   │   ├── settings.go
+│   │   └── health.go
+│   ├── sampledata/
 │   └── storage/          # 永続化実装
 │       └── sqlite/
 │           ├── migrations/
-│           └── *.go
+│           └── *_repo.go
 ├── frontend/
 └── openspec/             # OpenSpec の change proposal / archive
 ```
 
-### 未対応: モジュール名
-
-`go.mod` が `module changeme` のままなので `module github.com/yito0000/meal-cycle` に変更する必要あり。**最初の内部パッケージを切る前に対応する。**
+サービスをサブパッケージに分けないのは、`internal/service/recipe/` と `internal/domain/recipe/` の名前が衝突し、
+`main.go` で import の別名が要るためである。
 
 ---
 
