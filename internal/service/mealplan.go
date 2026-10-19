@@ -227,6 +227,27 @@ func (s *MealPlanService) ListMergeCandidates(ctx context.Context, entryID strin
 	return s.repo.ListMergeCandidates(ctx, entryID, s.mergeDayRange())
 }
 
+// SpreadGrid は「作り置きを広げる」の格子に要る、起点から選べる日数とその範囲の献立を返す。
+// 範囲を SpreadEntry の検証と同じ maxSpreadOffsetDays で決め、フロントに上限の写しを置かない (revise-settings-constraints design.md D2)。
+func (s *MealPlanService) SpreadGrid(ctx context.Context, entryID string) (mealplan.SpreadGrid, error) {
+	if entryID == "" {
+		return mealplan.SpreadGrid{}, mealplan.ErrEntryNotFound
+	}
+	src, err := s.repo.Entry(ctx, entryID)
+	if err != nil {
+		return mealplan.SpreadGrid{}, err
+	}
+	maxOffset := s.maxSpreadOffsetDays()
+	entries, err := s.repo.ListPeriod(ctx, src.Date, maxOffset+1)
+	if err != nil {
+		return mealplan.SpreadGrid{}, err
+	}
+	if entries == nil {
+		entries = []mealplan.Entry{}
+	}
+	return mealplan.SpreadGrid{MaxOffsetDays: maxOffset, Entries: entries}, nil
+}
+
 // SpreadEntry は起点行の品を、targets で選んだセルだけに 1 回の操作で入れる。
 // 1 セルでも反映できなければどのセルにも入れない (revise-mealplan-spread-api design.md D1)。
 // shareBatch=true は起点と同じ作り置き、false は各セルを独立した作り置きにする。

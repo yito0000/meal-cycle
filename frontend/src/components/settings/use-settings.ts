@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import i18n from "@/i18n";
-import type { Values } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/settings/models";
+import type {
+  Constraints,
+  Values,
+} from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/settings/models";
 import { SettingsService } from "../../../bindings/github.com/yito0000/meal-cycle/internal/service";
 
 export const SETTINGS_KEY = ["settings"] as const;
@@ -25,6 +28,22 @@ export function useSettings() {
   return useQuery({
     queryKey: SETTINGS_KEY,
     queryFn: async () => toSettingsValues(await SettingsService.Get()),
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+}
+
+export type SettingsConstraints = {
+  [K in keyof Constraints]-?: NonNullable<Constraints[K]>;
+};
+
+// 制約は版の中で変わらないので、1 回読めば足りる (revise-settings-constraints design.md D1)。
+export function useSettingsConstraints() {
+  return useQuery({
+    queryKey: [...SETTINGS_KEY, "constraints"],
+    queryFn: async (): Promise<SettingsConstraints> => {
+      const c = await SettingsService.Constraints();
+      return { ...c, shoppingRequiredDays: c.shoppingRequiredDays ?? [] };
+    },
     staleTime: Number.POSITIVE_INFINITY,
   });
 }

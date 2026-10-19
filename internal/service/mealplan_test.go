@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"testing"
 	"time"
@@ -1140,6 +1141,100 @@ func TestMealPlanService_MergeRange(t *testing.T) {
 		err := svc.MergeBatch(ctx, repo.idAt("2026-08-29", "dinner", 0), mon.BatchID)
 		if !errors.Is(err, mealplan.ErrBatchMergeDenied) {
 			t.Errorf("err = %v, want ErrBatchMergeDenied", err)
+		}
+	})
+}
+
+// nilPeriodRepo は ListPeriod が nil を返すリポジトリ。Wails が nil スライスを null で送るのを防いでいるか確かめる。
+type nilPeriodRepo struct{ *fakeMealPlanRepo }
+
+func (nilPeriodRepo) ListPeriod(context.Context, string, int) ([]mealplan.Entry, error) {
+	return nil, nil
+}
+
+func TestMealPlanService_SpreadGrid(t *testing.T) {
+	ctx := context.Background()
+	setup := func(t *testing.T, presets []int) (*MealPlanService, *fakeMealPlanRepo) {
+		t.Helper()
+		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが", "r2": "みそ汁"})
+		cfg := config.Defaults()
+		cfg.LeftoverCopyPresets = presets
+		return newMealPlanServiceWithRepo(repo, staticConfig(cfg)), repo
+	}
+	dates := func(entries []mealplan.Entry) []string {
+		out := make([]string, 0, len(entries))
+		for _, e := range entries {
+			out = append(out, e.Date)
+		}
+		return out
+	}
+
+	t.Run("should return max offset 3 and entries for 4 days from the source date when presets are the defaults", func(t *testing.T) {
+		svc, _ := setup(t, config.Defaults().LeftoverCopyPresets)
+		src, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
+		_, _ = svc.AssignRecipe(ctx, "2026-08-23", "dinner", "r2")
+		_, _ = svc.AssignRecipe(ctx, "2026-08-27", "lunch", "r2")
+		_, _ = svc.AssignRecipe(ctx, "2026-08-28", "dinner", "r2")
+
+		got, err := svc.SpreadGrid(ctx, src.ID)
+		if err != nil {
+			t.Fatalf("SpreadGrid: %v", err)
+		}
+		if got.MaxOffsetDays != 3 {
+			t.Errorf("maxOffsetDays = %d, want 3", got.MaxOffsetDays)
+		}
+		if want := []string{"2026-08-24", "2026-08-27"}; !reflect.DeepEqual(dates(got.Entries), want) {
+			t.Errorf("entry dates = %v, want %v", dates(got.Entries), want)
+		}
+	})
+
+	t.Run("should return max offset 6 when leftover presets are 2 and 7", func(t *testing.T) {
+		svc, _ := setup(t, []int{2, 7})
+		src, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
+
+		got, err := svc.SpreadGrid(ctx, src.ID)
+		if err != nil {
+			t.Fatalf("SpreadGrid: %v", err)
+		}
+		if got.MaxOffsetDays != 6 {
+			t.Errorf("maxOffsetDays = %d, want 6", got.MaxOffsetDays)
+		}
+	})
+
+	t.Run("should include an entry on the last selectable day and exclude one on the day after", func(t *testing.T) {
+		svc, _ := setup(t, []int{2, 7})
+		src, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
+		_, _ = svc.AssignRecipe(ctx, "2026-08-30", "dinner", "r2")
+		_, _ = svc.AssignRecipe(ctx, "2026-08-31", "dinner", "r2")
+
+		got, err := svc.SpreadGrid(ctx, src.ID)
+		if err != nil {
+			t.Fatalf("SpreadGrid: %v", err)
+		}
+		if want := []string{"2026-08-24", "2026-08-30"}; !reflect.DeepEqual(dates(got.Entries), want) {
+			t.Errorf("entry dates = %v, want %v", dates(got.Entries), want)
+		}
+	})
+
+	t.Run("should return ErrEntryNotFound when entryID is empty", func(t *testing.T) {
+		svc, _ := setup(t, config.Defaults().LeftoverCopyPresets)
+		_, err := svc.SpreadGrid(ctx, "")
+		if !errors.Is(err, mealplan.ErrEntryNotFound) {
+			t.Errorf("err = %v, want ErrEntryNotFound", err)
+		}
+	})
+
+	t.Run("should return an empty non-nil entries slice when nothing else is planned", func(t *testing.T) {
+		repo := newFakeMealPlanRepo(map[string]string{"r1": "肉じゃが"})
+		svc := newMealPlanServiceWithRepo(nilPeriodRepo{repo}, staticConfig(config.Defaults()))
+		src, _ := svc.AssignRecipe(ctx, "2026-08-24", "dinner", "r1")
+
+		got, err := svc.SpreadGrid(ctx, src.ID)
+		if err != nil {
+			t.Fatalf("SpreadGrid: %v", err)
+		}
+		if got.Entries == nil || len(got.Entries) != 0 {
+			t.Errorf("entries = %#v, want empty non-nil", got.Entries)
 		}
 	})
 }

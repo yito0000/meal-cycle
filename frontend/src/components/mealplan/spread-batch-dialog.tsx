@@ -21,8 +21,6 @@ interface Props {
   sourceRecipeName: string;
   sourceRecipeId: string;
   sourceBatchId: string;
-  // 初期表示する未来日数 (起点日を除く)。起点日 + initialFutureDays の合計行が最初に見える。
-  initialFutureDays: number;
   presetDays: number;
   onOpenChange: (open: boolean) => void;
   onConfirm: (selection: SpreadSelection) => void;
@@ -52,38 +50,40 @@ function targetKey(date: string, meal: string): string {
   return `${date}::${meal}`;
 }
 
-// 対象日レンジ = 起点日 + 未来 initialFutureDays 日 × 時間帯 3 列の格子で複数選択させる統合ダイアログ。
+// 対象日レンジ = 起点日 + 未来 maxOffsetDays 日 × 時間帯 3 列の格子で複数選択させる統合ダイアログ。
 // 過去方向は「作り置きは翌日以降に伸ばす」意図に反するため対象外。
 // 起点セル自身、起点日の起点より前の時間帯、起点と同じ作り置きの同じレシピが入っているセルは選択不可。既存割当セルは warning tone で示唆する。
 // 格子は S01 の表示期間の外にはみ出すので、判定に使う献立は起点日から自分で取る (revise-mealplan-spread-safety design.md D1)。
+// 行数と献立の範囲は Go の検証と同じ上限から SpreadGrid で受け取り、フロントで計算しない (revise-settings-constraints design.md D3)。
 export function SpreadBatchDialog({
   open,
   source,
   sourceRecipeName,
   sourceRecipeId,
   sourceBatchId,
-  initialFutureDays,
   presetDays,
   onOpenChange,
   onConfirm,
 }: Props) {
   const { t, i18n } = useTranslation();
 
+  const gridQuery = useQuery({
+    queryKey: ["mealplan", "spread-grid", source.id],
+    queryFn: () => MealPlanService.SpreadGrid(source.id),
+    enabled: open,
+  });
+  const gridEntries = gridQuery.data?.entries;
+  const isLoaded = gridQuery.isSuccess;
+  // 読み終えるまで行数が決まらないので、起点日の 1 行だけを描く。
+  const maxOffsetDays = gridQuery.data?.maxOffsetDays ?? 0;
+
   const rowDates = useMemo(() => {
     const dates: string[] = [];
-    for (let i = 0; i <= initialFutureDays; i++) {
+    for (let i = 0; i <= maxOffsetDays; i++) {
       dates.push(addDaysISO(source.date, i));
     }
     return dates;
-  }, [source.date, initialFutureDays]);
-
-  const gridQuery = useQuery({
-    queryKey: ["mealplan", "spread-grid", source.date],
-    queryFn: () => MealPlanService.ListPeriod(source.date, 1),
-    enabled: open,
-  });
-  const gridEntries = gridQuery.data;
-  const isLoaded = gridQuery.isSuccess;
+  }, [source.date, maxOffsetDays]);
 
   useEffect(() => {
     if (!gridQuery.isError) return;

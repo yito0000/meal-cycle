@@ -75,9 +75,6 @@ type SpreadState =
 export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }: Props) {
   const { t, i18n } = useTranslation();
   const { leftoverCopyPresets } = useSettingsValues();
-  // 統合ダイアログの対象日は起点日 + 未来 (max(LeftoverCopyPresets) - 1) 日。
-  // SpreadEntry が同じ上限で検証するので、ここを広げると Go 側で拒否される。
-  const spreadInitialFutureDays = Math.max(...leftoverCopyPresets) - 1;
   const spreadPresetDays = Math.min(...leftoverCopyPresets);
   const qc = useQueryClient();
   const [picker, setPicker] = useState<PickerState>({ kind: "closed" });
@@ -543,7 +540,6 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
           sourceRecipeName={spreadState.sourceRecipeName}
           sourceRecipeId={spreadState.sourceRecipeId}
           sourceBatchId={spreadState.sourceBatchId}
-          initialFutureDays={spreadInitialFutureDays}
           presetDays={spreadPresetDays}
           onOpenChange={(next) => {
             if (!next) setSpreadState({ kind: "closed" });

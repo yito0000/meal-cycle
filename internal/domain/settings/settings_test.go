@@ -3,6 +3,7 @@ package settings
 import (
 	"errors"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -108,5 +109,32 @@ func TestValidate(t *testing.T) {
 				t.Errorf("Validate() = %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestCurrentConstraints(t *testing.T) {
+	cases := []struct {
+		name  string
+		check func(t *testing.T, c Constraints)
+	}{
+		{"required shopping days are 7, 14 and 28", func(t *testing.T, c Constraints) {
+			if want := []int{7, 14, 28}; !reflect.DeepEqual(c.ShoppingRequiredDays, want) {
+				t.Errorf("required = %v, want %v", c.ShoppingRequiredDays, want)
+			}
+		}},
+		{"fallback days is one of the required days", func(t *testing.T, c Constraints) {
+			if !slices.Contains(c.ShoppingRequiredDays, c.ShoppingFallbackDays) {
+				t.Errorf("fallback %d not in %v", c.ShoppingFallbackDays, c.ShoppingRequiredDays)
+			}
+		}},
+		{"mutating the returned slice keeps ShoppingRequiredDays", func(t *testing.T, c Constraints) {
+			c.ShoppingRequiredDays[0] = 99
+			if ShoppingRequiredDays[0] != 7 {
+				t.Errorf("ShoppingRequiredDays = %v, want unchanged", ShoppingRequiredDays)
+			}
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) { tc.check(t, CurrentConstraints()) })
 	}
 }

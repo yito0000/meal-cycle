@@ -51,6 +51,10 @@ export function ListMergeCandidates(entryID: string) {
   return call<mealplan$0.BatchSummary[]>("MealPlanService", "ListMergeCandidates", entryID);
 }
 
+export function SpreadGrid(entryID: string) {
+  return call<mealplan$0.SpreadGrid>("MealPlanService", "SpreadGrid", entryID);
+}
+
 export function SpreadEntry(
   entryID: string,
   targets: mealplan$0.SpreadTarget[] | null,

@@ -84,7 +84,7 @@ spec には件数の定義が書かれていないので、直すときに 1 文
 
 ### R48. S09 の制約の一部が、フロントに写しとして残っている
 
-- [ ] 対応済み（proposal: revise-settings-constraints）
+- [x] 対応済み（proposal: revise-settings-constraints）
 
 `settings-form.tsx` の `SHOPPING_REQUIRED_DAYS`（7 / 14 / 28）と `SHOPPING_FALLBACK_DAYS`（7）は、Go 側の `settings.ShoppingRequiredDays` の写しである。
 コメントで出典を指しているので、今すぐ壊れるものではない。
@@ -177,7 +177,7 @@ R46 と R47 のどちらも、まとめるダイアログを開く E2E があれ
 | R14 | 在庫を使ったときの操作が重い | 変わらず |
 | R15 | S07 で在庫の量が見えない | 変わらず |
 | R16 | 人数を考慮しないことが spec に無い | 変わらず |
-| R17 | 既定値が複数か所に分かれている | S09 で `MEASURING_UNITS` などの写しは消えた。R48 の写しが残る |
+| R17 | 既定値が複数か所に分かれている | S09 で `MEASURING_UNITS` などの写しは消えた。R48 で残りの写し (消せない日数、格子の行数) も Go から返す形にした |
 | R18 | バックアップの手段がない | レシピの書き出しは入った。献立と在庫の書き出し、画面からの復元は残る |
 | R19 | 食材マスタは別名の辞書から | R45 |
 | R27 | エラーを文字列の部分一致で受け渡す | S09 の `error-messages.ts` も同じ方式で 19 件を引いている |

@@ -23,6 +23,7 @@ import {
 import { type SettingsError, type SettingsField, settingsErrorOf } from "./error-messages";
 import { NumberListField } from "./number-list-field";
 import {
+  type SettingsConstraints,
   type SettingsValues,
   toSettingsValues,
   useResetSettings,
@@ -35,10 +36,6 @@ const LANGUAGE_OPTIONS = [
   { value: "ja", label: "日本語" },
   { value: "en", label: "English" },
 ] as const;
-
-// S01 の 1 / 2 / 4 週の期間を S07 に引き継ぐので消せない (internal/domain/settings/validate.go の ShoppingRequiredDays)。
-const SHOPPING_REQUIRED_DAYS: readonly number[] = [7, 14, 28];
-const SHOPPING_FALLBACK_DAYS = 7;
 
 // 数値の欄は入力途中の空欄や小数を持てるよう文字列で持ち、保存時に整数へ直す。
 type Draft = {
@@ -119,7 +116,13 @@ function sameValues(a: SettingsValues, b: SettingsValues): boolean {
   return canon(a) === canon(b);
 }
 
-export function SettingsForm({ saved }: { saved: SettingsValues }) {
+export function SettingsForm({
+  saved,
+  constraints,
+}: {
+  saved: SettingsValues;
+  constraints: SettingsConstraints;
+}) {
   const { t } = useTranslation();
   const [draft, setDraft] = useState<Draft>(() => toDraft(saved));
   const [error, setError] = useState<SettingsError | null>(null);
@@ -169,10 +172,10 @@ export function SettingsForm({ saved }: { saved: SettingsValues }) {
   };
 
   const onShoppingPresetsChange = (next: number[]) => {
-    // 選択中の日数を消したら、必ず候補に残る 7 日を選び直す (design.md D10)。
+    // 選択中の日数を消したら、必ず候補に残る日数を選び直す (design.md D10)。
     const shoppingDefault = next.includes(draft.shoppingDefault)
       ? draft.shoppingDefault
-      : SHOPPING_FALLBACK_DAYS;
+      : constraints.shoppingFallbackDays;
     update({ shoppingPresets: next, shoppingDefault });
   };
 
@@ -223,7 +226,7 @@ export function SettingsForm({ saved }: { saved: SettingsValues }) {
           label={t("pages.settings.field.shopping_presets")}
           hint={t("pages.settings.hint.shopping_presets")}
           values={draft.shoppingPresets}
-          lockedValues={SHOPPING_REQUIRED_DAYS}
+          lockedValues={constraints.shoppingRequiredDays}
           onChange={onShoppingPresetsChange}
           errorKey={errorFor("shoppingPresets")}
         />

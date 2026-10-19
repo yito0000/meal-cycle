@@ -120,6 +120,40 @@ func TestSettingsService_Get(t *testing.T) {
 	})
 }
 
+func TestSettingsService_Constraints(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("should return required shopping days 7, 14 and 28 when nothing is saved", func(t *testing.T) {
+		got, err := NewSettingsService(openSettingsDB(t)).Constraints(ctx)
+		if err != nil {
+			t.Fatalf("Constraints: %v", err)
+		}
+		if want := []int{7, 14, 28}; !reflect.DeepEqual(got.ShoppingRequiredDays, want) {
+			t.Errorf("required = %v, want %v", got.ShoppingRequiredDays, want)
+		}
+		if got.ShoppingFallbackDays != 7 {
+			t.Errorf("fallback = %d, want 7", got.ShoppingFallbackDays)
+		}
+	})
+
+	t.Run("should return the same constraints when shopping presets are saved with extra days", func(t *testing.T) {
+		svc := NewSettingsService(openSettingsDB(t))
+		before, _ := svc.Constraints(ctx)
+		values := defaultValues()
+		values.ShoppingPeriodDayPresets = []int{3, 7, 10, 14, 28}
+		if _, err := svc.Save(ctx, values); err != nil {
+			t.Fatalf("Save: %v", err)
+		}
+		after, err := svc.Constraints(ctx)
+		if err != nil {
+			t.Fatalf("Constraints: %v", err)
+		}
+		if !reflect.DeepEqual(after, before) {
+			t.Errorf("after save = %#v, want %#v", after, before)
+		}
+	})
+}
+
 func TestSettingsService_Save(t *testing.T) {
 	t.Run("should persist values so that a new service on the same database returns them", func(t *testing.T) {
 		db := openSettingsDB(t)

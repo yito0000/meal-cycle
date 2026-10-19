@@ -230,3 +230,8 @@ func (s *SettingsService) Reset(ctx context.Context) (settings.Values, error) {
 	s.cfg = config.Defaults()
 	return settings.FromConfig(s.cfg), nil
 }
+
+// Constraints は S09 の画面が表示に使う規則を返す。版の中で変わらないので、保存した値には左右されない。
+func (s *SettingsService) Constraints(_ context.Context) (settings.Constraints, error) {
+	return settings.CurrentConstraints(), nil
+}

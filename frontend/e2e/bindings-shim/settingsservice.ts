@@ -12,3 +12,7 @@ export function Reset() {
 export function Save(values: settings$0.Values) {
   return call<settings$0.Values>("SettingsService", "Save", values);
 }
+
+export function Constraints() {
+  return call<settings$0.Constraints>("SettingsService", "Constraints");
+}

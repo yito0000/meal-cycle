@@ -241,6 +241,10 @@ S09 で変えた値は、同じ DB の `settings` テーブルに持つ (`add-se
 各部品は取得済みの値を `useSettingsValues()` で受け取り、Go の既定値を写した定数を持たない。
 保存すると、設定以外の TanStack Query のキャッシュをすべて捨てる。S05 の期限状態や S07 の合算はサービスが設定値で計算した結果なので、取り直さないと古い閾値のまま表示されるからである。
 
+設定に結びついた規則 (S09 で消せない値、設定から導く範囲) は、フロントに写さず Go から返す (`revise-settings-constraints`)。
+S09 の消せない日数と選び直す日数は `SettingsService.Constraints`、「作り置きを広げる」の格子の行数と判定に使う献立は `MealPlanService.SpreadGrid` が返す。
+写しを置くと、片方だけを直したときに Go が拒否する値をフロントが送ったり、送れるはずの値をフロントが止めたりするためである。
+
 S09 で変えられる値を足すときは、`internal/domain/settings` の `Values` と検証、`internal/service/settings.go` の key、S09 の欄を同じ proposal で足す。
 
 ---
