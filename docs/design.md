@@ -220,6 +220,17 @@ PRIMARY KEY (batchId, recipeId)
 同じフォルダに `meal-cycle.db-wal` / `meal-cycle.db-shm` が残っていれば、先に消す。
 画面からの復元と任意のタイミングでの書き出しは、S09 (設定) に節を足す別の proposal で扱う。
 
+### ログファイル
+
+配布用の Windows ビルドは `-H windowsgui` でコンソールを持たず、stderr に書いたログは残らない。
+調べる手がかりが無くならないよう、ログを DB と同じフォルダの `meal-cycle.log` にも書く (`internal/applog`)。
+
+- 書くもの: Go の `log` の出力、Wails のシステムログ (bound method の panic を含む)、recover されない panic と fatal error
+- 本番ビルドの Wails 既定ロガーは出力を捨てるので、`application.Options.Logger` に同じ出力先の `slog` を渡す
+- recover されない panic は `log` を通らないため、`debug.SetCrashOutput` でランタイムに直接書かせる
+- 大きさ: 起動時に 1MB を超えていれば `meal-cycle.log.1` へ退避する。退避は 1 世代だけ持つ
+- フロントエンドのエラーは書かない。toast で利用者に見えており、Go 側で起きた失敗は Go 側のログに残るため
+
 ### 設定の保存と反映
 
 S09 で変えた値は、同じ DB の `settings` テーブルに持つ (`add-settings-screen`)。

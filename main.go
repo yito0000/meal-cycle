@@ -4,12 +4,17 @@ import (
 	"database/sql"
 	"embed"
 	"errors"
+	"io"
 	"log"
+	"log/slog"
+	"os"
+	"runtime/debug"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
 
+	"github.com/yito0000/meal-cycle/internal/applog"
 	"github.com/yito0000/meal-cycle/internal/service"
 	"github.com/yito0000/meal-cycle/internal/storage/sqlite"
 )
@@ -18,6 +23,10 @@ import (
 var assets embed.FS
 
 func main() {
+	if f := setupLogFile(); f != nil {
+		defer f.Close()
+	}
+
 	db, startup := openDatabase()
 	if db != nil {
 		defer db.Close()
@@ -44,6 +53,8 @@ func main() {
 		Name:        "meal-cycle",
 		Description: "献立・冷蔵庫・レシピを一元管理するデスクトップアプリ",
 		Services:    services,
+		// 本番ビルドの Wails 既定ロガーは io.Discard に捨てるため、bound method の panic などが残らない。
+		Logger: slog.New(slog.NewTextHandler(log.Writer(), nil)),
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
 		},
@@ -120,6 +131,27 @@ func main() {
 	if err := app.Run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// 配布用 Windows ビルドは -H windowsgui でコンソールが無く stderr が消えるため、ログとクラッシュ出力をファイルにも残す。
+func setupLogFile() *os.File {
+	path, err := applog.DefaultPath()
+	if err != nil {
+		log.Printf("meal-cycle: %v", err)
+		return nil
+	}
+	f, err := applog.Open(path)
+	if err != nil {
+		log.Printf("meal-cycle: %v", err)
+		return nil
+	}
+	log.SetOutput(io.MultiWriter(os.Stderr, f))
+	// recover されない panic と fatal error は log を通らないので、ランタイムに直接書かせる。
+	if err := debug.SetCrashOutput(f, debug.CrashOptions{}); err != nil {
+		log.Printf("meal-cycle: set crash output: %v", err)
+	}
+	log.Printf("meal-cycle: log file at %s", path)
+	return f
 }
 
 func openDatabase() (*sql.DB, service.StartupState) {
