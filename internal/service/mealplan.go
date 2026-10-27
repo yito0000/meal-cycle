@@ -27,6 +27,7 @@ type mealPlanRepo interface {
 	Spread(ctx context.Context, entryID string,
 		targets []mealplan.SpreadTarget, mode mealplan.CopyMode, shareBatch mealplan.ShareBatch) (mealplan.SpreadResult, error)
 	UndoSpread(ctx context.Context, result mealplan.SpreadResult) error
+	ApplyPlan(ctx context.Context, items []mealplan.PlanItem) (mealplan.SpreadResult, error)
 	MoveEntry(ctx context.Context, entryID, targetDate, targetMeal string) error
 	SetCooked(ctx context.Context, entryID string, cooked bool) error
 }
@@ -272,6 +273,14 @@ func (s *MealPlanService) SpreadEntry(
 		return mealplan.SpreadResult{}, err
 	}
 	return s.repo.Spread(ctx, entryID, targets, cm, mealplan.ShareBatch(shareBatch))
+}
+
+// ApplyPlan は週の候補の案などを 1 回でまとめて割り当てる。取り消しは UndoSpread に返り値を渡す。
+func (s *MealPlanService) ApplyPlan(ctx context.Context, items []mealplan.PlanItem) (mealplan.SpreadResult, error) {
+	if err := mealplan.ValidatePlanItems(items); err != nil {
+		return mealplan.SpreadResult{}, err
+	}
+	return s.repo.ApplyPlan(ctx, items)
 }
 
 // UndoSpread は SpreadEntry の結果を受け取り、追加した行を消して上書きで消した行を戻す。

@@ -2,9 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { RecipeService } from "../../../bindings/github.com/yito0000/meal-cycle/internal/service";
+import { useSettingsValues } from "../settings/settings-gate";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Input } from "../ui/input";
+import { type SuggestionItem, SuggestionSection } from "./suggestion-section";
+import { useSuggestions } from "./use-suggestions";
 
 type PickedRecipe = { id: string; name: string };
 
@@ -26,6 +29,37 @@ export function RecipePickerDialog({ open, onOpenChange, onSelect }: Props) {
     enabled: open,
   });
 
+  const suggestions = useSuggestions(open);
+  const { recencyThresholdDays } = useSettingsValues();
+  const searching = q.trim() !== "";
+
+  const byStockItems: SuggestionItem[] = (suggestions.data?.byStock ?? []).map((c) => {
+    const names = c.stocks
+      .map((s) => s.name)
+      .join(t("pages.meal_plan.picker.suggestion.name_separator"));
+    const days = c.stocks[0]?.daysLeft ?? 0;
+    return {
+      recipeId: c.recipeId,
+      recipeName: c.recipeName,
+      reason:
+        days === 0
+          ? t("pages.meal_plan.picker.suggestion.by_stock_reason_today", { names })
+          : t("pages.meal_plan.picker.suggestion.by_stock_reason", { names, days }),
+    };
+  });
+
+  const byRecencyItems: SuggestionItem[] = (suggestions.data?.byRecency ?? []).map((c) => ({
+    recipeId: c.recipeId,
+    recipeName: c.recipeName,
+    reason: t("pages.meal_plan.picker.suggestion.by_recency_reason", { days: c.daysSince }),
+  }));
+
+  const pick = (picked: PickedRecipe) => {
+    onSelect(picked);
+    onOpenChange(false);
+    setQ("");
+  };
+
   const filtered = useMemo(() => {
     const list = data ?? [];
     if (q.trim() === "") return list;
@@ -41,7 +75,7 @@ export function RecipePickerDialog({ open, onOpenChange, onSelect }: Props) {
         if (!next) setQ("");
       }}
     >
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>{t("pages.meal_plan.picker.title")}</DialogTitle>
         </DialogHeader>
@@ -52,6 +86,29 @@ export function RecipePickerDialog({ open, onOpenChange, onSelect }: Props) {
             onChange={(e) => setQ(e.target.value)}
             autoFocus
           />
+          {/* 名前で探している間は候補が一覧を押し下げるだけになるので隠す (add-mealplan-suggest-by-stock design.md D4)。 */}
+          {!searching && suggestions.data && (
+            <SuggestionSection
+              title={t("pages.meal_plan.picker.suggestion.by_stock_title")}
+              countLabel={t("pages.meal_plan.picker.suggestion.count", {
+                count: byStockItems.length,
+              })}
+              items={byStockItems}
+              onSelect={(item) => pick({ id: item.recipeId, name: item.recipeName })}
+            />
+          )}
+          {!searching && suggestions.data && (
+            <SuggestionSection
+              title={t("pages.meal_plan.picker.suggestion.by_recency_title", {
+                days: recencyThresholdDays,
+              })}
+              countLabel={t("pages.meal_plan.picker.suggestion.count", {
+                count: byRecencyItems.length,
+              })}
+              items={byRecencyItems}
+              onSelect={(item) => pick({ id: item.recipeId, name: item.recipeName })}
+            />
+          )}
           <ul className="max-h-64 overflow-y-auto rounded-md border border-neutral-200">
             {isLoading && (
               <li className="p-3 text-sm text-neutral-500">{t("pages.meal_plan.loading")}</li>
@@ -64,11 +121,7 @@ export function RecipePickerDialog({ open, onOpenChange, onSelect }: Props) {
                 <button
                   type="button"
                   className="block w-full cursor-pointer px-3 py-2 text-left text-sm hover:bg-neutral-100"
-                  onClick={() => {
-                    onSelect({ id: r.id, name: r.name });
-                    onOpenChange(false);
-                    setQ("");
-                  }}
+                  onClick={() => pick({ id: r.id, name: r.name })}
                 >
                   {r.name}
                 </button>

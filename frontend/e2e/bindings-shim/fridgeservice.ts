@@ -28,3 +28,31 @@ export function Restore(item: fridge$0.StockItem) {
 export function Update(id: string, input: fridge$0.StockItem) {
   return call<fridge$0.StockItem>("FridgeService", "Update", id, input);
 }
+
+export function ListStaples() {
+  return call<fridge$0.Staple[]>("FridgeService", "ListStaples");
+}
+
+export function AddStaple(name: string) {
+  return call<fridge$0.Staple>("FridgeService", "AddStaple", name);
+}
+
+export function SetStapleState(id: string, state: fridge$0.StapleState) {
+  return call<fridge$0.Staple>("FridgeService", "SetStapleState", id, state);
+}
+
+export function DeleteStaple(id: string) {
+  return call<void>("FridgeService", "DeleteStaple", id);
+}
+
+export function RestoreStaple(item: fridge$0.Staple) {
+  return call<fridge$0.Staple>("FridgeService", "RestoreStaple", item);
+}
+
+export function PlanCookConsumption(entryID: string) {
+  return call<fridge$0.ConsumptionPlan>("FridgeService", "PlanCookConsumption", entryID);
+}
+
+export function Consume(items: fridge$0.Consumption[] | null) {
+  return call<void>("FridgeService", "Consume", items);
+}

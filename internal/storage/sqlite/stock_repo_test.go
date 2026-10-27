@@ -410,3 +410,89 @@ func TestStockRepo_ListSuggestions(t *testing.T) {
 		}
 	})
 }
+
+func TestStockRepo_Consume(t *testing.T) {
+	ctx := context.Background()
+	seed := func(t *testing.T, repo *StockRepo) {
+		t.Helper()
+		for _, s := range []fridge.StockItem{
+			{ID: "onion", Name: "玉ねぎ", Amount: 3, Unit: "個", ExpiresAt: "2026-10-10", AddedAt: "2026-09-01T00:00:00Z"},
+			{ID: "pork", Name: "豚肉", Amount: 200, Unit: "g", AddedAt: "2026-09-02T00:00:00Z"},
+		} {
+			if _, err := repo.Restore(ctx, s); err != nil {
+				t.Fatalf("Restore: %v", err)
+			}
+		}
+	}
+	amounts := func(t *testing.T, repo *StockRepo) map[string]float64 {
+		t.Helper()
+		items, err := repo.List(ctx)
+		if err != nil {
+			t.Fatalf("List: %v", err)
+		}
+		out := map[string]float64{}
+		for _, it := range items {
+			out[it.ID] = it.Amount
+		}
+		return out
+	}
+	original := map[string]float64{"onion": 3, "pork": 200}
+
+	t.Run("reduces amount and keeps added_at and expires_at when part is consumed", func(t *testing.T) {
+		repo, _ := newStockRepoForTest(t)
+		seed(t, repo)
+		if err := repo.Consume(ctx, []fridge.Consumption{{StockID: "onion", Amount: 2}}); err != nil {
+			t.Fatalf("Consume: %v", err)
+		}
+		got, _ := repo.GetByID(ctx, "onion")
+		if got.Amount != 1 || got.AddedAt != "2026-09-01T00:00:00Z" || got.ExpiresAt != "2026-10-10" {
+			t.Errorf("unexpected: %+v", got)
+		}
+	})
+
+	t.Run("deletes row when whole amount is consumed", func(t *testing.T) {
+		repo, _ := newStockRepoForTest(t)
+		seed(t, repo)
+		if err := repo.Consume(ctx, []fridge.Consumption{{StockID: "pork", Amount: 200}}); err != nil {
+			t.Fatalf("Consume: %v", err)
+		}
+		if _, err := repo.GetByID(ctx, "pork"); !errors.Is(err, fridge.ErrStockNotFound) {
+			t.Errorf("want deleted, got %v", err)
+		}
+	})
+
+	t.Run("leaves row unchanged when amount is zero", func(t *testing.T) {
+		repo, _ := newStockRepoForTest(t)
+		seed(t, repo)
+		if err := repo.Consume(ctx, []fridge.Consumption{{StockID: "onion", Amount: 0}}); err != nil {
+			t.Fatalf("Consume: %v", err)
+		}
+		if got := amounts(t, repo); !reflect.DeepEqual(got, original) {
+			t.Errorf("changed: %v", got)
+		}
+	})
+
+	t.Run("changes no row when any amount exceeds current", func(t *testing.T) {
+		repo, _ := newStockRepoForTest(t)
+		seed(t, repo)
+		err := repo.Consume(ctx, []fridge.Consumption{{StockID: "pork", Amount: 100}, {StockID: "onion", Amount: 5}})
+		if !errors.Is(err, fridge.ErrConsumeAmountOutOfRange) {
+			t.Errorf("want ErrConsumeAmountOutOfRange, got %v", err)
+		}
+		if got := amounts(t, repo); !reflect.DeepEqual(got, original) {
+			t.Errorf("changed: %v", got)
+		}
+	})
+
+	t.Run("changes no row when a missing id is included", func(t *testing.T) {
+		repo, _ := newStockRepoForTest(t)
+		seed(t, repo)
+		err := repo.Consume(ctx, []fridge.Consumption{{StockID: "pork", Amount: 100}, {StockID: "missing", Amount: 1}})
+		if !errors.Is(err, fridge.ErrStockNotFound) {
+			t.Errorf("want ErrStockNotFound, got %v", err)
+		}
+		if got := amounts(t, repo); !reflect.DeepEqual(got, original) {
+			t.Errorf("changed: %v", got)
+		}
+	})
+}

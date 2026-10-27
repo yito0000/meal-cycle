@@ -20,6 +20,10 @@ type Values struct {
 	MeasuringUnits              []string `json:"measuringUnits"`
 	UnquantifiedWords           []string `json:"unquantifiedWords"`
 	RecipeImportDefaultServings int      `json:"recipeImportDefaultServings"`
+	RecencyThresholdDays        int      `json:"recencyThresholdDays"`
+	WeeklyFillDays              []int    `json:"weeklyFillDays"`
+	WeeklyFillMeal              string   `json:"weeklyFillMeal"`
+	WeeklyPresetMaxRunDays      int      `json:"weeklyPresetMaxRunDays"`
 }
 
 func FromConfig(c config.Config) Values {
@@ -33,6 +37,10 @@ func FromConfig(c config.Config) Values {
 		MeasuringUnits:              cloneOrEmpty(c.MeasuringUnits),
 		UnquantifiedWords:           cloneOrEmpty(c.UnquantifiedWords),
 		RecipeImportDefaultServings: c.RecipeImportDefaultServings,
+		RecencyThresholdDays:        c.RecencyThresholdDays,
+		WeeklyFillDays:              cloneOrEmpty(c.WeeklyFillDays),
+		WeeklyFillMeal:              c.WeeklyFillMeal,
+		WeeklyPresetMaxRunDays:      c.WeeklyPresetMaxRunDays,
 	}
 }
 
@@ -47,6 +55,10 @@ func (v Values) ApplyTo(base config.Config) config.Config {
 	base.MeasuringUnits = cloneOrEmpty(v.MeasuringUnits)
 	base.UnquantifiedWords = cloneOrEmpty(v.UnquantifiedWords)
 	base.RecipeImportDefaultServings = v.RecipeImportDefaultServings
+	base.RecencyThresholdDays = v.RecencyThresholdDays
+	base.WeeklyFillDays = cloneOrEmpty(v.WeeklyFillDays)
+	base.WeeklyFillMeal = v.WeeklyFillMeal
+	base.WeeklyPresetMaxRunDays = v.WeeklyPresetMaxRunDays
 	return base
 }
 
@@ -54,6 +66,7 @@ func (v Values) ApplyTo(base config.Config) config.Config {
 func (v Values) Normalize() Values {
 	v.LeftoverCopyPresets = sortedCopy(v.LeftoverCopyPresets)
 	v.ShoppingPeriodDayPresets = sortedCopy(v.ShoppingPeriodDayPresets)
+	v.WeeklyFillDays = sortedCopy(v.WeeklyFillDays)
 	v.MeasuringUnits = trimmedCopy(v.MeasuringUnits)
 	v.UnquantifiedWords = trimmedCopy(v.UnquantifiedWords)
 	return v

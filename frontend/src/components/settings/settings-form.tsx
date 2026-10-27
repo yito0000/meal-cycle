@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { mealLabelKey } from "../mealplan/mealplan-config";
 import { type SettingsError, type SettingsField, settingsErrorOf } from "./error-messages";
 import { NumberListField } from "./number-list-field";
 import {
@@ -48,6 +49,10 @@ type Draft = {
   measuringUnits: string[];
   unquantifiedWords: string[];
   importServings: string;
+  recencyDays: string;
+  weeklyFillDays: number[];
+  weeklyFillMeal: string;
+  weeklyRunDays: string;
 };
 
 function toDraft(v: SettingsValues): Draft {
@@ -61,6 +66,10 @@ function toDraft(v: SettingsValues): Draft {
     measuringUnits: [...v.measuringUnits],
     unquantifiedWords: [...v.unquantifiedWords],
     importServings: String(v.recipeImportDefaultServings),
+    recencyDays: String(v.recencyThresholdDays),
+    weeklyFillDays: [...v.weeklyFillDays],
+    weeklyFillMeal: v.weeklyFillMeal,
+    weeklyRunDays: String(v.weeklyPresetMaxRunDays),
   };
 }
 
@@ -77,6 +86,8 @@ function fromDraft(d: Draft): ParseResult {
     ["expiryRed", d.expiryRed],
     ["expiryYellow", d.expiryYellow],
     ["importServings", d.importServings],
+    ["recencyDays", d.recencyDays],
+    ["weeklyRunDays", d.weeklyRunDays],
   ];
   for (const [field, text] of numbers) {
     if (parseInteger(text) === null) {
@@ -95,6 +106,10 @@ function fromDraft(d: Draft): ParseResult {
       measuringUnits: d.measuringUnits.map((w) => w.trim()),
       unquantifiedWords: d.unquantifiedWords.map((w) => w.trim()),
       recipeImportDefaultServings: parseInteger(d.importServings) ?? 0,
+      recencyThresholdDays: parseInteger(d.recencyDays) ?? 0,
+      weeklyFillDays: [...d.weeklyFillDays].sort((a, b) => a - b),
+      weeklyFillMeal: d.weeklyFillMeal,
+      weeklyPresetMaxRunDays: parseInteger(d.weeklyRunDays) ?? 0,
     },
   };
 }
@@ -112,6 +127,10 @@ function sameValues(a: SettingsValues, b: SettingsValues): boolean {
       v.measuringUnits.map((w) => w.trim()),
       v.unquantifiedWords.map((w) => w.trim()),
       v.recipeImportDefaultServings,
+      v.recencyThresholdDays,
+      [...v.weeklyFillDays].sort((x, y) => x - y),
+      v.weeklyFillMeal,
+      v.weeklyPresetMaxRunDays,
     ]);
   return canon(a) === canon(b);
 }
@@ -199,6 +218,36 @@ export function SettingsForm({
           values={draft.leftoverPresets}
           onChange={(leftoverPresets) => update({ leftoverPresets })}
           errorKey={errorFor("leftoverPresets")}
+        />
+        <IntegerField
+          label={t("pages.settings.field.recency_days")}
+          hint={t("pages.settings.hint.recency_days")}
+          suffix={t("pages.settings.suffix.days")}
+          value={draft.recencyDays}
+          onChange={(recencyDays) => update({ recencyDays })}
+          errorKey={errorFor("recencyDays")}
+        />
+        <WeekdayField
+          label={t("pages.settings.field.weekly_fill_days")}
+          hint={t("pages.settings.hint.weekly_fill_days")}
+          values={draft.weeklyFillDays}
+          onChange={(weeklyFillDays) => update({ weeklyFillDays })}
+          errorKey={errorFor("weeklyFillDays")}
+        />
+        <SelectField
+          label={t("pages.settings.field.weekly_fill_meal")}
+          value={draft.weeklyFillMeal}
+          onChange={(weeklyFillMeal) => update({ weeklyFillMeal })}
+          options={WEEKLY_FILL_MEALS.map((m) => ({ value: m, label: t(mealLabelKey(m)) }))}
+          errorKey={errorFor("weeklyFillMeal")}
+        />
+        <IntegerField
+          label={t("pages.settings.field.weekly_run_days")}
+          hint={t("pages.settings.hint.weekly_run_days")}
+          suffix={t("pages.settings.suffix.days")}
+          value={draft.weeklyRunDays}
+          onChange={(weeklyRunDays) => update({ weeklyRunDays })}
+          errorKey={errorFor("weeklyRunDays")}
         />
       </Section>
 
@@ -323,6 +372,50 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       <h2 className="text-base font-semibold text-neutral-900">{title}</h2>
       {children}
     </section>
+  );
+}
+
+const WEEKLY_FILL_MEALS = ["breakfast", "lunch", "dinner"] as const;
+
+// 曜日の名前は表示言語の Intl に任せる。2024-01-01 は月曜なので、そこから 1〜7 日目を月〜日に当てる。
+function weekdayName(day: number, language: string): string {
+  return new Intl.DateTimeFormat(language, { weekday: "short" }).format(new Date(2024, 0, day));
+}
+
+function WeekdayField({
+  label,
+  hint,
+  values,
+  onChange,
+  errorKey,
+}: {
+  label: string;
+  hint: string;
+  values: number[];
+  onChange: (v: number[]) => void;
+  errorKey?: string;
+}) {
+  const { i18n } = useTranslation();
+  return (
+    <fieldset className="flex flex-col gap-2" aria-label={label}>
+      <legend className="text-sm font-medium text-neutral-800">{label}</legend>
+      <div className="flex flex-wrap gap-3">
+        {[1, 2, 3, 4, 5, 6, 7].map((day) => (
+          <label key={day} className="flex items-center gap-1 text-sm">
+            <input
+              type="checkbox"
+              checked={values.includes(day)}
+              onChange={(e) =>
+                onChange(e.target.checked ? [...values, day] : values.filter((d) => d !== day))
+              }
+            />
+            {weekdayName(day, i18n.language)}
+          </label>
+        ))}
+      </div>
+      <p className="text-xs text-neutral-500">{hint}</p>
+      <FieldError messageKey={errorKey} />
+    </fieldset>
   );
 }
 

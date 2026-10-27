@@ -27,7 +27,20 @@ const (
 
 	ImportServingsMin = 1
 	ImportServingsMax = 99
+
+	RecencyDaysMin = 1
+	// 週単位の献立で、2 か月より前の履歴を「久しぶり」の基準に使う場面が見当たらないので止める (add-mealplan-suggest-by-recency design.md D5)。
+	RecencyDaysMax = 60
+
+	WeekdayMin = 1
+	WeekdayMax = 7
+	// 1 週間を超えて同じ品を続けても、対象の週の中には収まらないので止める。
+	WeeklyRunDaysMin = 1
+	WeeklyRunDaysMax = 7
 )
+
+// 週の候補で埋める時間帯。internal/domain/mealplan.Meal と同じ文字列 (settings が mealplan を import しないため写す)。
+var weeklyFillMeals = []string{"breakfast", "lunch", "dinner"}
 
 // S01 の 1 / 2 / 4 週の期間を S07 に引き継ぐので、買い物リストの候補から外せない。
 var ShoppingRequiredDays = []int{7, 14, 28}
@@ -44,6 +57,9 @@ func (v Values) Validate() error {
 		func() error { return ValidateMeasuringUnits(v.MeasuringUnits) },
 		func() error { return ValidateUnquantifiedWords(v.UnquantifiedWords) },
 		func() error { return ValidateImportServings(v.RecipeImportDefaultServings) },
+		func() error { return ValidateRecencyThreshold(v.RecencyThresholdDays) },
+		func() error { return ValidateWeeklyFill(v.WeeklyFillDays, v.WeeklyFillMeal) },
+		func() error { return ValidateWeeklyPresetMaxRunDays(v.WeeklyPresetMaxRunDays) },
 	}
 	for _, check := range checks {
 		if err := check(); err != nil {
@@ -124,6 +140,38 @@ func ValidateUnquantifiedWords(words []string) error {
 func ValidateImportServings(servings int) error {
 	if servings < ImportServingsMin || servings > ImportServingsMax {
 		return ErrImportServingsOutOfRange
+	}
+	return nil
+}
+
+func ValidateRecencyThreshold(days int) error {
+	if days < RecencyDaysMin || days > RecencyDaysMax {
+		return ErrRecencyDaysOutOfRange
+	}
+	return nil
+}
+
+func ValidateWeeklyFill(days []int, meal string) error {
+	if len(days) == 0 {
+		return ErrWeeklyFillDaysEmpty
+	}
+	for _, d := range days {
+		if d < WeekdayMin || d > WeekdayMax {
+			return ErrWeeklyFillDayOutOfRange
+		}
+	}
+	if hasDuplicate(days) {
+		return ErrWeeklyFillDayDuplicate
+	}
+	if !slices.Contains(weeklyFillMeals, meal) {
+		return ErrWeeklyFillInvalidMeal
+	}
+	return nil
+}
+
+func ValidateWeeklyPresetMaxRunDays(days int) error {
+	if days < WeeklyRunDaysMin || days > WeeklyRunDaysMax {
+		return ErrWeeklyRunDaysOutOfRange
 	}
 	return nil
 }

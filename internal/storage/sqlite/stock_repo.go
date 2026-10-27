@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -172,6 +173,50 @@ func (r *StockRepo) Restore(ctx context.Context, input fridge.StockItem) (fridge
 		return fridge.StockItem{}, fmt.Errorf("commit tx: %w", err)
 	}
 	return item, nil
+}
+
+// Consume は各行の量を減らし、使い切った行は削除する。途中まで減った状態を残さないため 1 トランザクションで行う
+// (add-mealplan-cook-consume design.md D4)。added_at と expires_at は変えない。
+func (r *StockRepo) Consume(ctx context.Context, items []fridge.Consumption) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	for _, it := range items {
+		var current float64
+		err := tx.QueryRowContext(ctx, `SELECT amount FROM stock_items WHERE id = ?`, it.StockID).Scan(&current)
+		if errors.Is(err, sql.ErrNoRows) {
+			return fridge.ErrStockNotFound
+		}
+		if err != nil {
+			return fmt.Errorf("lookup stock_item: %w", err)
+		}
+		// 表示と同じ小数第 2 位で比べ、浮動小数の誤差で「今の量を超える」に倒れないようにする。
+		remaining := math.Round((current-it.Amount)*100) / 100
+		switch {
+		case it.Amount < 0 || remaining < 0:
+			return fridge.ErrConsumeAmountOutOfRange
+		case it.Amount == 0:
+			continue
+		case remaining == 0:
+			if _, err := tx.ExecContext(ctx, `DELETE FROM stock_items WHERE id = ?`, it.StockID); err != nil {
+				return fmt.Errorf("delete stock_item: %w", err)
+			}
+		default:
+			if _, err := tx.ExecContext(ctx,
+				`UPDATE stock_items SET amount = ?, updated_at = ? WHERE id = ?`, remaining, now, it.StockID,
+			); err != nil {
+				return fmt.Errorf("update stock_item amount: %w", err)
+			}
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit tx: %w", err)
+	}
+	return nil
 }
 
 // ListSuggestions は在庫名とレシピ材料名を合わせた食材名候補を返す。

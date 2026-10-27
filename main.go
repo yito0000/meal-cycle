@@ -37,6 +37,7 @@ func main() {
 			application.NewService(service.NewRecipeService(db, settingsSvc, service.NewWailsFolderPicker())),
 			application.NewService(service.NewFridgeService(db, settingsSvc)),
 			application.NewService(service.NewShoppingService(db, settingsSvc)),
+			application.NewService(service.NewSuggestionService(db, settingsSvc)),
 		)
 	}
 

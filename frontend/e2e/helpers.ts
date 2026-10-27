@@ -334,3 +334,29 @@ export async function openOverflowList(page: Page, date: string, meal: string) {
   await list.waitFor();
   return list;
 }
+
+// addStaple は UI を経由せず常備品を 1 件作り、state が渡されたらその状態にする。
+export async function addStaple(page: Page, name: string, state?: "enough" | "low" | "out") {
+  const res = await page.request.post("/api/FridgeService/AddStaple", { data: [name] });
+  if (!res.ok()) {
+    throw new Error(`add staple ${name} failed: ${res.status()} ${await res.text()}`);
+  }
+  if (state === undefined || state === "enough") return;
+  const id = (await res.json()).id as string;
+  const set = await page.request.post("/api/FridgeService/SetStapleState", { data: [id, state] });
+  if (!set.ok()) {
+    throw new Error(`set staple ${name} failed: ${set.status()} ${await set.text()}`);
+  }
+}
+
+// S05 の常備品の欄から、食材名が name の行を取る。
+export function stapleRow(page: Page, name: string) {
+  return page.getByTestId("staple-row").filter({ has: page.getByText(name, { exact: true }) });
+}
+
+// S07 の常備品の欄から、食材名が name の項目を取る。
+export function shoppingStapleItem(page: Page, name: string) {
+  return page
+    .getByTestId("shopping-staple-item")
+    .filter({ has: page.getByText(name, { exact: true }) });
+}

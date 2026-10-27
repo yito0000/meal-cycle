@@ -39,12 +39,14 @@ meal-cycle の各画面のワイヤーフレーム。ここに置いた drawio �
 - `S00_shell.drawio.svg` — 共通シェル（サイドバー + メインエリア）
 - `S01_meal_calendar.drawio.svg`
 - `S01a_recipe_picker_dialog.drawio.svg` — レシピ選択ダイアログ（**候補セクション付き / MVP 後拡張**、[../product.md](../product.md) #5）
+- `S01b_week_plan_dialog.drawio.svg` — 週の候補ダイアログ。案のカード 3 枚 (種類、組の行と根拠、「この案を適用」)（add-mealplan-suggest-week-preset）
 - `S02_recipe_list.drawio.svg`
 - `S02a_recipe_import_dialog.drawio.svg` — レシピのインポートダイアログ。1 件のプレビューと 2 件以上の一覧の 2 状態（add-recipe-bulk-import）
 - `S03_recipe_detail.drawio.svg`
 - `S03_recipe_detail.v2.drawio.svg` — ドロワーをやめ、メインエリア全体に表示してパンくずで開いた元へ戻す構成（revise-recipe-detail-page）
 - `S04_recipe_edit.drawio.svg`
 - `S05_fridge.drawio.svg`
+- `S05_fridge.v2.drawio.svg` — 在庫のテーブルの右に常備品の欄（追加行、状態の 3 択、削除）を加えた構成（add-fridge-staples）
 - `S06_fridge_item_inline.drawio.svg`
 - `S07_shopping_list.drawio.svg`
 - `S07_shopping_list.v2.drawio.svg` — 期間の切替、在庫の状態、献立の欄、購入済チェックを加えた現在の構成（add-shopping-purchase）
@@ -98,6 +100,8 @@ meal-cycle の各画面のワイヤーフレーム。ここに置いた drawio �
 - `S07_shopping_list.v2.drawio.svg` / `S07a_purchase_dialog.drawio.svg` — 新規生成（ヘッダとサイドバーは S07 から流用）
 - `S03_recipe_detail.v2.drawio.svg` — 新規生成（ヘッダとサイドバーは S07 v2 から流用し、選択中を「レシピ」に移した）
 - `S09_settings.drawio.svg` — 新規生成（ヘッダとサイドバーは S00 から流用し、選択中を「設定」に移した）
+- `S05_fridge.v2.drawio.svg` — 新規生成（ヘッダとサイドバーは S05 から流用）
+- `S01b_week_plan_dialog.drawio.svg` — 新規生成（背面の S01 は省略し、ダイアログだけを描く）
 
 ## Markdown からの参照
 

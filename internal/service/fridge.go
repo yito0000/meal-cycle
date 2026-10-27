@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/yito0000/meal-cycle/internal/domain/fridge"
+	"github.com/yito0000/meal-cycle/internal/domain/ingredient"
 	"github.com/yito0000/meal-cycle/internal/storage/sqlite"
 )
 
@@ -19,14 +20,25 @@ const (
 )
 
 // FridgeService は S05 冷蔵庫在庫 / S06 追加・編集をフロントに公開する。
+// 献立とレシピのリポジトリは「作った」品の材料から減らす在庫を求めるためだけに読む (add-mealplan-cook-consume design.md D2)。
 type FridgeService struct {
-	repo *sqlite.StockRepo
-	cfg  configSource
-	now  func() time.Time
+	repo    *sqlite.StockRepo
+	staples *sqlite.StapleRepo
+	meals   *sqlite.MealPlanRepo
+	recipes *sqlite.RecipeRepo
+	cfg     configSource
+	now     func() time.Time
 }
 
 func NewFridgeService(db *sql.DB, cfg configSource) *FridgeService {
-	return &FridgeService{repo: sqlite.NewStockRepo(db), cfg: cfg, now: time.Now}
+	return &FridgeService{
+		repo:    sqlite.NewStockRepo(db),
+		staples: sqlite.NewStapleRepo(db),
+		meals:   sqlite.NewMealPlanRepo(db),
+		recipes: sqlite.NewRecipeRepo(db),
+		cfg:     cfg,
+		now:     time.Now,
+	}
 }
 
 // List は全在庫を返す。各行の ExpiryStatus / DaysLeft は呼び出し時点のローカル日付で算出する。
@@ -116,6 +128,135 @@ func (s *FridgeService) Restore(ctx context.Context, item fridge.StockItem) (fri
 
 func (s *FridgeService) ListSuggestions(ctx context.Context) (fridge.Suggestions, error) {
 	return s.repo.ListSuggestions(ctx)
+}
+
+// PlanCookConsumption は作った印を付けた品のレシピの材料から、減らす候補の在庫と減らす量の初期値を求める。
+func (s *FridgeService) PlanCookConsumption(ctx context.Context, entryID string) (fridge.ConsumptionPlan, error) {
+	entry, err := s.meals.Entry(ctx, entryID)
+	if err != nil {
+		return fridge.ConsumptionPlan{}, err
+	}
+	rec, err := s.recipes.GetByID(ctx, entry.RecipeID)
+	if err != nil {
+		return fridge.ConsumptionPlan{}, err
+	}
+	stocks, err := s.usableStocks(ctx)
+	if err != nil {
+		return fridge.ConsumptionPlan{}, err
+	}
+	staples, err := s.staples.List(ctx)
+	if err != nil {
+		return fridge.ConsumptionPlan{}, err
+	}
+	names := make([]string, 0, len(staples))
+	for _, st := range staples {
+		names = append(names, st.Name)
+	}
+	return fridge.PlanConsumption(rec.Ingredients, stocks, names, s.cfg.current().MeasuringUnits), nil
+}
+
+// Consume は複数行の在庫をまとめて減らす。1 件でも不正なら何も変えない (add-mealplan-cook-consume design.md D4)。
+func (s *FridgeService) Consume(ctx context.Context, items []fridge.Consumption) error {
+	seen := make(map[string]bool, len(items))
+	for _, it := range items {
+		if it.Amount < 0 {
+			return fridge.ErrConsumeAmountOutOfRange
+		}
+		if seen[it.StockID] {
+			return fridge.ErrConsumeDuplicateStock
+		}
+		seen[it.StockID] = true
+	}
+	return s.repo.Consume(ctx, items)
+}
+
+// 期限切れの在庫は S07 と同じく使えないものとして候補から外す。当日期限は urgent なので残る。
+func (s *FridgeService) usableStocks(ctx context.Context) ([]fridge.StockItem, error) {
+	items, err := s.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]fridge.StockItem, 0, len(items))
+	for _, it := range items {
+		if it.ExpiryStatus != fridge.ExpiryExpired {
+			out = append(out, it)
+		}
+	}
+	return out, nil
+}
+
+// ListStaples は全常備品を返す。並び順はフロントが食材名で決める (add-fridge-staples design.md D7)。
+func (s *FridgeService) ListStaples(ctx context.Context) ([]fridge.Staple, error) {
+	return s.staples.List(ctx)
+}
+
+func (s *FridgeService) AddStaple(ctx context.Context, name string) (fridge.Staple, error) {
+	n, err := validateStapleName(name)
+	if err != nil {
+		return fridge.Staple{}, err
+	}
+	if err := s.checkStapleDuplicate(ctx, n); err != nil {
+		return fridge.Staple{}, err
+	}
+	return s.staples.Create(ctx, n, fridge.StapleEnough)
+}
+
+func (s *FridgeService) SetStapleState(ctx context.Context, id string, state fridge.StapleState) (fridge.Staple, error) {
+	if !state.Valid() {
+		return fridge.Staple{}, fridge.ErrStapleInvalidState
+	}
+	return s.staples.UpdateState(ctx, id, state)
+}
+
+func (s *FridgeService) DeleteStaple(ctx context.Context, id string) error {
+	return s.staples.Delete(ctx, id)
+}
+
+// RestoreStaple は削除直後の「元に戻す」用。削除のあとに同名が追加されていれば重複として拒む。
+func (s *FridgeService) RestoreStaple(ctx context.Context, item fridge.Staple) (fridge.Staple, error) {
+	if strings.TrimSpace(item.ID) == "" {
+		return fridge.Staple{}, fridge.ErrStapleInvalidRestore
+	}
+	if _, err := time.Parse(time.RFC3339, item.AddedAt); err != nil {
+		return fridge.Staple{}, fridge.ErrStapleInvalidRestore
+	}
+	if !item.State.Valid() {
+		return fridge.Staple{}, fridge.ErrStapleInvalidState
+	}
+	n, err := validateStapleName(item.Name)
+	if err != nil {
+		return fridge.Staple{}, err
+	}
+	if err := s.checkStapleDuplicate(ctx, n); err != nil {
+		return fridge.Staple{}, err
+	}
+	return s.staples.Restore(ctx, fridge.Staple{ID: item.ID, Name: n, State: item.State, AddedAt: item.AddedAt})
+}
+
+// S07 の突き合わせと同じそろえ方で比べる。そろえて同じ名前が 2 件あると、材料をどちらに寄せるか決まらなくなる (design.md D3)。
+func (s *FridgeService) checkStapleDuplicate(ctx context.Context, name string) error {
+	existing, err := s.staples.List(ctx)
+	if err != nil {
+		return err
+	}
+	key := ingredient.NormalizeName(name)
+	for _, e := range existing {
+		if ingredient.NormalizeName(e.Name) == key {
+			return fridge.ErrStapleDuplicate
+		}
+	}
+	return nil
+}
+
+func validateStapleName(name string) (string, error) {
+	n := strings.TrimSpace(name)
+	if n == "" {
+		return "", fridge.ErrStapleNameEmpty
+	}
+	if runeLen(n) > stockNameMaxRunes {
+		return "", fridge.ErrStapleNameTooLong
+	}
+	return n, nil
 }
 
 func (s *FridgeService) withExpiry(item fridge.StockItem, today time.Time) fridge.StockItem {

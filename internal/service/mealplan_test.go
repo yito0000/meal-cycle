@@ -387,6 +387,10 @@ func (r *fakeMealPlanRepo) Spread(
 	return res, nil
 }
 
+func (r *fakeMealPlanRepo) ApplyPlan(context.Context, []mealplan.PlanItem) (mealplan.SpreadResult, error) {
+	return mealplan.SpreadResult{}, errors.New("fake: ApplyPlan not supported")
+}
+
 func (r *fakeMealPlanRepo) UndoSpread(_ context.Context, result mealplan.SpreadResult) error {
 	r.undoCalls = append(r.undoCalls, result)
 	return nil
@@ -1736,6 +1740,66 @@ func TestMealPlanService_EntryAddressing(t *testing.T) {
 		}
 		if got := dinnerNames(t, svc); len(got) != 1 || got[0] != "みそ汁" {
 			t.Errorf("dinner = %v, want [みそ汁]", got)
+		}
+	})
+}
+
+func TestMealPlanService_ApplyPlan(t *testing.T) {
+	ctx := context.Background()
+	setup := func(t *testing.T) (*MealPlanService, *RecipeService) {
+		return openMealPlanDB(t, filepath.Join(t.TempDir(), "test.db"))
+	}
+	create := func(t *testing.T, rs *RecipeService, name string) string {
+		t.Helper()
+		r, err := rs.Create(ctx, recipe.Recipe{Name: name, Servings: 1})
+		if err != nil {
+			t.Fatalf("create: %v", err)
+		}
+		return r.ID
+	}
+
+	t.Run("should add rows grouped as leftover batches when items are valid", func(t *testing.T) {
+		svc, rs := setup(t)
+		a, b := create(t, rs, "肉じゃが"), create(t, rs, "カレー")
+		res, err := svc.ApplyPlan(ctx, []mealplan.PlanItem{
+			{Date: "2026-10-05", Meal: mealplan.MealDinner, RecipeID: a, Group: 0},
+			{Date: "2026-10-06", Meal: mealplan.MealDinner, RecipeID: a, Group: 0},
+			{Date: "2026-10-07", Meal: mealplan.MealDinner, RecipeID: b, Group: 1},
+		})
+		if err != nil {
+			t.Fatalf("ApplyPlan: %v", err)
+		}
+		if len(res.AddedEntryIDs) != 3 || len(res.Removed) != 0 {
+			t.Fatalf("result: %#v", res)
+		}
+		got, _ := svc.ListPeriod(ctx, "2026-10-05", 1)
+		if len(got) != 3 || got[0].BatchID != got[1].BatchID || got[1].BatchID == got[2].BatchID || got[0].BatchMemberCount != 2 {
+			t.Errorf("entries: %#v", got)
+		}
+	})
+
+	t.Run("should add nothing when any recipe is archived", func(t *testing.T) {
+		svc, rs := setup(t)
+		a, b := create(t, rs, "肉じゃが"), create(t, rs, "カレー")
+		if err := rs.Delete(ctx, b); err != nil {
+			t.Fatalf("Delete: %v", err)
+		}
+		_, err := svc.ApplyPlan(ctx, []mealplan.PlanItem{
+			{Date: "2026-10-05", Meal: mealplan.MealDinner, RecipeID: a, Group: 0},
+			{Date: "2026-10-06", Meal: mealplan.MealDinner, RecipeID: b, Group: 1},
+		})
+		if !errors.Is(err, mealplan.ErrArchivedRecipe) {
+			t.Errorf("want ErrArchivedRecipe, got %v", err)
+		}
+		if got, _ := svc.ListPeriod(ctx, "2026-10-05", 1); len(got) != 0 {
+			t.Errorf("want nothing added, got %#v", got)
+		}
+	})
+
+	t.Run("should return error when items are empty", func(t *testing.T) {
+		svc, _ := setup(t)
+		if _, err := svc.ApplyPlan(ctx, nil); !errors.Is(err, mealplan.ErrEmptyPlan) {
+			t.Errorf("want ErrEmptyPlan, got %v", err)
 		}
 	})
 }

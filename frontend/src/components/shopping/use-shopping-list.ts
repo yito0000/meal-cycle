@@ -12,6 +12,7 @@ export function useShoppingList(periodStart: string, periodDays: number) {
         ...l,
         dishes: (l.dishes ?? []).map((d) => ({ ...d, dates: d.dates ?? [], meals: d.meals ?? [] })),
         items: (l.items ?? []).map((it) => ({ ...it, recipes: it.recipes ?? [] })),
+        staples: (l.staples ?? []).map((s) => ({ ...s, recipes: s.recipes ?? [] })),
       };
     },
   });

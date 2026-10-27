@@ -46,7 +46,17 @@
         "title": "Pick a recipe",
         "search_placeholder": "Search by recipe name",
         "empty": "No matching recipes",
-        "cancel": "Cancel"
+        "cancel": "Cancel",
+        "suggestion": {
+          "by_stock_title": "Use it up (stock near expiry)",
+          "count": "{{count}}",
+          "none": "None",
+          "by_stock_reason": "{{names}} expires within {{days}} days",
+          "by_stock_reason_today": "{{names}} expires today",
+          "name_separator": ", ",
+          "by_recency_title": "Haven't had in a while ({{days}}+ days)",
+          "by_recency_reason": "{{days}} days ago"
+        }
       },
       "cell_actions": {
         "add_first": "Assign a recipe",
@@ -150,7 +160,40 @@
         "invalid_restore": "The data to restore is invalid",
         "archived_recipe": "Deleted recipes cannot be spread"
       },
-      "shopping_cta": "View shopping list for this period"
+      "shopping_cta": "View shopping list for this period",
+      "consume": {
+        "title": "Reduce used stock",
+        "description": "Reduce fridge stock by the amount used for this dish. You can adjust the amounts",
+        "column": {
+          "expires_at": "Best before",
+          "current": "Current",
+          "amount": "Reduce by"
+        },
+        "missing_title": "Ingredients not found in stock",
+        "submit": "Reduce",
+        "skip": "Don't reduce",
+        "consumed": "Reduced {{count}} stock items",
+        "errors": {
+          "amount_out_of_range": "Enter a number from 0 up to the current amount"
+        }
+      },
+      "week_plan": {
+        "cta": "✨ Suggest this week",
+        "title": "Suggestions for this week",
+        "description": "Plans that fill the empty slots with a few batch-cooked recipes. You can adjust them on the meal plan after applying",
+        "kind": {
+          "stock": "Use it up first",
+          "recency": "In a while first",
+          "balanced": "Balanced"
+        },
+        "apply": "Apply this plan",
+        "applied": "Assigned {{count}} rows",
+        "apply_failed": "Could not apply the plan",
+        "no_slots": "No empty slots to fill this week",
+        "no_plans": "No recipes to assign",
+        "load_error": "Failed to load suggestions",
+        "close": "Close"
+      }
     },
     "recipes": {
       "title": "Recipes",
@@ -364,6 +407,31 @@
         "invalid_expiry": "Enter a valid date",
         "not_found": "This item has already been deleted",
         "unknown": "Failed to save"
+      },
+      "staples": {
+        "title": "Staples",
+        "description": "Everyday items like milk and bread, tracked by state instead of amount",
+        "add": "Add",
+        "name_placeholder": "Staple name",
+        "empty": "No staples yet",
+        "delete": "Delete",
+        "state": {
+          "enough": "Enough",
+          "low": "Low",
+          "out": "Out"
+        },
+        "state_group": "State of {{name}}",
+        "toast": {
+          "deleted": "Deleted \"{{name}}\""
+        },
+        "errors": {
+          "name_empty": "Enter an ingredient name",
+          "name_too_long": "Ingredient name must be 100 characters or fewer",
+          "duplicate": "Already in staples",
+          "invalid_state": "Invalid state",
+          "not_found": "This staple has already been deleted",
+          "unknown": "Failed to save"
+        }
       }
     },
     "shopping": {
@@ -402,7 +470,8 @@
         "no_plans": "No meals are planned in this period. Assign recipes in the meal calendar to see ingredients here",
         "no_ingredients": "The planned recipes have no ingredients",
         "no_quantified": "No ingredients with an amount to buy",
-        "all_cooked": "All meals in this period are cooked. Nothing to buy"
+        "all_cooked": "All meals in this period are cooked. Nothing to buy",
+        "only_staples": "All ingredients in the meal plan are staples"
       },
       "loading": "Loading...",
       "load_error": "Failed to load the shopping list",
@@ -435,7 +504,18 @@
         "pantry_heading": "Check at home",
         "pantry_item": "- {{name}}",
         "copied": "Copied the shopping list ({{count}} items)",
-        "failed": "Could not copy the shopping list"
+        "failed": "Could not copy the shopping list",
+        "staple_heading": "Staples",
+        "staple_item": "- {{name}}",
+        "staple_item_low": "- {{name}} (low)"
+      },
+      "staples": {
+        "title": "Staples",
+        "description": "Staples marked low or out. Listed regardless of the meal plan",
+        "bought_button": "Bought",
+        "bought": "Marked \"{{name}}\" as enough",
+        "undo": "Undo",
+        "recipes": "Used in: {{recipes}}"
       }
     },
     "settings": {
@@ -456,7 +536,11 @@
         "shopping_default": "Days when opened from the sidebar",
         "measuring_units": "Measuring units",
         "unquantified_words": "Words without an amount",
-        "import_servings": "Servings when omitted"
+        "import_servings": "Servings when omitted",
+        "recency_days": "Days until \"in a while\"",
+        "weekly_fill_days": "Days to fill with weekly suggestions",
+        "weekly_fill_meal": "Meal to fill with weekly suggestions",
+        "weekly_run_days": "Max days to repeat one dish in weekly suggestions"
       },
       "hint": {
         "language": "Switches when you press Save",
@@ -466,7 +550,10 @@
         "shopping_presets": "7 / 14 / 28 days carry over the 1 / 2 / 4 week views of the meal calendar, so they cannot be removed",
         "measuring_units": "Shown before the amount; amounts are not added up in the shopping list",
         "unquantified_words": "When importing recipes, an amount with one of these words is read as 0",
-        "import_servings": "Used when an imported file does not state servings"
+        "import_servings": "Used when an imported file does not state servings",
+        "recency_days": "Recipes last cooked at least this many days ago appear under \"in a while\" in the recipe picker (1-60 days)",
+        "weekly_fill_days": "Empty slots on these days are filled by \"Suggest this week\" on the meal plan",
+        "weekly_run_days": "Set to 1 for a different recipe every day (1-7 days)"
       },
       "suffix": {
         "days": "days",
@@ -516,7 +603,12 @@
         "day_duplicate": "This number of days is already in the list",
         "not_integer": "Enter an integer",
         "blank": "Blank values cannot be added",
-        "unknown": "Could not save the settings"
+        "unknown": "Could not save the settings",
+        "recency_out_of_range": "Enter a number of days from 1 to 60",
+        "weekly_days_empty": "Select at least one day",
+        "weekly_day_out_of_range": "Invalid day",
+        "weekly_meal_invalid": "Invalid meal",
+        "weekly_run_out_of_range": "Enter a number of days from 1 to 7"
       }
     }
   },
