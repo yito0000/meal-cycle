@@ -5,6 +5,14 @@ import { cn } from "@/lib/utils";
 
 export type CalendarProps = React.ComponentProps<typeof DayPicker>;
 
+function Chevron({ orientation, className }: { orientation?: string; className?: string }) {
+  return orientation === "left" ? (
+    <ChevronLeft className={cn("h-5 w-5", className)} />
+  ) : (
+    <ChevronRight className={cn("h-5 w-5", className)} />
+  );
+}
+
 // shadcn の Calendar を手動コピーし、WebView のネイティブ日付ピッカーより大きく見せるため
 // 日付セルを 40px 四方 / text-base に広げている (add-shopping-list design.md D15)。
 export function Calendar({
@@ -41,14 +49,7 @@ export function Calendar({
         hidden: "invisible",
         ...classNames,
       }}
-      components={{
-        Chevron: ({ orientation, className: chevronClassName }) =>
-          orientation === "left" ? (
-            <ChevronLeft className={cn("h-5 w-5", chevronClassName)} />
-          ) : (
-            <ChevronRight className={cn("h-5 w-5", chevronClassName)} />
-          ),
-      }}
+      components={{ Chevron }}
       {...props}
     />
   );

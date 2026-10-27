@@ -23,9 +23,8 @@
     "noFallthroughCasesInSwitch": true,
     "noImplicitReturns": true,
 
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": ["src", "bindings", "e2e", "vite-plugin-e2e-bindings.ts", "vitest.config.ts"]
