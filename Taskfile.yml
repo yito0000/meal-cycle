@@ -58,6 +58,18 @@ tasks:
       - npm run type-check
       - npm run test:e2e
 
+  test:mutation:go:
+    summary: Runs gremlins mutation testing on Go packages (PKG=./internal/domain/recipe, DIFF=main)
+    desc: |
+      テストが変異 (条件反転・境界ずらし等) を検出できるかを測る。LIVED が残った箇所はテストが甘い。
+      PKG で対象ディレクトリを絞る (既定は ./internal/domain)。DIFF を渡すとその ref からの差分行だけを変異させる。
+    vars:
+      PKG: '{{.PKG | default "./internal/domain"}}'
+      DIFF: '{{.DIFF | default ""}}'
+    cmds:
+      # gremlins 0.6.0 は git diff のパス (ルート基準) と対象パス基準の相対パスを突き合わせるため、DIFF 時はルート固定でないと全件 Skipped になる
+      - go tool gremlins unleash -S lt {{if .DIFF}}--diff {{.DIFF}} .{{else}}{{.PKG}}{{end}}
+
   build:win:
     summary: WSL→Windows 手動確認用・リリース用ビルド (CLAUDE.md 動作確認 2 階建て構成)
     desc: |
