@@ -803,17 +803,11 @@ func TestRecipeService_ExportToFolder(t *testing.T) {
 	})
 
 	t.Run("should return ErrRecipeExportWrite and leave the picked folder unchanged when it is not writable", func(t *testing.T) {
-		if os.Geteuid() == 0 {
-			t.Skip("root ignores directory permissions")
-		}
 		picked := t.TempDir()
 		if err := os.WriteFile(filepath.Join(picked, "keep.txt"), []byte("x"), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.Chmod(picked, 0o555); err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() { _ = os.Chmod(picked, 0o755) })
+		makeDirUnwritable(t, picked)
 		svc := newRecipeServiceWithPicker(t, &stubFolderPicker{dir: picked})
 		create(t, svc, validRecipe("肉じゃが"))
 
