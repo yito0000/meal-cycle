@@ -66,6 +66,9 @@ tasks:
     vars:
       PKG: '{{.PKG | default "./internal/domain"}}'
       DIFF: '{{.DIFF | default ""}}'
+    env:
+      # gremlins は最初の coverage 計測の所要時間から timeout を決める。テストキャッシュが当たると 1 秒未満になり、ほぼ全件 TIMED OUT になる
+      GOFLAGS: -count=1
     cmds:
       # gremlins 0.6.0 は git diff のパス (ルート基準) と対象パス基準の相対パスを突き合わせるため、DIFF 時はルート固定でないと全件 Skipped になる
       - go tool gremlins unleash -S lt {{if .DIFF}}--diff {{.DIFF}} .{{else}}{{.PKG}}{{end}}

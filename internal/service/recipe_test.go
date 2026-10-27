@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -805,6 +806,10 @@ func TestRecipeService_ExportToFolder(t *testing.T) {
 	t.Run("should return ErrRecipeExportWrite and leave the picked folder unchanged when it is not writable", func(t *testing.T) {
 		if os.Geteuid() == 0 {
 			t.Skip("root ignores directory permissions")
+		}
+		// Windows の Chmod は読み取り専用属性しか触らず、ディレクトリへの書き込みを止められない
+		if runtime.GOOS == "windows" {
+			t.Skip("directory permissions are not enforced on Windows")
 		}
 		picked := t.TempDir()
 		if err := os.WriteFile(filepath.Join(picked, "keep.txt"), []byte("x"), 0o644); err != nil {

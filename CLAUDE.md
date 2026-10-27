@@ -116,7 +116,7 @@ func TestRecipeService_List(t *testing.T) {
 - `task test:mutation:go PKG=./internal/domain/recipe` のように対象を絞って走らせる。`DIFF=main` を渡すと差分行だけを変異させる（このとき `PKG` は無視され、モジュール全体の差分が対象になる）
 - サービス層は SQLite を使うテストが重く、パッケージ全体だと 10 分を超える。普段は `DIFF=main` で変更箇所だけを見る
 - `LIVED` が残った行は、テストが通ってしまう変異。アサーションを足すか、意味的に等価な変異なら無視する
-- 設定は [.gremlins.yaml](.gremlins.yaml)。テストが速いと timeout が足りず生存すべき変異も `TIMED OUT` になるため、`timeout-coefficient` を大きめにしている
+- 設定は [.gremlins.yaml](.gremlins.yaml)。テストが速いと timeout が足りず生存すべき変異も `TIMED OUT` になるため、`timeout-coefficient` を大きめにしている。同じ理由で、テストキャッシュが当たって計測時間が縮まないよう、タスクは `GOFLAGS=-count=1` で走らせる
 
 **E2E（`frontend/e2e/`）**: Playwright + headless Chromium。Wails の IPC 層だけを HTTP に差し替え、React / Go サービス / SQLite は本物のまま通す。`task test:e2e` で実行する。
 
