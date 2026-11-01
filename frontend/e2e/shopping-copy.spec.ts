@@ -38,7 +38,9 @@ async function planDinner(
 async function copyText(page: Page, count: number): Promise<string> {
   await copyButton(page).click();
   await expect(page.getByText(tc.copied.replace("{{count}}", String(count)))).toBeVisible();
-  return page.evaluate(() => navigator.clipboard.readText());
+  // Windows のクリップボードは読み出し時に改行を CRLF に変えるので、比較の前に LF にそろえる。
+  const text = await page.evaluate(() => navigator.clipboard.readText());
+  return text.replaceAll("\r\n", "\n");
 }
 
 test.describe("買い物リストのテキストコピー", () => {

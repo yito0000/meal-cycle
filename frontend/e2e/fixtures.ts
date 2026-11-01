@@ -31,7 +31,8 @@ export const test = base.extend<TestFixtures>({
     try {
       await use(dir);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      // Windows ではプロセス終了直後もファイルのロックが少し残ることがあるため、短く再試行する。
+      rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     }
   },
 
@@ -60,7 +61,13 @@ export const test = base.extend<TestFixtures>({
     try {
       await use(await waitForURL(proc));
     } finally {
+      // Windows は開いているファイルを消せないので、DB を掴んだプロセスが終わってから workDir を片付ける。
+      const exited =
+        proc.exitCode !== null || proc.signalCode !== null
+          ? Promise.resolve()
+          : new Promise<void>((resolve) => proc.once("exit", () => resolve()));
       proc.kill();
+      await exited;
     }
   },
 

@@ -26,6 +26,8 @@ cd frontend && npm install
 npx playwright install chromium
 ```
 
+Windows (ネイティブ) でも同じ手順で走る。Chromium は WSL と別に入るので、Windows 側でも 1 回 `npx playwright install chromium` を叩く。
+
 `npx playwright install --with-deps` は Debian 系専用なので、AlmaLinux では使えない。
 AlmaLinux 10 (WSL2) では追加の `dnf` パッケージなしで headless Chromium が起動した。
 他環境で起動しない場合は、次のスクリプトで不足ライブラリを確認する。

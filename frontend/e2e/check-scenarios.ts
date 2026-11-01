@@ -52,13 +52,15 @@ function loadSpec(): Spec {
 }
 
 function listTests(): { file: string; path: string[]; title: string; skipped: boolean }[] {
-  const res = spawnSync("npx", ["playwright", "test", "--list", "--reporter=json"], {
+  // npx は Windows では npx.cmd で、シェル無しでは起動できない。node で CLI を直接呼べば OS を問わない。
+  const cli = join(frontendDir, "node_modules", "@playwright", "test", "cli.js");
+  const res = spawnSync(process.execPath, [cli, "test", "--list", "--reporter=json"], {
     cwd: frontendDir,
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
   });
   if (res.status !== 0) {
-    process.stderr.write(res.stderr);
+    process.stderr.write(res.stderr ?? String(res.error ?? "playwright --list failed"));
     process.exit(1);
   }
   const out: { file: string; path: string[]; title: string; skipped: boolean }[] = [];
@@ -80,7 +82,13 @@ const covered = new Map<string, { run: number; skip: number }>();
 
 for (const t of listTests()) {
   const where = `${t.file} > ${[...t.path, t.title].join(" > ")}`;
-  const cap = t.file.match(/^([a-z]+)/)?.[1] ?? "";
+  // capability 名自体にハイフンを含む (agent-access) ので、先頭語ではなく実在する名前の最長一致で引く。
+  const cap =
+    [...spec.keys()]
+      .filter((c) => t.file === `${c}.spec.ts` || t.file.startsWith(`${c}-`))
+      .sort((a, b) => b.length - a.length)[0] ??
+    t.file.match(/^([a-z]+)/)?.[1] ??
+    "";
   const reqs = spec.get(cap);
   if (!reqs) {
     errors.push(`${where}: capability "${cap}" の spec.md が無い`);
