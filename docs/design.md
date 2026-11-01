@@ -17,6 +17,7 @@
 - 冷蔵庫にあるものから逆引きで「作れるレシピ」を確認できる（拡張）
 - 献立を組む際、賞味期限が近い在庫や最近作っていないレシピを**根拠つきで候補提示**し、選択を楽にする（MVP 後拡張、[product.md #5](product.md#5-献立候補の提示mvp-後拡張)）
   - 「使い切り」「久しぶりに」「時短」の 3 軸を想定。全自動生成は AI 前提になるため採らない
+  - 「使い切り」「久しぶりに」と週の候補は実装済み。「時短」はレシピに所要時間を持たないため未着手
 - 利用者が自分で使っている AI エージェント (Claude Desktop など) に、MCP サーバー経由で献立づくりを手伝わせる。
   アプリは AI を内蔵せず、エージェントに開くのは参照と追加と状態の変更だけ ([mcp.md](mcp.md))
 
@@ -47,7 +48,7 @@
 ### バックエンド
 
 - **Wails v3 (beta)**: Go バックエンド + Web フロントエンドを 1 バイナリにする
-- **Go 1.25**
+- **Go 1.27**
 - **[modernc.org/sqlite](https://pkg.go.dev/modernc.org/sqlite)**: Cgo なしの SQLite ドライバ
 - **Task**: ビルド / 開発コマンドのラッパー
 
@@ -320,19 +321,24 @@ DB はスキーマの版が一致するときだけ開き、スキーマの更�
 │   ├── mcp-server/       # AI エージェント向けの MCP サーバー (meal-cycle-mcp)
 │   └── seed/             # 開発用のサンプルデータ投入
 ├── internal/
+│   ├── applog/           # ログファイルの出力先と退避 (§5「ログファイル」)
 │   ├── config/           # 可変値の既定値 (defaults.go)
 │   ├── domain/           # エンティティとビジネスルール (capability 単位)
 │   │   ├── recipe/
 │   │   ├── mealplan/
 │   │   ├── fridge/
 │   │   ├── shopping/
+│   │   ├── suggestion/   # 献立候補の 3 軸と週の候補
+│   │   ├── ingredient/   # 食材名の表記をそろえる正規化 (capability ではなく共有の部品)
 │   │   └── settings/
 │   ├── service/          # Wails に公開するサービス (1 capability = 1 ファイル)
 │   │   ├── recipe.go
 │   │   ├── mealplan.go
 │   │   ├── fridge.go
 │   │   ├── shopping.go
+│   │   ├── suggestion.go
 │   │   ├── settings.go
+│   │   ├── folderpicker.go  # レシピの書き出し先を選ぶダイアログ (テストで差し替える)
 │   │   └── health.go
 │   ├── sampledata/
 │   └── storage/          # 永続化実装
@@ -354,7 +360,7 @@ DB はスキーマの版が一致するときだけ開き、スキーマの更�
 
 ### フロントエンド
 
-- ライブラリ候補: [`i18next`](https://www.i18next.com/) + フレームワーク別アダプタ（framework 選定後に確定）
+- ライブラリ: [`i18next`](https://www.i18next.com/) + react-i18next
 - 翻訳リソース: `frontend/src/locales/ja.json`, `en.json` の JSON ベース
 - **原則**: 画面に出す文字列は必ず翻訳キー経由。日本語のハードコード禁止
 - 表示言語は S09 で保存し、起動時に `SettingsGate` が `i18n.changeLanguage` で当てる。設定を読めない起動時のエラー画面は日本語で出す
@@ -419,35 +425,52 @@ openspec/
 3. 実装（proposal 単位でブランチを切る想定）
 4. archive（`opsx/archive.md` skill）→ specs スナップショットに反映
 
-### 最初にやる proposal（順序案）
+### proposal の順序案と実装状況
 
-MVP:
+当初の順序案と、実際にアーカイブした proposal の対応を示す。
+この表に無い修正や見直しの proposal（`fix-*` / `revise-*` など）は `openspec/changes/archive/` にある。
 
-```
-add-recipe-listing        ← model + repo + service + 一覧 + 最小登録
-add-recipe-details        ← 詳細ドロワー + 手順・メモ等の追加項目
-add-recipe-editing
-add-recipe-deletion
-add-fridge-inventory      ← 在庫一覧 + 賞味期限順 + インライン追加 / 編集 / 削除 (当初の 3 分割を 1 本化)
-add-mealplan-week-view    ← 1週間カレンダー表示
-add-mealplan-assign-recipe ← 日付にレシピを割り当て
-add-mealplan-multi-week   ← 2週/4週表示切替
-add-shopping-list         ← 献立から不足食材を集計
-add-shopping-purchase     ← 購入済チェックと確認ダイアログで在庫追加
-add-settings-screen       ← S09 設定画面。実装済みの機能の可変値と表示言語を保存し、各サービスへ反映
-```
-
-MVP 後（[product.md #5](product.md#5-献立候補の提示mvp-後拡張) の候補提示 3 軸）:
+MVP（すべて実装済み）:
 
 ```
-add-mealplan-cooked-mark        ← S01 の品に「作った」印を付け、S07 の計上から外す（予定と実績の区別）
-add-mealplan-cook-consume       ← 作った印に合わせて在庫を材料分だけ減らす（提案精度の下敷き）
-add-mealplan-suggest-by-stock   ← 使い切り軸: 期限が近い在庫を使うレシピを提示 (capability suggestion を新設)
-add-mealplan-suggest-by-recency ← 久しぶり軸: 最近作っていないレシピを提示
-add-mealplan-suggest-week-preset ← 週の候補: 空いたコマを日数の上限で組に分け、3 種類の順位表で当てた案を最大 3 件提示
+add-recipe-listing        ✅ model + repo + service + 一覧 + 最小登録
+add-recipe-details        ✅ 詳細ドロワー + 手順・メモ等の追加項目
+add-recipe-editing        ✅ 実際の名前は add-recipe-edit
+add-recipe-deletion       ✅ 論理削除
+add-fridge-inventory      ✅ 在庫一覧 + 賞味期限順 + インライン追加 / 編集 / 削除 (当初の 3 分割を 1 本化)
+add-mealplan-week-view    ✅ 1週間カレンダー表示
+add-mealplan-assign-recipe ✅ 日付にレシピを割り当て
+add-mealplan-multi-week   ✅ add-mealplan-period-navigation と wrap-mealplan-2week-view に分けて実装
+add-shopping-list         ✅ 献立から不足食材を集計
+add-shopping-purchase     ✅ 購入済チェックと確認ダイアログで在庫追加
+add-settings-screen       ✅ S09 設定画面。実装済みの機能の可変値と表示言語を保存し、各サービスへ反映
 ```
 
-`add-mealplan-cook-consume` は候補提示の前提として先に入れる（「使い切り」軸が意味を持つのは在庫が減る仕組みがあってこそ）。3 軸は独立に足せるので、まず `suggest-by-stock` だけ入れて反応を見るのが良い。
+MVP 後（[product.md #5](product.md#5-献立候補の提示mvp-後拡張) の候補提示 3 軸と、家族で使うための拡張）:
+
+```
+add-mealplan-cooked-mark        ✅ S01 の品に「作った」印を付け、S07 の計上から外す（予定と実績の区別）
+add-mealplan-cook-consume       ✅ 作った印に合わせて在庫を材料分だけ減らす（提案精度の下敷き）
+add-mealplan-suggest-by-stock   ✅ 使い切り軸: 期限が近い在庫を使うレシピを提示 (capability suggestion を新設)
+add-mealplan-suggest-by-recency ✅ 久しぶり軸: 最近作っていないレシピを提示
+add-mealplan-suggest-week-preset ✅ 週の候補: 空いたコマを日数の上限で組に分け、3 種類の順位表で当てた案を最大 3 件提示
+add-fridge-staples              ✅ 常備品: 量を持たない在庫と S07 の常備品の欄
+add-mcp-server                  🚧 AI エージェントから MCP で参照と追加を行う別の実行ファイル (capability agent-access を新設)
+add-fridge-stock-review         📝 S05 の在庫を「ある / 減った / ない」で次々に見直す
+add-shopping-household-scaling  📝 S09 の世帯人数で、1 回きりの献立の材料を S07 で換算する (作り置きは換算しない)
+add-mealplan-copy-text          📝 S01 の表示中の期間の献立をテキストでコピーする
+add-settings-database-file      📝 S09 から DB 全体を書き出し、控えや書き出したファイルから次の起動で復元する
+add-mealplan-suggest-by-time    📝 レシピに所要時間を足し、レシピ選択ダイアログに「時短」の候補を出す
+add-recipe-tag-filter           📝 S02 をタグ (AND) で絞り込む
+add-mealplan-template           📝 S01 の 1 週間を名前を付けて保存し、別の週にまとめて割り当てる
+```
+
+✅ は実装済み、🚧 は実装中、📝 は proposal を作成済み (未着手)。
+`add-mealplan-cook-consume` は候補提示の前提として先に入れた（「使い切り」軸が意味を持つのは在庫が減る仕組みがあってこそ）。
+
+📝 の proposal のうち、`add-shopping-household-scaling` と `add-mealplan-suggest-by-time` はどちらも settings の同じ Requirement を MODIFIED にしている。
+後に archive する側は、先の archive を取り込んでから delta を直す。
+`add-mealplan-suggest-by-time` と `add-mealplan-template` は migration を 1 本ずつ足すので、番号は実装した順に振る。
 
 ### 運用中の見直し
 
@@ -468,7 +491,8 @@ add-mealplan-suggest-week-preset ← 週の候補: 空いたコマを日数の�
 
 ### MVP 後の候補
 
-- **献立候補の提示（3 軸）**: 使い切り / 久しぶりに / 時短。方針は [product.md #5](product.md#5-献立候補の提示mvp-後拡張)。全自動生成は AI 前提になるため採らず、根拠つきで候補を並べてユーザーが選ぶ形にする
+- **献立候補の提示（3 軸）**: 使い切り / 久しぶりに / 時短。方針は [product.md #5](product.md#5-献立候補の提示mvp-後拡張)。全自動生成は AI 前提になるため採らず、根拠つきで候補を並べてユーザーが選ぶ形にする。
+  「使い切り」「久しぶりに」と週の候補は実装済み。「時短」はレシピに所要時間の項目を足すところから始まるので未着手
 - **料理実施と在庫消費の連動**: 「作った」マークで材料分の在庫を減らす。上記「使い切り」軸の精度向上に必要（add-mealplan-cook-consume で実装。自動では減らさず、確認のダイアログで量を直してから減らす）
 - **設定 UI（S09）の残り**: S09 自体と、実装済みの機能の可変値、表示言語の切替は `add-settings-screen` で入れた。
   未実装の機能に属する値（「久しぶりに」の消費期間閾値、週プリセット品数など。全一覧は [product.md #1](product.md#1-想定利用シナリオ)）は、その機能の proposal で S09 に欄を足す。
@@ -478,7 +502,7 @@ add-mealplan-suggest-week-preset ← 週の候補: 空いたコマを日数の�
   - 在庫の見直しを速くする手段：S05 の各行を「ある / 減った / ない」で次々に片付ける
   - 世帯人数による換算：買い物リストの必要量をレシピの人数から換算する。作り置きでは換算しないほうが合う場面もあり、換算の規則は proposal で決める
   - 献立のテキストでのコピー：S07 の「テキストでコピー」と同じ形で、期間の献立を家族に渡す
-- レシピの検索・タグフィルタ
+- レシピのタグフィルタ（S02 のレシピ名検索は add-recipe-listing で実装済み）
 - 献立テンプレート（お気に入りの 1 週間パターンを保存）
 - 栄養計算
 
@@ -501,4 +525,4 @@ add-mealplan-suggest-week-preset ← 週の候補: 空いたコマを日数の�
 現時点で未決の項目なし。新しく発生したら追記する。
 
 設計と UI/UX の見直しで挙がった指摘（未対応を含む）は [reviews/](reviews/) に日付ごとに残している。
-最新は [2026-10-15 のレビュー](reviews/2026-10-15-design-ux-review.md)。
+最新は [2026-10-19 のレビュー](reviews/2026-10-19-design-ux-review.md)。
