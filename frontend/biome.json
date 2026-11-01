@@ -18,6 +18,8 @@
       "vitest.config.ts",
       "!!**/bindings",
       "!!**/dist",
+      "!!**/.stryker-tmp",
+      "!!**/reports",
       "!!**/node_modules"
     ]
   },

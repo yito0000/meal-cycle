@@ -15,6 +15,7 @@
     "format:check": "biome format",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:mutation": "stryker run",
     "test:e2e": "npm run check:scenarios && vite build --mode e2e && playwright test",
     "check:scenarios": "node e2e/check-scenarios.ts"
   },
@@ -43,6 +44,8 @@
   "devDependencies": {
     "@biomejs/biome": "2.6.3",
     "@playwright/test": "^1.63.0",
+    "@stryker-mutator/core": "^10.1.1",
+    "@stryker-mutator/vitest-runner": "^10.1.1",
     "@tailwindcss/vite": "^4.0.0",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
