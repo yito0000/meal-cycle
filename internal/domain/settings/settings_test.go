@@ -100,6 +100,19 @@ func TestValidate(t *testing.T) {
 		{"21 unquantified words", func(v *Values) { v.UnquantifiedWords = words(21) }, ErrUnquantifiedWordsCount},
 		{"servings 0", func(v *Values) { v.RecipeImportDefaultServings = 0 }, ErrImportServingsOutOfRange},
 		{"servings 100", func(v *Values) { v.RecipeImportDefaultServings = 100 }, ErrImportServingsOutOfRange},
+		{"recency days 1", func(v *Values) { v.RecencyThresholdDays = 1 }, nil},
+		{"recency days 60", func(v *Values) { v.RecencyThresholdDays = 60 }, nil},
+		{"recency days 0", func(v *Values) { v.RecencyThresholdDays = 0 }, ErrRecencyDaysOutOfRange},
+		{"recency days 61", func(v *Values) { v.RecencyThresholdDays = 61 }, ErrRecencyDaysOutOfRange},
+		{"empty weekly fill days", func(v *Values) { v.WeeklyFillDays = []int{} }, ErrWeeklyFillDaysEmpty},
+		{"weekly fill day 0", func(v *Values) { v.WeeklyFillDays = []int{0, 1} }, ErrWeeklyFillDayOutOfRange},
+		{"weekly fill day 8", func(v *Values) { v.WeeklyFillDays = []int{1, 8} }, ErrWeeklyFillDayOutOfRange},
+		{"duplicate weekly fill day", func(v *Values) { v.WeeklyFillDays = []int{1, 1} }, ErrWeeklyFillDayDuplicate},
+		{"unknown weekly fill meal", func(v *Values) { v.WeeklyFillMeal = "brunch" }, ErrWeeklyFillInvalidMeal},
+		{"weekly run days 0", func(v *Values) { v.WeeklyPresetMaxRunDays = 0 }, ErrWeeklyRunDaysOutOfRange},
+		{"weekly run days 8", func(v *Values) { v.WeeklyPresetMaxRunDays = 8 }, ErrWeeklyRunDaysOutOfRange},
+		{"weekly run days 1", func(v *Values) { v.WeeklyPresetMaxRunDays = 1 }, nil},
+		{"weekly run days 7", func(v *Values) { v.WeeklyPresetMaxRunDays = 7 }, nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

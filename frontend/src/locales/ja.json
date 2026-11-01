@@ -46,7 +46,17 @@
         "title": "レシピを選ぶ",
         "search_placeholder": "レシピ名で検索",
         "empty": "該当するレシピがありません",
-        "cancel": "キャンセル"
+        "cancel": "キャンセル",
+        "suggestion": {
+          "by_stock_title": "使い切り (期限が近い在庫を使う)",
+          "count": "{{count}} 件",
+          "none": "該当なし",
+          "by_stock_reason": "{{names}} が期限 {{days}} 日以内",
+          "by_stock_reason_today": "{{names}} が今日まで",
+          "name_separator": "、",
+          "by_recency_title": "久しぶりに ({{days}} 日以上作っていない)",
+          "by_recency_reason": "{{days}} 日ぶり"
+        }
       },
       "cell_actions": {
         "add_first": "レシピを割り当てる",
@@ -150,7 +160,40 @@
         "invalid_restore": "元に戻す内容が正しくありません",
         "archived_recipe": "削除済みのレシピは広げられません"
       },
-      "shopping_cta": "この期間の買い物リストを見る"
+      "shopping_cta": "この期間の買い物リストを見る",
+      "consume": {
+        "title": "使った在庫を減らす",
+        "description": "作った料理で使った分だけ冷蔵庫の在庫を減らします。量は直せます",
+        "column": {
+          "expires_at": "賞味期限",
+          "current": "今の量",
+          "amount": "減らす量"
+        },
+        "missing_title": "在庫が見つからない材料",
+        "submit": "減らす",
+        "skip": "減らさない",
+        "consumed": "在庫を {{count}} 件減らしました",
+        "errors": {
+          "amount_out_of_range": "0 以上、今の量以下の数を入れてください"
+        }
+      },
+      "week_plan": {
+        "cta": "✨ この週の候補を出す",
+        "title": "この週の候補",
+        "description": "空いたコマを少数のレシピの作り置きで埋めた案です。適用したあとは献立画面で直せます",
+        "kind": {
+          "stock": "使い切り優先",
+          "recency": "久しぶり優先",
+          "balanced": "バランス"
+        },
+        "apply": "この案を適用",
+        "applied": "{{count}} 行を割り当てました",
+        "apply_failed": "案を適用できませんでした",
+        "no_slots": "この週に埋める空きはありません",
+        "no_plans": "割り当てられるレシピがありません",
+        "load_error": "候補の読み込みに失敗しました",
+        "close": "閉じる"
+      }
     },
     "recipes": {
       "title": "レシピ",
@@ -364,6 +407,31 @@
         "invalid_expiry": "賞味期限は正しい日付で入力してください",
         "not_found": "この在庫はすでに削除されています",
         "unknown": "保存に失敗しました"
+      },
+      "staples": {
+        "title": "常備品",
+        "description": "牛乳やパンのように家族が日常的に食べる品を、量ではなく状態で持ちます",
+        "add": "追加",
+        "name_placeholder": "常備品の食材名",
+        "empty": "常備品はまだありません",
+        "delete": "削除",
+        "state": {
+          "enough": "ある",
+          "low": "少ない",
+          "out": "ない"
+        },
+        "state_group": "{{name}} の状態",
+        "toast": {
+          "deleted": "「{{name}}」を削除しました"
+        },
+        "errors": {
+          "name_empty": "食材名を入力してください",
+          "name_too_long": "食材名は 100 字以内で入力してください",
+          "duplicate": "すでに常備品にあります",
+          "invalid_state": "状態が正しくありません",
+          "not_found": "この常備品はすでに削除されています",
+          "unknown": "保存に失敗しました"
+        }
       }
     },
     "shopping": {
@@ -402,7 +470,8 @@
         "no_plans": "この期間に献立がありません。献立画面でレシピを割り当てると、ここに材料が並びます",
         "no_ingredients": "献立のレシピに材料が登録されていません",
         "no_quantified": "買う量の決まった材料はありません",
-        "all_cooked": "この期間の献立はすべて作りました。買う材料はありません"
+        "all_cooked": "この期間の献立はすべて作りました。買う材料はありません",
+        "only_staples": "献立の材料はすべて常備品です"
       },
       "loading": "読み込み中...",
       "load_error": "買い物リストの読み込みに失敗しました",
@@ -435,7 +504,18 @@
         "pantry_heading": "家にあるか確かめる材料",
         "pantry_item": "- {{name}}",
         "copied": "買い物リストをコピーしました ({{count}} 件)",
-        "failed": "コピーできませんでした"
+        "failed": "コピーできませんでした",
+        "staple_heading": "常備品",
+        "staple_item": "- {{name}}",
+        "staple_item_low": "- {{name}} (少ない)"
+      },
+      "staples": {
+        "title": "常備品",
+        "description": "少ない、ない、にした常備品です。献立に関係なく並びます",
+        "bought_button": "買った",
+        "bought": "「{{name}}」をあるにしました",
+        "undo": "元に戻す",
+        "recipes": "用途: {{recipes}}"
       }
     },
     "settings": {
@@ -456,7 +536,11 @@
         "shopping_default": "サイドバーから開いたときの日数",
         "measuring_units": "量る単位",
         "unquantified_words": "量を持たない言葉",
-        "import_servings": "人数を省略したときの人数"
+        "import_servings": "人数を省略したときの人数",
+        "recency_days": "「久しぶりに」とみなす日数",
+        "weekly_fill_days": "週の候補で埋める曜日",
+        "weekly_fill_meal": "週の候補で埋める時間帯",
+        "weekly_run_days": "週の候補で 1 品を続ける日数の上限"
       },
       "hint": {
         "language": "「保存」を押すと切り替わります",
@@ -466,7 +550,10 @@
         "shopping_presets": "7 / 14 / 28 日は献立画面の 1 / 2 / 4 週の期間を引き継ぐために使うので消せません",
         "measuring_units": "量の前に表示し、買い物リストでは量を合算しません",
         "unquantified_words": "レシピの取り込みで、量の欄にこの言葉があれば量 0 として読みます",
-        "import_servings": "取り込むファイルが人数を書いていないときに使います"
+        "import_servings": "取り込むファイルが人数を書いていないときに使います",
+        "recency_days": "最後に作ってからこの日数以上たったレシピを、レシピ選択の「久しぶりに」に出します (1〜60 日)",
+        "weekly_fill_days": "献立画面の「この週の候補を出す」で、空いていれば埋める曜日です",
+        "weekly_run_days": "1 にすると毎日別のレシピの案になります (1〜7 日)"
       },
       "suffix": {
         "days": "日",
@@ -516,7 +603,12 @@
         "day_duplicate": "同じ日数がすでにあります",
         "not_integer": "整数で入力してください",
         "blank": "空白だけの値は追加できません",
-        "unknown": "設定を保存できませんでした"
+        "unknown": "設定を保存できませんでした",
+        "recency_out_of_range": "1 以上 60 以下の日数を入れてください",
+        "weekly_days_empty": "曜日を 1 つ以上選んでください",
+        "weekly_day_out_of_range": "曜日の値が正しくありません",
+        "weekly_meal_invalid": "時間帯の値が正しくありません",
+        "weekly_run_out_of_range": "1 以上 7 以下の日数を入れてください"
       }
     }
   },

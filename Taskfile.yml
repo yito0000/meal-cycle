@@ -58,6 +58,32 @@ tasks:
       - npm run type-check
       - npm run test:e2e
 
+  test:mutation:go:
+    summary: Runs gremlins mutation testing on Go packages (PKG=./internal/domain/recipe, DIFF=main)
+    desc: |
+      テストが変異 (条件反転・境界ずらし等) を検出できるかを測る。LIVED が残った箇所はテストが甘い。
+      PKG で対象ディレクトリを絞る (既定は ./internal/domain)。DIFF を渡すとその ref からの差分行だけを変異させる。
+    vars:
+      PKG: '{{.PKG | default "./internal/domain"}}'
+      DIFF: '{{.DIFF | default ""}}'
+    env:
+      # gremlins は最初の coverage 計測の所要時間から timeout を決める。テストキャッシュが当たると 1 秒未満になり、ほぼ全件 TIMED OUT になる
+      GOFLAGS: -count=1
+    cmds:
+      # gremlins 0.6.0 は git diff のパス (ルート基準) と対象パス基準の相対パスを突き合わせるため、DIFF 時はルート固定でないと全件 Skipped になる
+      - go tool gremlins unleash -S lt {{if .DIFF}}--diff {{.DIFF}} .{{else}}{{.PKG}}{{end}}
+
+  test:mutation:frontend:
+    summary: Runs StrykerJS mutation testing on frontend sources (FILES=src/lib/format-quantity.ts)
+    desc: |
+      Go 側の test:mutation:go と同じ目的。対象は frontend/stryker.config.mjs の mutate。
+      FILES でカンマ区切りの glob に絞る (frontend/ 基準)。結果は frontend/reports/mutation/index.html にも出る。
+    dir: frontend
+    vars:
+      FILES: '{{.FILES | default ""}}'
+    cmds:
+      - npm run test:mutation -- {{if .FILES}}--mutate "{{.FILES}}"{{end}}
+
   build:win:
     summary: WSL→Windows 手動確認用・リリース用ビルド (CLAUDE.md 動作確認 2 階建て構成)
     desc: |

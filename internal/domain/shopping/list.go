@@ -4,7 +4,10 @@
 // 結果は「期間の献立で使う材料の目安」として扱う (add-shopping-list design.md D5)。
 package shopping
 
-import "github.com/yito0000/meal-cycle/internal/domain/recipe"
+import (
+	"github.com/yito0000/meal-cycle/internal/domain/fridge"
+	"github.com/yito0000/meal-cycle/internal/domain/recipe"
+)
 
 // PlannedBatch は期間内で材料を 1 回分計上する単位 = (batch_id, recipe_id) の組。
 //
@@ -66,11 +69,29 @@ type Item struct {
 	firstDate string
 }
 
+// StapleRef は突き合わせに使う常備品 1 件。
+type StapleRef struct {
+	ID    string
+	Name  string
+	State fridge.StapleState
+}
+
+// StapleItem は S07 の常備品の欄の 1 項目。Recipes はその常備品と同名の材料を使うレシピ名で、献立の順に並ぶ。
+type StapleItem struct {
+	ID      string             `json:"id"`
+	Name    string             `json:"name"`
+	State   fridge.StapleState `json:"state"`
+	Recipes []string           `json:"recipes"`
+}
+
 // List は ShoppingService.List の返り値。PeriodEnd は期間に含まれる最後の日。
+// HasStapleIngredients は常備品に寄せた材料が 1 件でもあるかで、空状態の文言を分けるために使う (add-fridge-staples design.md D10)。
 type List struct {
-	PeriodStart string `json:"periodStart"`
-	PeriodEnd   string `json:"periodEnd"`
-	PeriodDays  int    `json:"periodDays"`
-	Dishes      []Dish `json:"dishes"`
-	Items       []Item `json:"items"`
+	PeriodStart          string       `json:"periodStart"`
+	PeriodEnd            string       `json:"periodEnd"`
+	PeriodDays           int          `json:"periodDays"`
+	Dishes               []Dish       `json:"dishes"`
+	Items                []Item       `json:"items"`
+	Staples              []StapleItem `json:"staples"`
+	HasStapleIngredients bool         `json:"hasStapleIngredients"`
 }

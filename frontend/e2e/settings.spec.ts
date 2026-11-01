@@ -7,8 +7,10 @@ import {
   assignRecipe,
   createRecipeWithIngredients,
   dateAfter,
+  mealPlanCell,
   openFridge,
   openShoppingList,
+  setCooked,
 } from "./helpers.js";
 
 const t = ja.pages.settings;
@@ -146,6 +148,38 @@ test.describe("設定値の検証", () => {
     await expect(chips(page, t.field.measuring_units)).toHaveText(["大さじ", "小さじ", "カップ"]);
   });
 
+  test("週の候補で埋める曜日を空にすると保存されない", async ({ page }) => {
+    await openSettings(page);
+
+    const days = page.getByRole("group", { name: t.field.weekly_fill_days });
+    const boxes = days.getByRole("checkbox");
+    for (let i = 0; i < 7; i++) {
+      await boxes.nth(i).uncheck();
+    }
+    await saveButton(page).click();
+
+    await expect(days).toContainText(t.errors.weekly_days_empty);
+    await page.reload();
+    await openSettings(page);
+    await expect(
+      page
+        .getByRole("group", { name: t.field.weekly_fill_days })
+        .getByRole("checkbox", { checked: true }),
+    ).toHaveCount(5);
+  });
+
+  test("久しぶりとみなす日数が範囲外だと保存されない", async ({ page }) => {
+    await openSettings(page);
+
+    await page.getByLabel(t.field.recency_days, { exact: true }).fill("0");
+    await saveButton(page).click();
+
+    await expect(page.getByText(t.errors.recency_out_of_range)).toBeVisible();
+    await page.reload();
+    await openSettings(page);
+    await expect(page.getByLabel(t.field.recency_days, { exact: true })).toHaveValue("10");
+  });
+
   test("買い物リストの 7 / 14 / 28 日は消せない", async ({ page }) => {
     await openSettings(page);
 
@@ -196,6 +230,48 @@ test.describe("既定に戻す", () => {
 });
 
 test.describe("保存した値の各画面への反映", () => {
+  test("1 品を続ける日数の上限を変えると週の候補の品数が変わる", async ({ page }) => {
+    await page.goto("/");
+    for (const name of ["A", "B", "C", "D", "E"]) {
+      await createRecipeWithIngredients(page, name, []);
+    }
+    await openSettings(page);
+
+    await page.getByLabel(t.field.weekly_run_days, { exact: true }).fill("1");
+    await save(page);
+    await page.getByRole("link", { name: ja.nav.meal_plan }).click();
+    await page.getByTestId("period-next").click();
+    await page.getByTestId("week-plan-cta").click();
+
+    const plan = page.getByRole("dialog", { name: tm.week_plan.title }).getByTestId("week-plan");
+    await expect(plan).not.toHaveCount(0);
+    for (const p of await plan.all()) {
+      await expect(p.getByTestId("week-plan-item")).toHaveCount(5);
+    }
+  });
+
+  test("久しぶりとみなす日数を変えると候補が変わる", async ({ page }) => {
+    await page.goto("/");
+    const id = await createRecipeWithIngredients(page, "肉じゃが", []);
+    await assignRecipe(page, dateAfter(-7), "dinner", id);
+    await setCooked(page, dateAfter(-7), "dinner", 0, true);
+    await openSettings(page);
+
+    await page.getByLabel(t.field.recency_days, { exact: true }).fill("5");
+    await save(page);
+    await page.getByRole("link", { name: ja.nav.meal_plan }).click();
+    await mealPlanCell(page, dateAfter(0), "dinner")
+      .getByRole("button", { name: tm.cell_actions.add_first })
+      .click();
+
+    const section = page.getByRole("dialog").getByRole("region", {
+      name: tm.picker.suggestion.by_recency_title.replace("{{days}}", "5"),
+    });
+    await expect(
+      section.getByTestId("suggestion-item").filter({ hasText: "肉じゃが" }),
+    ).toHaveCount(1);
+  });
+
   test("期限アラートの日数を変えると S05 の色が変わる", async ({ page }) => {
     await page.goto("/");
     await addStockItem(page, { name: "A", amount: 1, unit: "個", expiresInDays: 5 });

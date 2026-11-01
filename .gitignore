@@ -27,3 +27,7 @@ frontend/test-results/
 
 # gitleaks の個人固有ルール (氏名・住所など、書いた内容自体が個人情報になる)
 /.gitleaks.local.toml
+
+# Mutation testing (StrykerJS / gremlins)
+frontend/reports/
+frontend/.stryker-tmp/

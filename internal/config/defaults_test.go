@@ -13,12 +13,13 @@ func TestDefaults(t *testing.T) {
 		want any
 	}{
 		{"Language", c.Language, "ja"},
-		{"WeeklyFillPattern", c.WeeklyFillPattern, "mon-fri-dinner"},
+		{"WeeklyFillMeal", c.WeeklyFillMeal, "dinner"},
 		{"ItemsPerMealHint", c.ItemsPerMealHint, [2]int{1, 3}},
 		{"MealPlanCellVisibleItems", c.MealPlanCellVisibleItems, 4},
 		{"RecipeListHighlightMs", c.RecipeListHighlightMs, 2000},
 		{"RecencyThresholdDays", c.RecencyThresholdDays, 10},
-		{"WeeklyPresetRecipeCount", c.WeeklyPresetRecipeCount, [2]int{2, 3}},
+		{"SuggestionLimit", c.SuggestionLimit, 5},
+		{"WeeklyPresetMaxRunDays", c.WeeklyPresetMaxRunDays, 3},
 		{"ExpiryAlertRedDays", c.ExpiryAlertRedDays, 3},
 		{"ExpiryAlertYellowDays", c.ExpiryAlertYellowDays, 7},
 		{"ShoppingDefaultPeriodDays", c.ShoppingDefaultPeriodDays, 7},
@@ -28,6 +29,10 @@ func TestDefaults(t *testing.T) {
 		if tc.got != tc.want {
 			t.Errorf("%s: got %v, want %v", tc.name, tc.got, tc.want)
 		}
+	}
+
+	if got, want := c.WeeklyFillDays, []int{1, 2, 3, 4, 5}; !equalInts(got, want) {
+		t.Errorf("WeeklyFillDays: got %v, want %v", got, want)
 	}
 
 	if got, want := c.LeftoverCopyPresets, []int{2, 3, 4}; !equalInts(got, want) {

@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import type { ConsumptionPlan } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/fridge/models";
 import type {
   BatchSummary,
   Entry,
@@ -10,11 +11,15 @@ import type {
   RemovedEntry,
   SpreadResult,
 } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
-import { MealPlanService } from "../../../bindings/github.com/yito0000/meal-cycle/internal/service";
+import {
+  FridgeService,
+  MealPlanService,
+} from "../../../bindings/github.com/yito0000/meal-cycle/internal/service";
 import type { SpreadSelection, SpreadSource } from "../../lib/spread-batch-selection";
 import { UNDO_TOAST_MS } from "../../lib/undo-toast";
 import { useSettingsValues } from "../settings/settings-gate";
 import { BatchMergeDialog } from "./batch-merge-dialog";
+import { ConsumeStockDialog } from "./consume-stock-dialog";
 import { CopyConflictDialog, type CopyConflictMode } from "./copy-conflict-dialog";
 import { CopyModeDialog } from "./copy-mode-dialog";
 import { previewCopy } from "./copy-planner";
@@ -186,9 +191,22 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
         description: t(errorI18nKey(err)),
       }),
   });
+  const [consumePlan, setConsumePlan] = useState<ConsumptionPlan | null>(null);
+  // 印を付けた操作のときだけ候補を取る。印を外したときや、作り置きを広げて印を引き継いだ行では開かない
+  // (add-mealplan-cook-consume design.md D1 / D5)。
   const cookedMut = useMutation({
     mutationFn: (v: { entryId: string; cooked: boolean }) =>
       withHandlers(MealPlanService.SetCooked(v.entryId, v.cooked)),
+    onSuccess: async (_, v) => {
+      if (!v.cooked) return;
+      try {
+        const plan = await FridgeService.PlanCookConsumption(v.entryId);
+        const hasCandidates = (plan.lines ?? []).some((l) => (l.candidates ?? []).length > 0);
+        if (hasCandidates) setConsumePlan(plan);
+      } catch (err) {
+        toast.error(t(errorI18nKey(err)));
+      }
+    },
   });
   const splitMut = useMutation({
     mutationFn: (v: { entryId: string }) => withHandlers(MealPlanService.SplitBatch(v.entryId)),
@@ -505,6 +523,15 @@ export function WeekCalendar({ periodStart, periodWeeks, entries, visibleMeals }
         open={showConflictDialog}
         conflictTargets={pendingCopy?.conflicts ?? []}
         onSelect={resolveConflict}
+      />
+
+      <ConsumeStockDialog
+        plan={consumePlan}
+        onClose={() => setConsumePlan(null)}
+        onConsumed={(count) => {
+          setConsumePlan(null);
+          toast(t("pages.meal_plan.consume.consumed", { count }));
+        }}
       />
 
       <BatchMergeDialog

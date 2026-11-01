@@ -1,16 +1,21 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import type { SpreadResult } from "../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
 import { Meal } from "../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
 import { MealPlanService } from "../../bindings/github.com/yito0000/meal-cycle/internal/service";
+import { errorI18nKey } from "../components/mealplan/error-messages";
 import { MealVisibilityCheckboxes } from "../components/mealplan/meal-visibility-checkboxes";
 import { MEALPLAN_DEFAULTS } from "../components/mealplan/mealplan-config";
 import { PeriodNav, type PeriodWeeks } from "../components/mealplan/period-nav";
 import { WeekCalendar } from "../components/mealplan/week-calendar";
+import { WeekPlanDialog } from "../components/mealplan/week-plan-dialog";
 import { formatDate, parseDate, weekStartOf } from "../components/mealplan/week-utils";
 import { mealPlanKey, useMealPlanPreference } from "../lib/mealplan-preferences";
+import { UNDO_TOAST_MS } from "../lib/undo-toast";
 
 const ALLOWED_MEAL_VALUES: ReadonlySet<string> = new Set<string>([
   Meal.MealBreakfast,
@@ -61,6 +66,29 @@ export function MealPlanPage() {
   const periodStartKey = useMemo(() => formatDate(periodStart), [periodStart]);
   const navigate = useNavigate();
 
+  const queryClient = useQueryClient();
+  const [weekPlanOpen, setWeekPlanOpen] = useState(false);
+  const invalidateMealPlan = () => queryClient.invalidateQueries({ queryKey: ["mealplan"] });
+  // 取り消しは SpreadEntry と同じく UndoSpread に返り値を渡す (add-mealplan-suggest-week-preset design.md D5)。
+  const onWeekPlanApplied = (result: SpreadResult, count: number) => {
+    setWeekPlanOpen(false);
+    void invalidateMealPlan();
+    toast(t("pages.meal_plan.week_plan.applied", { count }), {
+      duration: UNDO_TOAST_MS,
+      action: {
+        label: t("pages.meal_plan.toast.undo"),
+        onClick: () =>
+          MealPlanService.UndoSpread(result)
+            .then(invalidateMealPlan)
+            .catch((err) =>
+              toast.error(t("pages.meal_plan.toast.restore_failed"), {
+                description: t(errorI18nKey(err)),
+              }),
+            ),
+      },
+    });
+  };
+
   const { data, isLoading, isError } = useQuery({
     queryKey: ["mealplan", "period", periodStartKey, periodWeeks],
     queryFn: () => MealPlanService.ListPeriod(periodStartKey, periodWeeks),
@@ -97,7 +125,7 @@ export function MealPlanPage() {
         />
       )}
 
-      <div>
+      <div className="flex flex-wrap gap-2">
         <Button
           type="button"
           variant="outline"
@@ -112,7 +140,22 @@ export function MealPlanPage() {
         >
           {t("pages.meal_plan.shopping_cta")}
         </Button>
+        {/* 2 週・4 週表示でも、対象は表示中の期間の最初の 1 週間だけにする。 */}
+        <Button
+          type="button"
+          variant="outline"
+          data-testid="week-plan-cta"
+          onClick={() => setWeekPlanOpen(true)}
+        >
+          {t("pages.meal_plan.week_plan.cta")}
+        </Button>
       </div>
+      <WeekPlanDialog
+        open={weekPlanOpen}
+        weekStart={periodStartKey}
+        onOpenChange={setWeekPlanOpen}
+        onApplied={onWeekPlanApplied}
+      />
     </div>
   );
 }

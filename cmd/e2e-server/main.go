@@ -73,17 +73,18 @@ func main() {
 	}
 }
 
-// newRegistry は main.go の application.Options.Services と同じ 6 サービスを返す。
+// newRegistry は main.go の application.Options.Services と同じ 7 サービスを返す。
 // 片方だけ増えると E2E が本番と食い違うので、dispatch_test.go で件数を突き合わせる。
 // recipeSvc は seed にも使うので、settingsSvc を渡して main で作ったものを受け取る。
 func newRegistry(db *sql.DB, settingsSvc *service.SettingsService, recipeSvc *service.RecipeService) serviceRegistry {
 	return serviceRegistry{
-		"HealthService":   service.NewHealthService(db, service.StartupState{}),
-		"SettingsService": settingsSvc,
-		"MealPlanService": service.NewMealPlanService(sqlite.NewMealPlanRepo(db), settingsSvc),
-		"RecipeService":   recipeSvc,
-		"FridgeService":   service.NewFridgeService(db, settingsSvc),
-		"ShoppingService": service.NewShoppingService(db, settingsSvc),
+		"HealthService":     service.NewHealthService(db, service.StartupState{}),
+		"SettingsService":   settingsSvc,
+		"MealPlanService":   service.NewMealPlanService(sqlite.NewMealPlanRepo(db), settingsSvc),
+		"RecipeService":     recipeSvc,
+		"FridgeService":     service.NewFridgeService(db, settingsSvc),
+		"ShoppingService":   service.NewShoppingService(db, settingsSvc),
+		"SuggestionService": service.NewSuggestionService(db, settingsSvc),
 	}
 }
 

@@ -29,6 +29,8 @@ cd frontend && npm run build:dev    # Vite ビルド（import 解決の総合確
 task test:unit              # Vitest ユニットテスト（フロントの純関数 / hook）
 cd frontend && npm run test:watch   # Vitest を watch モードで起動
 task test:e2e               # Playwright E2E（実 React + 実 Go サービス + 実 SQLite）
+task test:mutation:go       # gremlins でミューテーションテスト（PKG=… で対象、DIFF=main で差分だけ）
+task test:mutation:frontend # StrykerJS でミューテーションテスト（FILES=… で対象を絞る）
 
 task lint                   # Go (golangci-lint) + Frontend (Biome) をまとめて実行
 task lint:go                # Go 側だけ
@@ -108,6 +110,22 @@ func TestRecipeService_List(t *testing.T) {
 - `describe` / `it` / `expect` は `vitest` から明示 import する（`globals` は使わない）。Testing Library を使うファイルでは `afterEach(cleanup)` を書く
 - 純関数はドメイン層と同じく `it.each` の table-driven、hook はサービス層と同じく `it("should <期待動作> when <前提>")` で書く
 - フィクスチャは bindings の完全な型を組み立てず、対象関数が読むフィールドだけを持たせる（`.ts` / `.js` 生成の型差を避けるため）
+
+**ミューテーションテスト（Go）**: [gremlins](https://github.com/go-gremlins/gremlins) を `go tool` でピン留めしている。
+コードを少しずつ壊し（条件反転・境界ずらし等）、テストが落ちるかを見る。テストの検証の甘さを機械的に見つけるのが目的で、CI のゲートにはしていない。
+
+- `task test:mutation:go PKG=./internal/domain/recipe` のように対象を絞って走らせる。`DIFF=main` を渡すと差分行だけを変異させる（このとき `PKG` は無視され、モジュール全体の差分が対象になる）
+- サービス層は SQLite を使うテストが重く、パッケージ全体だと 10 分を超える。普段は `DIFF=main` で変更箇所だけを見る
+- `LIVED` が残った行は、テストが通ってしまう変異。アサーションを足すか、意味的に等価な変異なら無視する
+- 設定は [.gremlins.yaml](.gremlins.yaml)。テストが速いと timeout が足りず生存すべき変異も `TIMED OUT` になるため、`timeout-coefficient` を大きめにしている。同じ理由で、テストキャッシュが当たって計測時間が縮まないよう、タスクは `GOFLAGS=-count=1` で走らせる
+
+**ミューテーションテスト（フロントエンド）**: [StrykerJS](https://stryker-mutator.io/) を Vitest ランナーで使う。目的と位置づけは Go 側と同じで、CI のゲートにはしていない。
+
+- `task test:mutation:frontend FILES=src/lib/format-quantity.ts` のように対象を絞って走らせる。`FILES` はカンマ区切りの glob（`frontend/` 基準）で、未指定なら `stryker.config.mjs` の `mutate` 全体が対象になる
+- 結果はコンソールの表と `frontend/reports/mutation/index.html`（gitignore 済み）に出る。`Survived` が Go 側の `LIVED` にあたる
+- 全体でも 1〜2 分で終わる。ただし Vitest があるのは純関数と hook だけなので、コンポーネントと routes はほぼ `No coverage` になる。スコアは `covered` 列で見る
+- 最初に Vitest を素で 1 回流し、そこで落ちると全体が止まる。bindings が古いとここで落ちるので、先に `wails3 generate bindings -clean=true -ts -i` で作り直す
+- 設定は [frontend/stryker.config.mjs](frontend/stryker.config.mjs)。TypeScript 7 では Stryker の tsconfig 書き換えが落ちるため、存在しない `tsconfigFile` を渡して書き換えを止めている
 
 **E2E（`frontend/e2e/`）**: Playwright + headless Chromium。Wails の IPC 層だけを HTTP に差し替え、React / Go サービス / SQLite は本物のまま通す。`task test:e2e` で実行する。
 

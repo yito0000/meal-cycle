@@ -14,18 +14,20 @@ import (
 
 // ShoppingService は S07 買い物リストをフロントに公開する。
 type ShoppingService struct {
-	repo  *sqlite.ShoppingRepo
-	stock *sqlite.StockRepo
-	cfg   configSource
-	now   func() time.Time
+	repo    *sqlite.ShoppingRepo
+	stock   *sqlite.StockRepo
+	staples *sqlite.StapleRepo
+	cfg     configSource
+	now     func() time.Time
 }
 
 func NewShoppingService(db *sql.DB, cfg configSource) *ShoppingService {
 	return &ShoppingService{
-		repo:  sqlite.NewShoppingRepo(db),
-		stock: sqlite.NewStockRepo(db),
-		cfg:   cfg,
-		now:   time.Now,
+		repo:    sqlite.NewShoppingRepo(db),
+		stock:   sqlite.NewStockRepo(db),
+		staples: sqlite.NewStapleRepo(db),
+		cfg:     cfg,
+		now:     time.Now,
 	}
 }
 
@@ -49,14 +51,34 @@ func (s *ShoppingService) List(ctx context.Context, periodStart string, periodDa
 		return shopping.List{}, err
 	}
 
+	staples, err := s.stapleRefs(ctx)
+	if err != nil {
+		return shopping.List{}, err
+	}
+
+	items, hasStapleIngredients := shopping.Aggregate(batches, stocks, cfg.MeasuringUnits, staples)
 	start, _ := time.Parse(fridge.DateLayout, periodStart)
 	return shopping.List{
-		PeriodStart: periodStart,
-		PeriodEnd:   start.AddDate(0, 0, periodDays-1).Format(fridge.DateLayout),
-		PeriodDays:  periodDays,
-		Dishes:      shopping.Dishes(batches),
-		Items:       shopping.Aggregate(batches, stocks, cfg.MeasuringUnits),
+		PeriodStart:          periodStart,
+		PeriodEnd:            start.AddDate(0, 0, periodDays-1).Format(fridge.DateLayout),
+		PeriodDays:           periodDays,
+		Dishes:               shopping.Dishes(batches),
+		Items:                items,
+		Staples:              shopping.StapleItems(batches, staples),
+		HasStapleIngredients: hasStapleIngredients,
 	}, nil
+}
+
+func (s *ShoppingService) stapleRefs(ctx context.Context) ([]shopping.StapleRef, error) {
+	staples, err := s.staples.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]shopping.StapleRef, 0, len(staples))
+	for _, st := range staples {
+		out = append(out, shopping.StapleRef{ID: st.ID, Name: st.Name, State: st.State})
+	}
+	return out, nil
 }
 
 // 期限切れの在庫は使えない前提で突き合わせから外す。当日期限は urgent なので残る (design.md D6)。

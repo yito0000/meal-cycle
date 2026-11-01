@@ -82,3 +82,7 @@ export function MoveEntry(entryID: string, targetDate: string, targetMeal: strin
 export function SetCooked(entryID: string, cooked: boolean) {
   return call<void>("MealPlanService", "SetCooked", entryID, cooked);
 }
+
+export function ApplyPlan(items: mealplan$0.PlanItem[] | null) {
+  return call<mealplan$0.SpreadResult>("MealPlanService", "ApplyPlan", items);
+}

@@ -7,7 +7,11 @@ export type SettingsField =
   | "shoppingDefault"
   | "measuringUnits"
   | "unquantifiedWords"
-  | "importServings";
+  | "importServings"
+  | "recencyDays"
+  | "weeklyFillDays"
+  | "weeklyFillMeal"
+  | "weeklyRunDays";
 
 const P = "pages.settings.errors.";
 
@@ -41,6 +45,12 @@ const RULES: [string, string, SettingsField][] = [
   ["settings: unquantified word length", `${P}word_length`, "unquantifiedWords"],
   ["settings: unquantified word duplicate", `${P}word_duplicate`, "unquantifiedWords"],
   ["settings: import servings out of range", `${P}servings_out_of_range`, "importServings"],
+  ["settings: recency days out of range", `${P}recency_out_of_range`, "recencyDays"],
+  ["settings: weekly fill days empty", `${P}weekly_days_empty`, "weeklyFillDays"],
+  ["settings: weekly fill day out of range", `${P}weekly_day_out_of_range`, "weeklyFillDays"],
+  ["settings: weekly fill day duplicate", `${P}weekly_day_out_of_range`, "weeklyFillDays"],
+  ["settings: weekly fill invalid meal", `${P}weekly_meal_invalid`, "weeklyFillMeal"],
+  ["settings: weekly run days out of range", `${P}weekly_run_out_of_range`, "weeklyRunDays"],
 ];
 
 export type SettingsError = { key: string; field: SettingsField | null };

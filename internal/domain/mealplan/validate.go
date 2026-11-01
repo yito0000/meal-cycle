@@ -22,6 +22,7 @@ var (
 	ErrInvalidSpreadTarget = errors.New("mealplan: invalid spread target")
 	ErrInvalidRestore      = errors.New("mealplan: invalid restore")
 	ErrArchivedRecipe      = errors.New("mealplan: archived recipe")
+	ErrEmptyPlan           = errors.New("mealplan: empty plan")
 )
 
 // AllowedPeriodWeeks は S01 で受け付ける期間長 (単位: 週) の集合。

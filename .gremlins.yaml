@@ -1,0 +1,5 @@
+unleash:
+  # テストが速すぎると計測時間から決まる timeout がビルド時間に負け、生存すべき変異まで TIMED OUT になる
+  timeout-coefficient: 20
+  # 全コアで並列にすると go build の競合で timeout が増える
+  workers: 4

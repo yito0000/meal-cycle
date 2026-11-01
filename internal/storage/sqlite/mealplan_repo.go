@@ -861,6 +861,54 @@ func (r *MealPlanRepo) Spread(
 	return result, nil
 }
 
+// ApplyPlan は行をまとめて各セルの末尾に足す。Group ごとに新しい batch_id を発行し、同じ Group の行を 1 つの作り置きにする。
+// 1 行でも足せなければ何も残さない。上書きはしないので Removed は常に空 (add-mealplan-suggest-week-preset design.md D5)。
+func (r *MealPlanRepo) ApplyPlan(ctx context.Context, items []mealplan.PlanItem) (mealplan.SpreadResult, error) {
+	result := mealplan.SpreadResult{AddedEntryIDs: []string{}, Removed: []mealplan.RemovedEntry{}}
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return result, fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	recipeIDs := make([]string, 0, len(items))
+	for _, it := range items {
+		var n int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM recipes WHERE id = ?`, it.RecipeID).Scan(&n); err != nil {
+			return result, fmt.Errorf("check recipe exists: %w", err)
+		}
+		if n == 0 {
+			return result, mealplan.ErrUnknownRecipe
+		}
+		recipeIDs = append(recipeIDs, it.RecipeID)
+	}
+	if err := ensureNotArchived(ctx, tx, recipeIDs); err != nil {
+		return result, err
+	}
+
+	batches := map[int]string{}
+	for _, it := range items {
+		batchID, ok := batches[it.Group]
+		if !ok {
+			batchID = mealplan.NewBatchID()
+			batches[it.Group] = batchID
+		}
+		pos, err := nextPosition(ctx, tx, it.Date, string(it.Meal))
+		if err != nil {
+			return result, err
+		}
+		id := mealplan.NewEntryID()
+		if _, err := insertMealPlan(ctx, tx, id, it.Date, string(it.Meal), pos, it.RecipeID, batchID); err != nil {
+			return result, err
+		}
+		result.AddedEntryIDs = append(result.AddedEntryIDs, id)
+	}
+	if err := tx.Commit(); err != nil {
+		return result, fmt.Errorf("commit tx: %w", err)
+	}
+	return result, nil
+}
+
 // UndoSpread は Spread の結果を 1 トランザクションで戻す。追加した行のうち別の操作で消えたものは飛ばし、
 // 上書きで消した行は RestoreEntries と同じ規則で元のセルの元の並び順に戻す (revise-mealplan-spread-safety design.md D2)。
 func (r *MealPlanRepo) UndoSpread(ctx context.Context, result mealplan.SpreadResult) error {

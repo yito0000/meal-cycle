@@ -20,8 +20,10 @@ type Config struct {
 	// []string で持つ (config が domain を import しないため)。
 	DefaultVisibleMeals []string `json:"defaultVisibleMeals"`
 
-	// 週プリセットが埋めるセル範囲。MVP はフリーテキスト、後で型付けする。
-	WeeklyFillPattern string `json:"weeklyFillPattern"`
+	// 週の候補で埋める曜日 (月曜 = 1 〜 日曜 = 7) と時間帯。S09 で直せるよう配列と 1 つの時間帯に分けて持つ
+	// (add-mealplan-suggest-week-preset design.md D1)。
+	WeeklyFillDays []int  `json:"weeklyFillDays"`
+	WeeklyFillMeal string `json:"weeklyFillMeal"`
 
 	// meal ごとの品数目標 {min, max}。強制ではなく、提案生成と UI コピー向けヒント。
 	ItemsPerMealHint [2]int `json:"itemsPerMealHint"`
@@ -55,11 +57,15 @@ type Config struct {
 	// 続けて食べる) 運用を考慮した値。
 	RecencyThresholdDays int `json:"recencyThresholdDays"`
 
+	// S01 のレシピ選択ダイアログで、軸ごとの候補を出す件数の上限。欄の高さで一度に見える件数に合わせた見た目の値で、S09 には出さない
+	// (add-mealplan-suggest-by-stock design.md D3)。
+	SuggestionLimit int `json:"suggestionLimit"`
+
 	// 作り置きコピーで提示する日数プリセット。
 	LeftoverCopyPresets []int `json:"leftoverCopyPresets"`
 
-	// 週プリセットが跨ぐレシピ数の目標 {min, max}。
-	WeeklyPresetRecipeCount [2]int `json:"weeklyPresetRecipeCount"`
+	// 週の候補で 1 品を続ける日数の上限。品数はここから決まる (add-mealplan-suggest-week-preset design.md D2)。
+	WeeklyPresetMaxRunDays int `json:"weeklyPresetMaxRunDays"`
 
 	// 在庫アラート -----------------------------------------------------
 
@@ -100,13 +106,15 @@ func Defaults() Config {
 	return Config{
 		Language:                    "ja",
 		DefaultVisibleMeals:         []string{"dinner"},
-		WeeklyFillPattern:           "mon-fri-dinner",
+		WeeklyFillDays:              []int{1, 2, 3, 4, 5},
+		WeeklyFillMeal:              "dinner",
 		ItemsPerMealHint:            [2]int{1, 3},
 		MealPlanCellVisibleItems:    4,
 		RecipeListHighlightMs:       2000,
 		RecencyThresholdDays:        10,
+		SuggestionLimit:             5,
 		LeftoverCopyPresets:         []int{2, 3, 4},
-		WeeklyPresetRecipeCount:     [2]int{2, 3},
+		WeeklyPresetMaxRunDays:      3,
 		ExpiryAlertRedDays:          3,
 		ExpiryAlertYellowDays:       7,
 		MealPlanCellSizePresets:     defaultCellSizePresets(),

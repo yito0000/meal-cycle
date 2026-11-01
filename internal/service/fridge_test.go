@@ -10,6 +10,7 @@ import (
 
 	"github.com/yito0000/meal-cycle/internal/config"
 	"github.com/yito0000/meal-cycle/internal/domain/fridge"
+	"github.com/yito0000/meal-cycle/internal/domain/mealplan"
 	"github.com/yito0000/meal-cycle/internal/domain/recipe"
 	"github.com/yito0000/meal-cycle/internal/storage/sqlite"
 )
@@ -387,6 +388,310 @@ func TestFridgeService_ListSuggestions(t *testing.T) {
 		}
 		if len(got.Names) != 1 || got.Names[0] != (fridge.NameSuggestion{Name: "しめじ", Unit: "パック"}) {
 			t.Errorf("want [しめじ/パック], got %#v", got.Names)
+		}
+	})
+}
+
+func TestFridgeService_AddStaple(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("should create staple with enough state when name is valid", func(t *testing.T) {
+		svc, _ := newFridgeServiceForTest(t)
+		got, err := svc.AddStaple(ctx, "牛乳")
+		if err != nil {
+			t.Fatalf("AddStaple: %v", err)
+		}
+		if got.Name != "牛乳" || got.State != fridge.StapleEnough || got.ID == "" {
+			t.Errorf("unexpected staple: %+v", got)
+		}
+	})
+
+	t.Run("should trim name when name has surrounding spaces", func(t *testing.T) {
+		svc, _ := newFridgeServiceForTest(t)
+		got, err := svc.AddStaple(ctx, "  牛乳 ")
+		if err != nil || got.Name != "牛乳" {
+			t.Errorf("want trimmed name, got %+v err=%v", got, err)
+		}
+	})
+
+	t.Run("should return ErrStapleNameEmpty when name is blank", func(t *testing.T) {
+		svc, _ := newFridgeServiceForTest(t)
+		if _, err := svc.AddStaple(ctx, "   "); !errors.Is(err, fridge.ErrStapleNameEmpty) {
+			t.Errorf("want ErrStapleNameEmpty, got %v", err)
+		}
+	})
+
+	t.Run("should return ErrStapleNameTooLong when name exceeds 100 runes", func(t *testing.T) {
+		svc, _ := newFridgeServiceForTest(t)
+		if _, err := svc.AddStaple(ctx, strings.Repeat("あ", 101)); !errors.Is(err, fridge.ErrStapleNameTooLong) {
+			t.Errorf("want ErrStapleNameTooLong, got %v", err)
+		}
+	})
+
+	t.Run("should return ErrStapleDuplicate when normalized name matches existing staple", func(t *testing.T) {
+		svc, _ := newFridgeServiceForTest(t)
+		if _, err := svc.AddStaple(ctx, "ミルク"); err != nil {
+			t.Fatalf("AddStaple: %v", err)
+		}
+		if _, err := svc.AddStaple(ctx, "みるく"); !errors.Is(err, fridge.ErrStapleDuplicate) {
+			t.Errorf("want ErrStapleDuplicate, got %v", err)
+		}
+	})
+
+	t.Run("should allow name that differs only in kanji and kana", func(t *testing.T) {
+		svc, _ := newFridgeServiceForTest(t)
+		if _, err := svc.AddStaple(ctx, "玉ねぎ"); err != nil {
+			t.Fatalf("AddStaple: %v", err)
+		}
+		if _, err := svc.AddStaple(ctx, "たまねぎ"); err != nil {
+			t.Errorf("want success, got %v", err)
+		}
+	})
+
+	t.Run("should not touch stock items when stock with same name exists", func(t *testing.T) {
+		svc, _ := newFridgeServiceForTest(t)
+		stock, err := svc.Add(ctx, validStock("牛乳"))
+		if err != nil {
+			t.Fatalf("Add: %v", err)
+		}
+		if _, err := svc.AddStaple(ctx, "牛乳"); err != nil {
+			t.Fatalf("AddStaple: %v", err)
+		}
+		items, _ := svc.List(ctx)
+		if len(items) != 1 || items[0].ID != stock.ID || items[0].Amount != stock.Amount {
+			t.Errorf("stock changed: %+v", items)
+		}
+	})
+}
+
+func TestFridgeService_SetStapleState(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("should persist new state when state is valid", func(t *testing.T) {
+		svc, _ := newFridgeServiceForTest(t)
+		s, _ := svc.AddStaple(ctx, "牛乳")
+		if _, err := svc.SetStapleState(ctx, s.ID, fridge.StapleLow); err != nil {
+			t.Fatalf("SetStapleState: %v", err)
+		}
+		got, _ := svc.ListStaples(ctx)
+		if len(got) != 1 || got[0].State != fridge.StapleLow {
+			t.Errorf("want low, got %+v", got)
+		}
+	})
+
+	t.Run("should return ErrStapleInvalidState when state is unknown", func(t *testing.T) {
+		svc, _ := newFridgeServiceForTest(t)
+		s, _ := svc.AddStaple(ctx, "牛乳")
+		if _, err := svc.SetStapleState(ctx, s.ID, "plenty"); !errors.Is(err, fridge.ErrStapleInvalidState) {
+			t.Errorf("want ErrStapleInvalidState, got %v", err)
+		}
+		got, _ := svc.ListStaples(ctx)
+		if got[0].State != fridge.StapleEnough {
+			t.Errorf("state changed: %+v", got)
+		}
+	})
+
+	t.Run("should return ErrStapleNotFound when id does not exist", func(t *testing.T) {
+		svc, _ := newFridgeServiceForTest(t)
+		if _, err := svc.SetStapleState(ctx, "missing", fridge.StapleLow); !errors.Is(err, fridge.ErrStapleNotFound) {
+			t.Errorf("want ErrStapleNotFound, got %v", err)
+		}
+	})
+}
+
+func TestFridgeService_DeleteStaple(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("should remove staple when id exists", func(t *testing.T) {
+		svc, _ := newFridgeServiceForTest(t)
+		s, _ := svc.AddStaple(ctx, "牛乳")
+		if err := svc.DeleteStaple(ctx, s.ID); err != nil {
+			t.Fatalf("DeleteStaple: %v", err)
+		}
+		got, _ := svc.ListStaples(ctx)
+		if len(got) != 0 {
+			t.Errorf("want empty, got %+v", got)
+		}
+	})
+}
+
+func TestFridgeService_RestoreStaple(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("should recreate staple with same id, state and addedAt when restored after delete", func(t *testing.T) {
+		svc, _ := newFridgeServiceForTest(t)
+		s, _ := svc.AddStaple(ctx, "牛乳")
+		s, _ = svc.SetStapleState(ctx, s.ID, fridge.StapleLow)
+		if err := svc.DeleteStaple(ctx, s.ID); err != nil {
+			t.Fatalf("DeleteStaple: %v", err)
+		}
+		if _, err := svc.RestoreStaple(ctx, s); err != nil {
+			t.Fatalf("RestoreStaple: %v", err)
+		}
+		got, _ := svc.ListStaples(ctx)
+		if len(got) != 1 || got[0].ID != s.ID || got[0].State != fridge.StapleLow || got[0].AddedAt != s.AddedAt {
+			t.Errorf("unexpected restored: %+v (orig %+v)", got, s)
+		}
+	})
+
+	t.Run("should return ErrStapleInvalidRestore when id is empty", func(t *testing.T) {
+		svc, _ := newFridgeServiceForTest(t)
+		_, err := svc.RestoreStaple(ctx, fridge.Staple{Name: "牛乳", State: fridge.StapleLow, AddedAt: "2026-01-01T00:00:00Z"})
+		if !errors.Is(err, fridge.ErrStapleInvalidRestore) {
+			t.Errorf("want ErrStapleInvalidRestore, got %v", err)
+		}
+	})
+
+	t.Run("should return ErrStapleDuplicate when same name was added after delete", func(t *testing.T) {
+		svc, _ := newFridgeServiceForTest(t)
+		s, _ := svc.AddStaple(ctx, "牛乳")
+		_ = svc.DeleteStaple(ctx, s.ID)
+		if _, err := svc.AddStaple(ctx, "牛乳"); err != nil {
+			t.Fatalf("AddStaple: %v", err)
+		}
+		if _, err := svc.RestoreStaple(ctx, s); !errors.Is(err, fridge.ErrStapleDuplicate) {
+			t.Errorf("want ErrStapleDuplicate, got %v", err)
+		}
+	})
+}
+
+// planCook はレシピを作って今日の夕食に割り当て、その品の ID を返す。
+func planCook(t *testing.T, svc *FridgeService, recipes *RecipeService, ings ...recipe.RecipeIngredient) string {
+	t.Helper()
+	ctx := context.Background()
+	r, err := recipes.Create(ctx, recipe.Recipe{Name: "肉じゃが", Servings: 1, Ingredients: ings})
+	if err != nil {
+		t.Fatalf("create recipe: %v", err)
+	}
+	e, err := svc.meals.Assign(ctx, daysLater(0), "dinner", r.ID)
+	if err != nil {
+		t.Fatalf("assign: %v", err)
+	}
+	return e.ID
+}
+
+func addStockWith(t *testing.T, svc *FridgeService, name string, amount float64, unit, expiresAt string) fridge.StockItem {
+	t.Helper()
+	got, err := svc.Add(context.Background(), fridge.StockItem{Name: name, Amount: amount, Unit: unit, ExpiresAt: expiresAt})
+	if err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	return got
+}
+
+func TestFridgeService_PlanCookConsumption(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("should return candidates ordered by expiry when matching stocks exist", func(t *testing.T) {
+		svc, recipes := newFridgeServiceForTest(t)
+		late := addStockWith(t, svc, "玉ねぎ", 3, "個", daysLater(10))
+		soon := addStockWith(t, svc, "玉ねぎ", 1, "個", daysLater(2))
+		id := planCook(t, svc, recipes, recipe.RecipeIngredient{Name: "玉ねぎ", Amount: 2, Unit: "個"})
+		got, err := svc.PlanCookConsumption(ctx, id)
+		if err != nil {
+			t.Fatalf("PlanCookConsumption: %v", err)
+		}
+		if len(got.Lines) != 1 || len(got.Lines[0].Candidates) != 2 {
+			t.Fatalf("got %#v", got)
+		}
+		c := got.Lines[0].Candidates
+		if c[0].StockID != soon.ID || c[0].Amount != 1 || c[1].StockID != late.ID || c[1].Amount != 1 {
+			t.Errorf("candidates: %#v", c)
+		}
+	})
+
+	t.Run("should exclude expired stocks when building candidates", func(t *testing.T) {
+		svc, recipes := newFridgeServiceForTest(t)
+		addStockWith(t, svc, "牛乳", 1, "本", daysLater(-2))
+		id := planCook(t, svc, recipes, recipe.RecipeIngredient{Name: "牛乳", Amount: 1, Unit: "本"})
+		got, _ := svc.PlanCookConsumption(ctx, id)
+		if len(got.Lines) != 0 || len(got.Missing) != 1 || got.Missing[0] != "牛乳" {
+			t.Errorf("got %#v", got)
+		}
+	})
+
+	t.Run("should return empty lines when recipe has no matching stock", func(t *testing.T) {
+		svc, recipes := newFridgeServiceForTest(t)
+		addStockWith(t, svc, "豚肉", 1, "パック", "")
+		id := planCook(t, svc, recipes, recipe.RecipeIngredient{Name: "豚肉", Amount: 200, Unit: "g"})
+		got, err := svc.PlanCookConsumption(ctx, id)
+		if err != nil || got.Lines == nil || len(got.Lines) != 0 {
+			t.Errorf("got %#v err=%v", got, err)
+		}
+	})
+
+	t.Run("should exclude ingredients with the same name as a staple", func(t *testing.T) {
+		svc, recipes := newFridgeServiceForTest(t)
+		addStockWith(t, svc, "牛乳", 1000, "ml", "")
+		if _, err := svc.AddStaple(ctx, "牛乳"); err != nil {
+			t.Fatalf("AddStaple: %v", err)
+		}
+		id := planCook(t, svc, recipes, recipe.RecipeIngredient{Name: "牛乳", Amount: 200, Unit: "ml"})
+		got, _ := svc.PlanCookConsumption(ctx, id)
+		if len(got.Lines) != 0 || len(got.Missing) != 0 {
+			t.Errorf("got %#v", got)
+		}
+	})
+
+	t.Run("should return ErrEntryNotFound when entry does not exist", func(t *testing.T) {
+		svc, _ := newFridgeServiceForTest(t)
+		if _, err := svc.PlanCookConsumption(ctx, "missing"); !errors.Is(err, mealplan.ErrEntryNotFound) {
+			t.Errorf("want ErrEntryNotFound, got %v", err)
+		}
+	})
+}
+
+func TestFridgeService_Consume(t *testing.T) {
+	ctx := context.Background()
+	amountsOf := func(t *testing.T, svc *FridgeService) map[string]float64 {
+		t.Helper()
+		items, _ := svc.List(ctx)
+		out := map[string]float64{}
+		for _, it := range items {
+			out[it.Name] = it.Amount
+		}
+		return out
+	}
+
+	t.Run("should reduce amounts and delete emptied rows when all rows are valid", func(t *testing.T) {
+		svc, _ := newFridgeServiceForTest(t)
+		onion := addStockWith(t, svc, "玉ねぎ", 3, "個", "")
+		pork := addStockWith(t, svc, "豚肉", 200, "g", "")
+		if err := svc.Consume(ctx, []fridge.Consumption{{StockID: onion.ID, Amount: 2}, {StockID: pork.ID, Amount: 200}}); err != nil {
+			t.Fatalf("Consume: %v", err)
+		}
+		if got := amountsOf(t, svc); len(got) != 1 || got["玉ねぎ"] != 1 {
+			t.Errorf("got %v", got)
+		}
+	})
+
+	t.Run("should return ErrConsumeAmountOutOfRange when amount is negative", func(t *testing.T) {
+		svc, _ := newFridgeServiceForTest(t)
+		onion := addStockWith(t, svc, "玉ねぎ", 3, "個", "")
+		if err := svc.Consume(ctx, []fridge.Consumption{{StockID: onion.ID, Amount: -1}}); !errors.Is(err, fridge.ErrConsumeAmountOutOfRange) {
+			t.Errorf("want ErrConsumeAmountOutOfRange, got %v", err)
+		}
+	})
+
+	t.Run("should return ErrConsumeDuplicateStock when same stock appears twice", func(t *testing.T) {
+		svc, _ := newFridgeServiceForTest(t)
+		onion := addStockWith(t, svc, "玉ねぎ", 3, "個", "")
+		err := svc.Consume(ctx, []fridge.Consumption{{StockID: onion.ID, Amount: 1}, {StockID: onion.ID, Amount: 1}})
+		if !errors.Is(err, fridge.ErrConsumeDuplicateStock) {
+			t.Errorf("want ErrConsumeDuplicateStock, got %v", err)
+		}
+	})
+
+	t.Run("should leave all stocks unchanged when any row is invalid", func(t *testing.T) {
+		svc, _ := newFridgeServiceForTest(t)
+		onion := addStockWith(t, svc, "玉ねぎ", 3, "個", "")
+		pork := addStockWith(t, svc, "豚肉", 200, "g", "")
+		err := svc.Consume(ctx, []fridge.Consumption{{StockID: pork.ID, Amount: 100}, {StockID: onion.ID, Amount: 5}})
+		if !errors.Is(err, fridge.ErrConsumeAmountOutOfRange) {
+			t.Errorf("want ErrConsumeAmountOutOfRange, got %v", err)
+		}
+		if got := amountsOf(t, svc); got["玉ねぎ"] != 3 || got["豚肉"] != 200 {
+			t.Errorf("changed: %v", got)
 		}
 	})
 }

@@ -20,6 +20,7 @@ export function toSettingsValues(v: Values): SettingsValues {
     shoppingPeriodDayPresets: v.shoppingPeriodDayPresets ?? [],
     measuringUnits: v.measuringUnits ?? [],
     unquantifiedWords: v.unquantifiedWords ?? [],
+    weeklyFillDays: v.weeklyFillDays ?? [],
   };
 }
 

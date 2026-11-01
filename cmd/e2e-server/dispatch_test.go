@@ -263,7 +263,7 @@ func TestDispatchHandler(t *testing.T) {
 // main.go の application.Options.Services と registry がずれると、E2E は通るのに
 // 本番で動かないサービスが生まれる。件数と名前をここで固定する。
 func TestNewRegistry(t *testing.T) {
-	t.Run("should register the same six services as main.go", func(t *testing.T) {
+	t.Run("should register the same seven services as main.go", func(t *testing.T) {
 		db, err := sqlite.Open(filepath.Join(t.TempDir(), "e2e.db"))
 		if err != nil {
 			t.Fatalf("open db: %v", err)
@@ -272,7 +272,7 @@ func TestNewRegistry(t *testing.T) {
 
 		settingsSvc := service.NewSettingsService(db)
 		reg := newRegistry(db, settingsSvc, service.NewRecipeService(db, settingsSvc, nil))
-		want := []string{"HealthService", "SettingsService", "MealPlanService", "RecipeService", "FridgeService", "ShoppingService"}
+		want := []string{"HealthService", "SettingsService", "MealPlanService", "RecipeService", "FridgeService", "ShoppingService", "SuggestionService"}
 		if len(reg) != len(want) {
 			t.Fatalf("want %d services, got %d", len(want), len(reg))
 		}

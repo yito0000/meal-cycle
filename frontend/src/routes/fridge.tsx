@@ -2,8 +2,11 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { UNDO_TOAST_MS } from "@/lib/undo-toast";
-import type { StockItem } from "../../bindings/github.com/yito0000/meal-cycle/internal/domain/fridge/models";
-import { stockErrorOf } from "../components/fridge/error-messages";
+import type {
+  Staple,
+  StockItem,
+} from "../../bindings/github.com/yito0000/meal-cycle/internal/domain/fridge/models";
+import { stapleErrorOf, stockErrorOf } from "../components/fridge/error-messages";
 import { FridgeAddRow } from "../components/fridge/fridge-add-row";
 import { FridgeSearchInput } from "../components/fridge/fridge-search-input";
 import {
@@ -13,7 +16,9 @@ import {
 } from "../components/fridge/fridge-sort";
 import { FridgeSortSelect } from "../components/fridge/fridge-sort-select";
 import { FridgeTable } from "../components/fridge/fridge-table";
+import { StaplePanel } from "../components/fridge/staple-panel";
 import { useDeleteStock, useRestoreStock, useStockList } from "../components/fridge/use-fridge";
+import { useDeleteStaple, useRestoreStaple } from "../components/fridge/use-staples";
 import { useIngredientSuggestions } from "../components/ingredient/use-ingredient-suggestions";
 
 export function FridgePage() {
@@ -24,6 +29,8 @@ export function FridgePage() {
   const suggestions = useIngredientSuggestions();
   const del = useDeleteStock();
   const restore = useRestoreStock();
+  const delStaple = useDeleteStaple();
+  const restoreStaple = useRestoreStaple();
 
   // 最後の 1 行を消すとテーブルがアンマウントされ、mutate に渡したコールバックが呼ばれなく
   // なるため、削除と「元に戻す」は常にマウントされているページ側で扱う。
@@ -46,6 +53,24 @@ export function FridgePage() {
     });
   };
 
+  const onDeleteStaple = (item: Staple) => {
+    delStaple.mutate(item, {
+      onSuccess: () => {
+        toast(t("pages.fridge.staples.toast.deleted", { name: item.name }), {
+          duration: UNDO_TOAST_MS,
+          action: {
+            label: t("pages.fridge.toast.undo"),
+            onClick: () =>
+              restoreStaple.mutate(item, {
+                onError: () => toast.error(t("pages.fridge.toast.restore_failed")),
+              }),
+          },
+        });
+      },
+      onError: (err) => toast.error(t(stapleErrorOf(err))),
+    });
+  };
+
   const visible = useMemo(() => {
     if (!data) return [];
     const q = search.trim().toLowerCase();
@@ -57,32 +82,41 @@ export function FridgePage() {
     <div className="flex h-full flex-col gap-4 p-6">
       <h1 className="text-2xl font-bold">{t("pages.fridge.title")}</h1>
 
-      <div className="flex items-center justify-between gap-4">
-        <FridgeSearchInput value={search} onChange={setSearch} />
-        <FridgeSortSelect value={sortKey} onChange={setSortKey} />
-      </div>
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[1fr_20rem]">
+        <div className="flex min-w-0 flex-col gap-4">
+          <div className="flex items-center justify-between gap-4">
+            <FridgeSearchInput value={search} onChange={setSearch} />
+            <FridgeSortSelect value={sortKey} onChange={setSortKey} />
+          </div>
 
-      <FridgeAddRow
-        nameSuggestions={suggestions.data?.names ?? []}
-        unitSuggestions={suggestions.data?.units ?? []}
-      />
+          <FridgeAddRow
+            nameSuggestions={suggestions.data?.names ?? []}
+            unitSuggestions={suggestions.data?.units ?? []}
+          />
 
-      {isLoading && <p className="text-sm text-neutral-500">{t("pages.fridge.loading")}</p>}
-      {isError && <p className="text-sm text-red-700">{t("pages.fridge.load_error")}</p>}
-      {data && data.length === 0 && (
-        <p className="text-sm text-neutral-500">{t("pages.fridge.empty.no_items")}</p>
-      )}
-      {data && data.length > 0 && visible.length === 0 && (
-        <p className="text-sm text-neutral-500">{t("pages.fridge.empty.no_match")}</p>
-      )}
-      {visible.length > 0 && (
-        <FridgeTable
-          items={visible}
+          {isLoading && <p className="text-sm text-neutral-500">{t("pages.fridge.loading")}</p>}
+          {isError && <p className="text-sm text-red-700">{t("pages.fridge.load_error")}</p>}
+          {data && data.length === 0 && (
+            <p className="text-sm text-neutral-500">{t("pages.fridge.empty.no_items")}</p>
+          )}
+          {data && data.length > 0 && visible.length === 0 && (
+            <p className="text-sm text-neutral-500">{t("pages.fridge.empty.no_match")}</p>
+          )}
+          {visible.length > 0 && (
+            <FridgeTable
+              items={visible}
+              nameSuggestions={suggestions.data?.names ?? []}
+              deleting={del.isPending}
+              onDelete={onDelete}
+            />
+          )}
+        </div>
+        <StaplePanel
           nameSuggestions={suggestions.data?.names ?? []}
-          deleting={del.isPending}
-          onDelete={onDelete}
+          deleting={delStaple.isPending}
+          onDelete={onDeleteStaple}
         />
-      )}
+      </div>
     </div>
   );
 }

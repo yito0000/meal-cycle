@@ -83,6 +83,19 @@ func (d shoppingDeps) addStock(t *testing.T, name string, amount float64, unit, 
 	}
 }
 
+func (d shoppingDeps) addStaple(t *testing.T, name string, state fridge.StapleState) {
+	t.Helper()
+	s, err := d.fridge.AddStaple(context.Background(), name)
+	if err != nil {
+		t.Fatalf("add staple: %v", err)
+	}
+	if state != fridge.StapleEnough {
+		if _, err := d.fridge.SetStapleState(context.Background(), s.ID, state); err != nil {
+			t.Fatalf("set staple state: %v", err)
+		}
+	}
+}
+
 func (d shoppingDeps) list(t *testing.T, days int) shopping.List {
 	t.Helper()
 	got, err := d.svc.List(context.Background(), shoppingStart, days)
@@ -294,6 +307,66 @@ func TestShoppingService_List(t *testing.T) {
 		got := d.list(t, 7)
 		if len(got.Dishes) != 1 || len(got.Items) != 0 {
 			t.Errorf("got %#v", got)
+		}
+	})
+
+	t.Run("should list low and out staples when period has no meal plans", func(t *testing.T) {
+		d := newShoppingServiceForTest(t)
+		d.addStaple(t, "牛乳", fridge.StapleLow)
+		d.addStaple(t, "食パン", fridge.StapleOut)
+		got := d.list(t, 7)
+		if len(got.Staples) != 2 || got.Staples[0].Name != "食パン" || got.Staples[1].Name != "牛乳" {
+			t.Errorf("staples: %#v", got.Staples)
+		}
+	})
+
+	t.Run("should exclude ingredient from items when staple with same name exists", func(t *testing.T) {
+		d := newShoppingServiceForTest(t)
+		d.addStaple(t, "牛乳", fridge.StapleEnough)
+		d.assign(t, shoppingDay(0), d.createRecipe(t, "グラタン",
+			recipe.RecipeIngredient{Name: "牛乳", Amount: 300, Unit: "ml"}, onionIng(1)))
+		if it := onlyItem(t, d.list(t, 7)); it.Name != "玉ねぎ" {
+			t.Errorf("want only 玉ねぎ, got %#v", it)
+		}
+	})
+
+	t.Run("should not list enough staples even when their ingredient is used in period", func(t *testing.T) {
+		d := newShoppingServiceForTest(t)
+		d.addStaple(t, "牛乳", fridge.StapleEnough)
+		d.assign(t, shoppingDay(0), d.createRecipe(t, "グラタン", recipe.RecipeIngredient{Name: "牛乳", Amount: 300, Unit: "ml"}))
+		if got := d.list(t, 7); got.Staples == nil || len(got.Staples) != 0 {
+			t.Errorf("want empty non-nil staples, got %#v", got.Staples)
+		}
+	})
+
+	t.Run("should attach recipe names to staple item when its ingredient is used in period", func(t *testing.T) {
+		d := newShoppingServiceForTest(t)
+		d.addStaple(t, "牛乳", fridge.StapleOut)
+		d.assign(t, shoppingDay(0), d.createRecipe(t, "グラタン", recipe.RecipeIngredient{Name: "牛乳", Amount: 300, Unit: "ml"}))
+		got := d.list(t, 7)
+		if len(got.Staples) != 1 || len(got.Staples[0].Recipes) != 1 || got.Staples[0].Recipes[0] != "グラタン" {
+			t.Errorf("staples: %#v", got.Staples)
+		}
+	})
+
+	t.Run("should report HasStapleIngredients when every ingredient is a staple", func(t *testing.T) {
+		d := newShoppingServiceForTest(t)
+		d.addStaple(t, "牛乳", fridge.StapleEnough)
+		d.assign(t, shoppingDay(0), d.createRecipe(t, "ホットミルク", recipe.RecipeIngredient{Name: "牛乳", Amount: 200, Unit: "ml"}))
+		got := d.list(t, 7)
+		if len(got.Items) != 0 || !got.HasStapleIngredients {
+			t.Errorf("got items=%#v has=%v", got.Items, got.HasStapleIngredients)
+		}
+	})
+
+	t.Run("should keep stock status of other items unchanged when staples exist", func(t *testing.T) {
+		d := newShoppingServiceForTest(t)
+		d.addStaple(t, "牛乳", fridge.StapleLow)
+		d.assign(t, shoppingDay(0), d.createRecipe(t, "グラタン",
+			recipe.RecipeIngredient{Name: "牛乳", Amount: 300, Unit: "ml"}, onionIng(2)))
+		d.addStock(t, "玉ねぎ", 1, "個", "")
+		if it := onlyItem(t, d.list(t, 7)); it.StockStatus != shopping.StockPartial {
+			t.Errorf("want partial, got %v", it.StockStatus)
 		}
 	})
 

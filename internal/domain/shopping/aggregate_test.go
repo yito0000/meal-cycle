@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/yito0000/meal-cycle/internal/domain/fridge"
 	"github.com/yito0000/meal-cycle/internal/domain/recipe"
 )
 
@@ -318,7 +319,7 @@ func TestAggregate(t *testing.T) {
 			if tc.noMeasuringUnits {
 				units = nil
 			}
-			got := Aggregate(tc.batches, tc.stocks, units)
+			got, _ := Aggregate(tc.batches, tc.stocks, units, nil)
 			if got == nil {
 				t.Fatal("want non-nil slice")
 			}
@@ -402,4 +403,66 @@ func TestDishes(t *testing.T) {
 			t.Errorf("want non-nil slices, got %#v", got[0])
 		}
 	})
+}
+
+func TestAggregate_Staples(t *testing.T) {
+	milk := []StapleRef{{ID: "s1", Name: "牛乳", State: fridge.StapleEnough}}
+	cases := []struct {
+		name        string
+		batches     []PlannedBatch
+		staples     []StapleRef
+		want        []view
+		wantSkipped bool
+	}{
+		{
+			name:        "常備品と同名の量のある材料は items に入らない",
+			batches:     []PlannedBatch{batch("2026-09-24", "dinner", "グラタン", ing("牛乳", 300, "ml"), ing("玉ねぎ", 1, "個"))},
+			staples:     milk,
+			want:        []view{{"玉ねぎ", "個", 1, StockNone, []string{"グラタン"}}},
+			wantSkipped: true,
+		},
+		{
+			name:        "常備品と同名の量を持たない材料は items に入らない",
+			batches:     []PlannedBatch{batch("2026-09-24", "dinner", "卵焼き", ing("砂糖", 1, "大さじ"))},
+			staples:     []StapleRef{{ID: "s1", Name: "砂糖", State: fridge.StapleOut}},
+			want:        []view{},
+			wantSkipped: true,
+		},
+		{
+			name:        "カタカナとひらがなの違う材料名も常備品に寄せられる",
+			batches:     []PlannedBatch{batch("2026-09-24", "dinner", "ミルクスープ", ing("みるく", 200, "ml"))},
+			staples:     []StapleRef{{ID: "s1", Name: "ミルク", State: fridge.StapleLow}},
+			want:        []view{},
+			wantSkipped: true,
+		},
+		{
+			name:    "漢字とかなの違う材料名は常備品に寄せられない",
+			batches: []PlannedBatch{batch("2026-09-24", "dinner", "炒め物", ing("たまねぎ", 1, "個"))},
+			staples: []StapleRef{{ID: "s1", Name: "玉ねぎ", State: fridge.StapleLow}},
+			want:    []view{{"たまねぎ", "個", 1, StockNone, []string{"炒め物"}}},
+		},
+		{
+			name:    "常備品に寄せた材料が無ければ bool は false になる",
+			batches: []PlannedBatch{batch("2026-09-24", "dinner", "炒め物", ing("玉ねぎ", 1, "個"))},
+			staples: milk,
+			want:    []view{{"玉ねぎ", "個", 1, StockNone, []string{"炒め物"}}},
+		},
+		{
+			name:    "作った印の付いた組の材料は bool を true にしない",
+			batches: []PlannedBatch{cooked(batch("2026-09-24", "dinner", "グラタン", ing("牛乳", 300, "ml")))},
+			staples: milk,
+			want:    []view{},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, skipped := Aggregate(tc.batches, nil, defaultMeasuringUnits, tc.staples)
+			if !reflect.DeepEqual(views(got), tc.want) {
+				t.Errorf("got %#v\nwant %#v", views(got), tc.want)
+			}
+			if skipped != tc.wantSkipped {
+				t.Errorf("skipped: want %v, got %v", tc.wantSkipped, skipped)
+			}
+		})
+	}
 }

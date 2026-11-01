@@ -1,8 +1,8 @@
-package shopping
+package ingredient
 
 import "testing"
 
-func TestNormalizeKey(t *testing.T) {
+func TestNormalizeName(t *testing.T) {
 	cases := []struct {
 		name string
 		in   string
@@ -19,8 +19,8 @@ func TestNormalizeKey(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := normalizeKey(tc.in); got != tc.want {
-				t.Errorf("normalizeKey(%q) = %q, want %q", tc.in, got, tc.want)
+			if got := NormalizeName(tc.in); got != tc.want {
+				t.Errorf("NormalizeName(%q) = %q, want %q", tc.in, got, tc.want)
 			}
 		})
 	}

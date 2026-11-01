@@ -36,6 +36,11 @@ type expiryAlertJSON struct {
 	YellowDays *int `json:"yellowDays"`
 }
 
+type weeklyFillJSON struct {
+	Days []int  `json:"days"`
+	Meal string `json:"meal"`
+}
+
 type shoppingPeriodJSON struct {
 	DayPresets  []int `json:"dayPresets"`
 	DefaultDays *int  `json:"defaultDays"`
@@ -122,6 +127,42 @@ var settingKeys = []settingKey{
 		},
 		validate: func(v settings.Values) error {
 			return settings.ValidateImportServings(v.RecipeImportDefaultServings)
+		},
+	},
+	{
+		name:   "recencyThresholdDays",
+		encode: func(v settings.Values) any { return v.RecencyThresholdDays },
+		decode: func(raw json.RawMessage, v *settings.Values) error {
+			return json.Unmarshal(raw, &v.RecencyThresholdDays)
+		},
+		validate: func(v settings.Values) error {
+			return settings.ValidateRecencyThreshold(v.RecencyThresholdDays)
+		},
+	},
+	{
+		name:   "weeklyFill",
+		encode: func(v settings.Values) any { return weeklyFillJSON{Days: v.WeeklyFillDays, Meal: v.WeeklyFillMeal} },
+		decode: func(raw json.RawMessage, v *settings.Values) error {
+			var j weeklyFillJSON
+			if err := json.Unmarshal(raw, &j); err != nil {
+				return err
+			}
+			if j.Days == nil || j.Meal == "" {
+				return errMissingField
+			}
+			v.WeeklyFillDays, v.WeeklyFillMeal = j.Days, j.Meal
+			return nil
+		},
+		validate: func(v settings.Values) error { return settings.ValidateWeeklyFill(v.WeeklyFillDays, v.WeeklyFillMeal) },
+	},
+	{
+		name:   "weeklyPresetMaxRunDays",
+		encode: func(v settings.Values) any { return v.WeeklyPresetMaxRunDays },
+		decode: func(raw json.RawMessage, v *settings.Values) error {
+			return json.Unmarshal(raw, &v.WeeklyPresetMaxRunDays)
+		},
+		validate: func(v settings.Values) error {
+			return settings.ValidateWeeklyPresetMaxRunDays(v.WeeklyPresetMaxRunDays)
 		},
 	},
 }

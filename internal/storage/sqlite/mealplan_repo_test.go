@@ -2302,3 +2302,79 @@ func TestMealPlanRepo_EntryID(t *testing.T) {
 		}
 	})
 }
+
+func TestMealPlanRepo_ApplyPlan(t *testing.T) {
+	ctx := context.Background()
+	item := func(date, recipeID string, group int) mealplan.PlanItem {
+		return mealplan.PlanItem{Date: date, Meal: mealplan.MealDinner, RecipeID: recipeID, Group: group}
+	}
+	batchOf := func(t *testing.T, repo *MealPlanRepo, id string) string {
+		t.Helper()
+		e, err := repo.Entry(ctx, id)
+		if err != nil {
+			t.Fatalf("Entry: %v", err)
+		}
+		return e.BatchID
+	}
+
+	t.Run("rows of the same group share batch_id and other groups do not", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが", "カレー")
+		res, err := repo.ApplyPlan(ctx, []mealplan.PlanItem{
+			item("2026-10-05", rs[0].ID, 0), item("2026-10-06", rs[0].ID, 0), item("2026-10-07", rs[1].ID, 1),
+		})
+		if err != nil {
+			t.Fatalf("ApplyPlan: %v", err)
+		}
+		ids := res.AddedEntryIDs
+		if len(ids) != 3 || batchOf(t, repo, ids[0]) != batchOf(t, repo, ids[1]) || batchOf(t, repo, ids[1]) == batchOf(t, repo, ids[2]) {
+			t.Errorf("unexpected batches for %v", ids)
+		}
+	})
+
+	t.Run("appends to the end of a cell that already has entries", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "味噌汁", "肉じゃが")
+		assignID(t, repo, "2026-10-05", "dinner", rs[0].ID)
+		res, err := repo.ApplyPlan(ctx, []mealplan.PlanItem{item("2026-10-05", rs[1].ID, 0)})
+		if err != nil {
+			t.Fatalf("ApplyPlan: %v", err)
+		}
+		e, _ := repo.Entry(ctx, res.AddedEntryIDs[0])
+		if e.Position != 1 {
+			t.Errorf("want position 1, got %d", e.Position)
+		}
+	})
+
+	t.Run("adds no row when an archived recipe is included", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが", "カレー")
+		if err := rr.Archive(ctx, rs[1].ID); err != nil {
+			t.Fatalf("Archive: %v", err)
+		}
+		_, err := repo.ApplyPlan(ctx, []mealplan.PlanItem{item("2026-10-05", rs[0].ID, 0), item("2026-10-06", rs[1].ID, 1)})
+		if !errors.Is(err, mealplan.ErrArchivedRecipe) {
+			t.Errorf("want ErrArchivedRecipe, got %v", err)
+		}
+		if got, _ := repo.MealEntries(ctx, "2026-10-05", "dinner"); len(got) != 0 {
+			t.Errorf("want no rows, got %#v", got)
+		}
+	})
+
+	t.Run("passing AddedEntryIDs to UndoSpread removes the added rows", func(t *testing.T) {
+		repo, rr := newMealPlanRepoForTest(t)
+		rs := seedRecipes(t, rr, "肉じゃが")
+		res, err := repo.ApplyPlan(ctx, []mealplan.PlanItem{item("2026-10-05", rs[0].ID, 0), item("2026-10-06", rs[0].ID, 0)})
+		if err != nil {
+			t.Fatalf("ApplyPlan: %v", err)
+		}
+		if err := repo.UndoSpread(ctx, res); err != nil {
+			t.Fatalf("UndoSpread: %v", err)
+		}
+		for _, d := range []string{"2026-10-05", "2026-10-06"} {
+			if got, _ := repo.MealEntries(ctx, d, "dinner"); len(got) != 0 {
+				t.Errorf("%s: want no rows, got %#v", d, got)
+			}
+		}
+	})
+}

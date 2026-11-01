@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 import ja from "../src/locales/ja.json" with { type: "json" };
 import { expect, test } from "./fixtures.js";
 import {
+  addStaple,
   addStockItem,
   assignRecipe,
   createRecipeWithIngredients,
@@ -115,5 +116,37 @@ test.describe("買い物リストのテキストコピー", () => {
 
     await expect(page.getByText(ja.pages.shopping.empty.no_plans)).toBeVisible();
     await expect(copyButton(page)).toHaveCount(0);
+  });
+  test("常備品は材料のあとに見出しを付けて続く", async ({ page }) => {
+    await planDinner(page, "肉じゃが", [
+      { name: "玉ねぎ", amount: 2, unit: "個" },
+      { name: "醤油", amount: 2, unit: "大さじ" },
+    ]);
+    await addStaple(page, "牛乳", "out");
+    await addStaple(page, "食パン", "low");
+    await openShoppingList(page);
+
+    const text = await copyText(page, 4);
+
+    expect(text.split("\n")).toEqual([
+      headingLine(),
+      "- 玉ねぎ 2 個",
+      "",
+      ja.pages.shopping.copy.staple_heading,
+      "- 牛乳",
+      "- 食パン (少ない)",
+      "",
+      tc.pantry_heading,
+      "- 醤油",
+    ]);
+  });
+
+  test("献立が無い期間でも常備品をコピーできる", async ({ page }) => {
+    await addStaple(page, "牛乳", "out");
+    await openShoppingList(page);
+
+    const text = await copyText(page, 1);
+
+    expect(text.split("\n")).toEqual([headingLine(), "", tc.staple_heading, "- 牛乳"]);
   });
 });

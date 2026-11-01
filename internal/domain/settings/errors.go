@@ -28,4 +28,12 @@ var (
 	ErrUnquantifiedWordDuplicate = errors.New("settings: unquantified word duplicate")
 
 	ErrImportServingsOutOfRange = errors.New("settings: import servings out of range")
+
+	ErrRecencyDaysOutOfRange = errors.New("settings: recency days out of range")
+
+	ErrWeeklyFillDaysEmpty     = errors.New("settings: weekly fill days empty")
+	ErrWeeklyFillDayOutOfRange = errors.New("settings: weekly fill day out of range")
+	ErrWeeklyFillDayDuplicate  = errors.New("settings: weekly fill day duplicate")
+	ErrWeeklyFillInvalidMeal   = errors.New("settings: weekly fill invalid meal")
+	ErrWeeklyRunDaysOutOfRange = errors.New("settings: weekly run days out of range")
 )
