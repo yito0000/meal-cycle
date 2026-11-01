@@ -17,6 +17,7 @@ task dev                    # Wails ホットリロード開発モード（Go �
 task run                    # 1 回ビルドして起動
 task build                  # プロダクションビルド
 task package                # 配布用パッケージ
+task build:mcp              # MCP サーバー (bin/meal-cycle-mcp) だけをビルド。Windows 配布物は task build:win が一緒に作る
 task --list                 # 全タスク一覧
 
 go test ./internal/...      # Go の単体テスト（./... は避ける — build/ios に main がなく落ちる）
@@ -54,6 +55,8 @@ Domain (internal/domain/)  │  ← capability 単位: recipe/, mealplan/, fridg
 Repository (internal/storage/sqlite/)  ← Open / Migrate + capability ごとに 1 repo
 ```
 
+
+AI エージェント向けの入口として、別の実行ファイル `cmd/mcp-server`（`meal-cycle-mcp`）がある。標準入出力の MCP で、手で選んだサービスのメソッド (参照と追加と状態の変更だけ) をツールとして公開する。DB は `sqlite.OpenExisting` で版が一致するときだけ開き、スキーマ更新は GUI に任せる。ツールを足し引きしたら `cmd/mcp-server/tools_test.go` の一覧と [docs/mcp.md](docs/mcp.md) も直す。
 Wails サービスは `internal/service/`（`package service`）に **1 capability = 1 ファイル** で置き、`main.go` の `application.Options.Services` で `service.NewRecipeService(db)` の形で登録する。**1 proposal ≒ 1 capability** で、通常はサービス 1 ファイル / ドメインパッケージ 1 個 / リポジトリ 1 個 / マイグレーション 1 個を同時に足す。単一パッケージにまとめる理由は、サブパッケージ (`internal/service/recipe/`) にすると `internal/domain/recipe/` と名前が衝突して `main.go` で import alias が必要になるため。
 
 **SQLite 周り**:

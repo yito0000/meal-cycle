@@ -97,6 +97,7 @@ tasks:
       - task: windows:build
         vars:
           ARCH: amd64
+      - task: build:mcp:win
       - task: build:win:copy
         vars:
           WIN_DEST: '{{.WIN_DEST}}'
@@ -108,6 +109,21 @@ tasks:
       - test -z "{{.WIN_DEST}}"
     cmds:
       - cp bin/meal-cycle.exe "{{.WIN_DEST}}"
+      - cp bin/meal-cycle-mcp.exe "{{.WIN_DEST}}"
+
+  build:mcp:
+    summary: Builds the MCP server (bin/meal-cycle-mcp) for the current OS
+    cmds:
+      - go build -trimpath -o bin/meal-cycle-mcp{{exeExt}} ./cmd/mcp-server
+
+  build:mcp:win:
+    internal: true
+    env:
+      GOOS: windows
+      GOARCH: amd64
+    cmds:
+      # -H windowsgui を付けると標準入出力を持てず、MCP のやり取りができない (add-mcp-server design.md D8)
+      - go build -trimpath -ldflags="-s -w" -o bin/meal-cycle-mcp.exe ./cmd/mcp-server
 
   lint:
     summary: Runs linters for both Go (golangci-lint) and frontend (Biome)

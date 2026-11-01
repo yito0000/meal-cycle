@@ -26,6 +26,13 @@ exe にはコード署名をしていないので、初回起動時に「Windows
 「詳細情報」を押すと「実行」ボタンが表示されるので、そこから起動してください。
 ダウンロードしたファイルが改ざんされていないかは、同じリリースの `SHA256SUMS.txt` と PowerShell の `Get-FileHash meal-cycle.exe` の出力を見比べて確かめられます。
 
+## AI エージェントから使う（MCP サーバー）
+
+同梱の `meal-cycle-mcp.exe` を Claude Desktop などの AI クライアントに登録すると、エージェントがレシピや在庫を読み、献立へのレシピの割り当てや在庫の追加を行えます。
+エージェントに開いているのは参照と追加と常備品の状態の変更だけで、削除や書き換えはできません。
+meal-cycle-mcp 自体は通信しませんが、エージェントが読んだデータは AI クライアントを通してその LLM に送られます。
+登録手順と公開しているツールは [docs/mcp.md](docs/mcp.md) を参照してください。
+
 ## ドキュメント
 
 - **プロダクト設計**（利用シナリオ、画面、遷移）：[docs/product.md](docs/product.md)
@@ -34,6 +41,7 @@ exe にはコード署名をしていないので、初回起動時に「Windows
 - **振る舞いの仕様**（capability ごとの Requirement と Scenario）：[openspec/specs/](openspec/specs/)
 - **開発規約**（テスト方針、コメント方針、コミット規約など）：[CLAUDE.md](CLAUDE.md)
 - **リリース運用**（バージョン番号、ブランチ、リリース手順）：[docs/release.md](docs/release.md)
+- **AI エージェントとの連携**（MCP サーバーのビルド、登録、公開するツール）：[docs/mcp.md](docs/mcp.md)
 
 ## 技術スタック
 
@@ -143,6 +151,7 @@ WSL 側と Windows 側では DB が別ファイルになるので、片方で登
 ├── main.go                          # エントリポイント
 ├── cmd/
 │   ├── e2e-server/                  # E2E 用に Go サービスを HTTP で公開するサーバ
+│   ├── mcp-server/                  # AI エージェント向けの MCP サーバー (meal-cycle-mcp)
 │   └── seed/                        # サンプルレシピ投入ツール
 ├── internal/
 │   ├── service/                     # Wails サービス (package service, 1 capability = 1 ファイル)

@@ -124,7 +124,8 @@ structured content を読まないクライアントがあるため。
 
 - コードは `<capability>.<snake_case>` (例: `fridge.stock_name_empty`, `mealplan.invalid_date`, `database.schema_outdated`)
 - 表に無いエラーは `internal` とし、説明に `err.Error()` をそのまま入れる
-- 入力の JSON Schema で弾かれた場合は SDK が返すエラーに任せる (コードは付かない)。日付の書式など、スキーマで表せない検証はサービスの検証に任せる
+- 入力の JSON Schema で弾かれた場合 (必須の項目が無い、enum 外の値) は、SDK が作る失敗を受信側の middleware でコード `input.invalid` に包む。
+  spec の「入力の形が不正なときも同じ形で返す」に揃えるため。日付の書式など、スキーマで表せない検証はサービスの検証に任せる
 
 **選択肢:**
 
