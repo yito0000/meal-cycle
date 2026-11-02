@@ -39,6 +39,16 @@ export function useUpdateStock() {
   });
 }
 
+// 見直しの「減った」用。食材名 / 単位 / 賞味期限は今の値のまま送り、量だけを変える (add-fridge-stock-review design.md D2)。
+export function useUpdateStockAmount() {
+  const invalidate = useInvalidateFridge();
+  return useMutation({
+    mutationFn: ({ item, amount }: { item: StockItem; amount: number }) =>
+      FridgeService.Update(item.id, { ...item, amount }),
+    onSuccess: invalidate,
+  });
+}
+
 export function useDeleteStock() {
   const invalidate = useInvalidateFridge();
   return useMutation({

@@ -7,15 +7,25 @@ import type {
 } from "../../../bindings/github.com/yito0000/meal-cycle/internal/domain/fridge/models";
 import { FridgeEditRow } from "./fridge-edit-row";
 import { FridgeItemRow } from "./fridge-item-row";
+import { FridgeReviewRow } from "./fridge-review-row";
+
+export type StockReview = {
+  reviewed: ReadonlySet<string>;
+  onOk: (item: StockItem) => void;
+  onReduced: (item: StockItem) => void;
+  onGone: (item: StockItem) => void;
+};
 
 type Props = {
   items: StockItem[];
   nameSuggestions: NameSuggestion[];
   deleting: boolean;
   onDelete: (item: StockItem) => void;
+  // 指定があるときは見直しの状態で描き、行内編集の「編集」「削除」は出さない (add-fridge-stock-review design.md D5)。
+  review?: StockReview;
 };
 
-export function FridgeTable({ items, nameSuggestions, deleting, onDelete }: Props) {
+export function FridgeTable({ items, nameSuggestions, deleting, onDelete, review }: Props) {
   const { t } = useTranslation();
   // 行内編集は同時に 1 行まで。編集中は他行の編集 / 削除を無効にする (design.md D10)。
   const [editingId, setEditingId] = React.useState<string | null>(null);
@@ -33,7 +43,17 @@ export function FridgeTable({ items, nameSuggestions, deleting, onDelete }: Prop
       </TableHeader>
       <TableBody>
         {items.map((item) =>
-          item.id === editingId ? (
+          review ? (
+            <FridgeReviewRow
+              key={item.id}
+              item={item}
+              reviewed={review.reviewed.has(item.id)}
+              disabled={deleting}
+              onOk={() => review.onOk(item)}
+              onReduced={() => review.onReduced(item)}
+              onGone={() => review.onGone(item)}
+            />
+          ) : item.id === editingId ? (
             <FridgeEditRow
               key={item.id}
               item={item}

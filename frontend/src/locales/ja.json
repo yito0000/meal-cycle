@@ -387,6 +387,15 @@
         "unit": "単位",
         "expires_at": "賞味期限"
       },
+      "review": {
+        "start": "見直す",
+        "ok": "ある",
+        "reduced": "減った",
+        "gone": "ない",
+        "progress": "見直し済み {{done}} / {{total}} 件",
+        "finish": "見直しを終える",
+        "amount_zero": "量を 0 にするときは「ない」を押してください"
+      },
       "row": {
         "edit": "編集",
         "delete": "削除",

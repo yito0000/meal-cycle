@@ -47,6 +47,7 @@ meal-cycle の各画面のワイヤーフレーム。ここに置いた drawio �
 - `S04_recipe_edit.drawio.svg`
 - `S05_fridge.drawio.svg`
 - `S05_fridge.v2.drawio.svg` — 在庫のテーブルの右に常備品の欄（追加行、状態の 3 択、削除）を加えた構成（add-fridge-staples）
+- `S05_fridge.v3.drawio.svg` — 在庫の見直しの状態。進み具合のバー、各行の「ある / 減った / ない」、量だけの入力欄（add-fridge-stock-review）
 - `S06_fridge_item_inline.drawio.svg`
 - `S07_shopping_list.drawio.svg`
 - `S07_shopping_list.v2.drawio.svg` — 期間の切替、在庫の状態、献立の欄、購入済チェックを加えた現在の構成（add-shopping-purchase）

@@ -387,6 +387,15 @@
         "unit": "Unit",
         "expires_at": "Best before"
       },
+      "review": {
+        "start": "Review",
+        "ok": "Still have",
+        "reduced": "Less",
+        "gone": "Gone",
+        "progress": "Reviewed {{done}} / {{total}}",
+        "finish": "Finish review",
+        "amount_zero": "To set the amount to 0, press \"Gone\""
+      },
       "row": {
         "edit": "Edit",
         "delete": "Delete",
