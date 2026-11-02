@@ -62,13 +62,13 @@ main から長期の機能ブランチ `<機能名>/main`（例: `family/main`�
 7. チェックサムを作り、exe と一緒に GitHub Release へ載せる。
 
    ```bash
-   cd bin && sha256sum meal-cycle.exe > SHA256SUMS.txt
-   gh release create v1.0.0 bin/meal-cycle.exe bin/SHA256SUMS.txt --title "v1.0.0" --notes-file <リリースノート>
+   cd bin && sha256sum meal-cycle.exe meal-cycle-mcp.exe > SHA256SUMS.txt
+   gh release create v1.0.0 bin/meal-cycle.exe bin/meal-cycle-mcp.exe bin/SHA256SUMS.txt --title "v1.0.0" --notes-file <リリースノート>
    ```
 
 ## 配布物
 
-GitHub Releases に置くのは Windows（amd64）版の `meal-cycle.exe` だけである。
+GitHub Releases に置くのは Windows（amd64）版の `meal-cycle.exe` と、AI エージェント向けの [MCP サーバー](mcp.md) `meal-cycle-mcp.exe` である。
 macOS 版は WSL からクロスビルドできず、Linux 版は利用者の WebKit2GTK 環境への依存が大きいため、どちらもソースからのビルドを案内する。
 
 exe にはコード署名をしていない。
