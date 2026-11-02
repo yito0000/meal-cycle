@@ -20,7 +20,7 @@ const (
 
 // DefaultPath は xdg 経由で解決した DB ファイルパスを返す。
 //
-//	Windows: %APPDATA%\meal-cycle\meal-cycle.db
+//	Windows: %LOCALAPPDATA%\meal-cycle\meal-cycle.db
 //	macOS:   ~/Library/Application Support/meal-cycle/meal-cycle.db
 //	Linux:   ~/.local/share/meal-cycle/meal-cycle.db
 //

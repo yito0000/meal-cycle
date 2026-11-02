@@ -15,7 +15,7 @@ const (
 	maxFileSize = 1 << 20
 )
 
-// DefaultPath は DB と同じディレクトリのログファイルパスを返す (例: %APPDATA%\meal-cycle\meal-cycle.log)。
+// DefaultPath は DB と同じディレクトリのログファイルパスを返す (例: %LOCALAPPDATA%\meal-cycle\meal-cycle.log)。
 func DefaultPath() (string, error) {
 	p, err := xdg.DataFile(filepath.Join(appDirName, fileName))
 	if err != nil {

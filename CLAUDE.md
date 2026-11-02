@@ -63,7 +63,7 @@ Wails サービスは `internal/service/`（`package service`）に **1 capabili
 - ドライバ: `modernc.org/sqlite`（Cgo なし — クロスコンパイルが素直）
 - マイグレーション: `pressly/goose`、SQL ファイルを `//go:embed migrations/*.sql` でバイナリ同梱
 - 配置先: `github.com/adrg/xdg` 経由で OS 標準の場所
-  - Windows: `%APPDATA%\meal-cycle\meal-cycle.db`
+  - Windows: `%LOCALAPPDATA%\meal-cycle\meal-cycle.db`
   - macOS: `~/Library/Application Support/meal-cycle/meal-cycle.db`
   - Linux: `~/.local/share/meal-cycle/meal-cycle.db`
 - `sqlite.Open` で WAL / foreign_keys / busy_timeout(5s) を有効化
@@ -236,7 +236,7 @@ task build:win WIN_DEST=/mnt/c/Users/<Windows のユーザー名>/Desktop/
 
 ### データベースが 2 系統になる点に注意
 
-WSL 側で `task dev` を叩いた DB は `~/.local/share/meal-cycle/meal-cycle.db`、Windows で `.exe` を起動した DB は `%APPDATA%\meal-cycle\meal-cycle.db` に作られる。物理的に別ファイルなので、WSL で作ったレシピは Windows 側の起動には出てこない (逆も同じ)。Windows 側は空 DB から始める前提で確認する。
+WSL 側で `task dev` を叩いた DB は `~/.local/share/meal-cycle/meal-cycle.db`、Windows で `.exe` を起動した DB は `%LOCALAPPDATA%\meal-cycle\meal-cycle.db` に作られる。物理的に別ファイルなので、WSL で作ったレシピは Windows 側の起動には出てこない (逆も同じ)。Windows 側は空 DB から始める前提で確認する。
 
 ## テスト実行ルール
 

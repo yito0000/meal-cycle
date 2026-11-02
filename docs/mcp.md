@@ -36,7 +36,7 @@ Claude Desktop なら、`claude_desktop_config.json` (Windows では `%APPDATA%\
 }
 ```
 
-データベースは GUI と同じ OS 標準の場所 (Windows なら `%APPDATA%\meal-cycle\meal-cycle.db`) を開く。
+データベースは GUI と同じ OS 標準の場所 (Windows なら `%LOCALAPPDATA%\meal-cycle\meal-cycle.db`) を開く。
 別のファイルを使いたいときは `"args": ["-db", "D:\\path\\to\\meal-cycle.db"]` を足す。
 
 ## 公開しているツール

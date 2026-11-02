@@ -116,7 +116,7 @@ task lint
 
 DB は OS 標準のデータディレクトリに作られます。
 
-- **Windows**：`%APPDATA%\meal-cycle\meal-cycle.db`
+- **Windows**：`%LOCALAPPDATA%\meal-cycle\meal-cycle.db`
 - **macOS**：`~/Library/Application Support/meal-cycle/meal-cycle.db`
 - **Linux**：`~/.local/share/meal-cycle/meal-cycle.db`
 

@@ -231,7 +231,7 @@ meal_plan_template_items: templateId / dayOffset (0〜6) / meal / position / rec
 
 いずれの案でも [`github.com/adrg/xdg`](https://github.com/adrg/xdg)（既に依存に入っている）を使って OS 標準の場所に置く：
 
-- Windows: `%APPDATA%\meal-cycle\`
+- Windows: `%LOCALAPPDATA%\meal-cycle\`
 - macOS: `~/Library/Application Support/meal-cycle/`
 - Linux: `~/.local/share/meal-cycle/`
 
@@ -239,7 +239,7 @@ meal_plan_template_items: templateId / dayOffset (0〜6) / meal / position / rec
 
 スキーマを更新する起動では、更新を当てる前に DB の控えを 1 つ作る (`add-shell-startup-safety`)。
 
-- 場所: DB と同じフォルダの `backups/` (例: Windows は `%APPDATA%\meal-cycle\backups\`)
+- 場所: DB と同じフォルダの `backups/` (例: Windows は `%LOCALAPPDATA%\meal-cycle\backups\`)
 - ファイル名: `meal-cycle-v<更新前の版>-<YYYYMMDD-HHMMSS>.db`
 - 作り方: `VACUUM INTO` で WAL の中身も含めた 1 ファイルに書き出す。`.partial` で書いてから改名する
 - 作らない起動: DB がまだ無い初回と、更新が無い起動
