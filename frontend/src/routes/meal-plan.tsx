@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import type { SpreadResult } from "../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
 import { Meal } from "../../bindings/github.com/yito0000/meal-cycle/internal/domain/mealplan/models";
 import { MealPlanService } from "../../bindings/github.com/yito0000/meal-cycle/internal/service";
+import { CopyMealPlanTextButton } from "../components/mealplan/copy-mealplan-text-button";
 import { errorI18nKey } from "../components/mealplan/error-messages";
 import { MealVisibilityCheckboxes } from "../components/mealplan/meal-visibility-checkboxes";
 import { MEALPLAN_DEFAULTS } from "../components/mealplan/mealplan-config";
@@ -64,6 +65,17 @@ export function MealPlanPage() {
   );
 
   const periodStartKey = useMemo(() => formatDate(periodStart), [periodStart]);
+  const periodEndKey = useMemo(
+    () =>
+      formatDate(
+        new Date(
+          periodStart.getFullYear(),
+          periodStart.getMonth(),
+          periodStart.getDate() + periodWeeks * 7 - 1,
+        ),
+      ),
+    [periodStart, periodWeeks],
+  );
   const navigate = useNavigate();
 
   const queryClient = useQueryClient();
@@ -140,6 +152,10 @@ export function MealPlanPage() {
         >
           {t("pages.meal_plan.shopping_cta")}
         </Button>
+        <CopyMealPlanTextButton
+          entries={data ?? []}
+          period={{ start: periodStartKey, end: periodEndKey }}
+        />
         {/* 2 週・4 週表示でも、対象は表示中の期間の最初の 1 週間だけにする。 */}
         <Button
           type="button"

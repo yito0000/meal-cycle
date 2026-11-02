@@ -161,6 +161,17 @@
         "archived_recipe": "Deleted recipes cannot be spread"
       },
       "shopping_cta": "View shopping list for this period",
+      "text_copy": {
+        "button": "Copy meal plan as text",
+        "heading": "Meal plan {{start}} - {{end}}",
+        "line": "{{date}} {{meal}}: {{items}}",
+        "separator": ", ",
+        "meal_breakfast": "Breakfast",
+        "meal_lunch": "Lunch",
+        "meal_dinner": "Dinner",
+        "copied": "Copied the meal plan for {{count}} days",
+        "failed": "Could not copy"
+      },
       "consume": {
         "title": "Reduce used stock",
         "description": "Reduce fridge stock by the amount used for this dish. You can adjust the amounts",

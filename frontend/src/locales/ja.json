@@ -161,6 +161,17 @@
         "archived_recipe": "削除済みのレシピは広げられません"
       },
       "shopping_cta": "この期間の買い物リストを見る",
+      "text_copy": {
+        "button": "献立をテキストでコピー",
+        "heading": "献立 {{start}}〜{{end}}",
+        "line": "{{date}} {{meal}}: {{items}}",
+        "separator": "、",
+        "meal_breakfast": "朝",
+        "meal_lunch": "昼",
+        "meal_dinner": "夕",
+        "copied": "{{count}} 日分の献立をコピーしました",
+        "failed": "コピーできませんでした"
+      },
       "consume": {
         "title": "使った在庫を減らす",
         "description": "作った料理で使った分だけ冷蔵庫の在庫を減らします。量は直せます",
