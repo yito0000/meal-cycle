@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import type { Health } from "../../../bindings/github.com/yito0000/meal-cycle/internal/service/models";
 
-const knownStages = ["open", "backup", "migrate"] as const;
+const knownStages = ["restore", "open", "backup", "migrate"] as const;
 
 export function StartupErrorScreen({ health }: { health: Health }) {
   const { t } = useTranslation();

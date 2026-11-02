@@ -59,24 +59,19 @@ func pendingMigrations(db *sql.DB) (current int64, pending bool, err error) {
 // WAL に残った書き込みも含めて 1 ファイルにするため、ファイルコピーではなく VACUUM INTO を使う (design.md D3)。
 // 途中で落ちたときに不完全な控えを正規の名前で残さないよう、.partial に書いてから改名する。
 func backupBeforeMigrate(db *sql.DB, dbPath string, version int64, now time.Time) (string, error) {
+	return writeBackup(db, dbPath, version, now, "")
+}
+
+// suffix は控えの種類の印。復元前の控え (-before-restore) を S09 の一覧で更新前の控えと見分けるために付ける。
+func writeBackup(db *sql.DB, dbPath string, version int64, now time.Time, suffix string) (string, error) {
 	dir := BackupDir(dbPath)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", fmt.Errorf("create backup dir: %w", err)
 	}
-	name := fmt.Sprintf("%s%d-%s%s", backupPrefix, version, now.Format(backupStampLayout), backupExt)
+	name := fmt.Sprintf("%s%d-%s%s%s", backupPrefix, version, now.Format(backupStampLayout), suffix, backupExt)
 	dest := filepath.Join(dir, name)
-	partial := dest + partialExt
-	// VACUUM INTO は書き出し先が既にあると失敗する。
-	if err := os.Remove(partial); err != nil && !os.IsNotExist(err) {
-		return "", fmt.Errorf("remove stale partial backup: %w", err)
-	}
-	if _, err := db.Exec(`VACUUM INTO ?`, partial); err != nil {
-		_ = os.Remove(partial)
-		return "", fmt.Errorf("vacuum into backup: %w", err)
-	}
-	if err := os.Rename(partial, dest); err != nil {
-		_ = os.Remove(partial)
-		return "", fmt.Errorf("rename backup: %w", err)
+	if err := vacuumInto(db, dest); err != nil {
+		return "", fmt.Errorf("write backup: %w", err)
 	}
 	return dest, nil
 }
@@ -107,14 +102,12 @@ func pruneBackups(dir string, keep int) error {
 			}
 			continue
 		}
-		if !strings.HasSuffix(name, backupExt) {
+		// 復元前の控えも同じ数に入れる (add-settings-database-file design.md D3)。
+		_, stamp, _, ok := parseBackupName(name)
+		if !ok {
 			continue
 		}
-		base := strings.TrimSuffix(name, backupExt)
-		if len(base) < len(backupStampLayout) {
-			continue
-		}
-		backups = append(backups, backup{name: name, stamp: base[len(base)-len(backupStampLayout):]})
+		backups = append(backups, backup{name: name, stamp: stamp})
 	}
 
 	sort.Slice(backups, func(i, j int) bool {

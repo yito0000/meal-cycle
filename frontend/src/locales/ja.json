@@ -590,7 +590,8 @@
         "meal_plan": "献立",
         "fridge": "冷蔵庫",
         "shopping": "買い物リスト",
-        "recipe": "レシピ"
+        "recipe": "レシピ",
+        "database": "データ"
       },
       "field": {
         "language": "表示言語",
@@ -630,6 +631,40 @@
         "days": "日",
         "servings": "人",
         "minutes": "分"
+      },
+      "database": {
+        "export": "データを書き出す",
+        "export_hint": "献立、レシピ、在庫、常備品、設定を含むデータ全体を 1 つのファイルに書き出します",
+        "save_dialog_title": "データの書き出し先",
+        "exported": "データを書き出しました",
+        "export_failed": "データを書き出せませんでした",
+        "restore": "復元する",
+        "restore_hint": "控えか書き出したファイルを選び、次の起動でその内容に置き換えます",
+        "restore_title": "復元に使うファイルを選ぶ",
+        "restore_description": "控えは新しい順に並んでいます。書き出したファイルは「ファイルを選ぶ」から選べます",
+        "loading": "読み込み中...",
+        "no_backups": "控えはありません",
+        "backup_before_migrate": "v{{version}} からの更新の前",
+        "backup_before_restore": "復元の前",
+        "pick_file": "ファイルを選ぶ",
+        "open_dialog_title": "復元に使うファイル",
+        "cancel": "キャンセル",
+        "back": "戻る",
+        "confirm_title": "次の起動で復元しますか？",
+        "confirm_body": "今はデータを変えず、次にアプリを起動したときに置き換えます。予約したあとに変えた内容は復元で消えます。今のデータは復元の前に控えに残ります。",
+        "confirm": "復元を予約する",
+        "confirm_pick_file": "ファイルを選んで予約する",
+        "reserved": "次の起動で {{name}} から復元します",
+        "pending": "次の起動で {{name}} から復元します。予約したあとに変えた内容は復元で消えます。",
+        "cancel_pending": "予約を取り消す",
+        "cancelled": "復元の予約を取り消しました",
+        "quit": "今すぐ終了する",
+        "errors": {
+          "not_database": "meal-cycle のデータのファイルとして開けません",
+          "too_new": "このアプリより新しい版のアプリで作られたデータです",
+          "backup_not_found": "その控えは見つかりません",
+          "unknown": "復元を予約できませんでした"
+        }
       },
       "day_chip": "{{count}} 日",
       "remove": "{{value}} を消す",
@@ -699,7 +734,8 @@
     "stage": {
       "open": "データベースを開けませんでした",
       "backup": "データベースの控えを作れませんでした",
-      "migrate": "データベースの更新に失敗しました"
+      "migrate": "データベースの更新に失敗しました",
+      "restore": "予約した復元を当てられませんでした"
     },
     "detail": "詳細",
     "db_path": "データベースの場所",

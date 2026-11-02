@@ -58,7 +58,8 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle(apiPrefix, dispatchHandler(newRegistry(db, settingsSvc, recipeSvc)))
+	databaseSvc := service.NewDatabaseService(db, *dbPath, fixedFilePicker{dir: *exportDir}, func() {})
+	mux.Handle(apiPrefix, dispatchHandler(newRegistry(db, settingsSvc, recipeSvc, databaseSvc)))
 	mux.Handle("/", spaHandler(*dist))
 
 	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", *port))
@@ -73,10 +74,12 @@ func main() {
 	}
 }
 
-// newRegistry は main.go の application.Options.Services と同じ 7 サービスを返す。
+// newRegistry は main.go の application.Options.Services と同じ 8 サービスを返す。
 // 片方だけ増えると E2E が本番と食い違うので、dispatch_test.go で件数を突き合わせる。
 // recipeSvc は seed にも使うので、settingsSvc を渡して main で作ったものを受け取る。
-func newRegistry(db *sql.DB, settingsSvc *service.SettingsService, recipeSvc *service.RecipeService) serviceRegistry {
+func newRegistry(
+	db *sql.DB, settingsSvc *service.SettingsService, recipeSvc *service.RecipeService, databaseSvc *service.DatabaseService,
+) serviceRegistry {
 	return serviceRegistry{
 		"HealthService":     service.NewHealthService(db, service.StartupState{}),
 		"SettingsService":   settingsSvc,
@@ -85,6 +88,7 @@ func newRegistry(db *sql.DB, settingsSvc *service.SettingsService, recipeSvc *se
 		"FridgeService":     service.NewFridgeService(db, settingsSvc),
 		"ShoppingService":   service.NewShoppingService(db, settingsSvc),
 		"SuggestionService": service.NewSuggestionService(db, settingsSvc),
+		"DatabaseService":   databaseSvc,
 	}
 }
 
@@ -92,6 +96,36 @@ func newRegistry(db *sql.DB, settingsSvc *service.SettingsService, recipeSvc *se
 type fixedFolderPicker struct{ dir string }
 
 func (p fixedFolderPicker) PickFolder(string) (string, error) { return p.dir, nil }
+
+// 保存は書き出し先のフォルダに既定の名前で書いたことにする。開くは、テストが dir/open-target に書いたパスを、
+// 無ければ dir の中で最も新しい .db を選んだことにする (add-settings-database-file design.md D5)。
+type fixedFilePicker struct{ dir string }
+
+func (p fixedFilePicker) SaveFile(_, defaultName string) (string, error) {
+	return filepath.Join(p.dir, defaultName), nil
+}
+
+func (p fixedFilePicker) OpenFile(string) (string, error) {
+	if b, err := os.ReadFile(filepath.Join(p.dir, "open-target")); err == nil {
+		return strings.TrimSpace(string(b)), nil
+	}
+	entries, err := os.ReadDir(p.dir)
+	if err != nil {
+		return "", nil
+	}
+	var newest string
+	var newestAt int64
+	for _, e := range entries {
+		info, err := e.Info()
+		if err != nil || e.IsDir() || filepath.Ext(e.Name()) != ".db" {
+			continue
+		}
+		if at := info.ModTime().UnixNano(); newest == "" || at > newestAt {
+			newest, newestAt = filepath.Join(p.dir, e.Name()), at
+		}
+	}
+	return newest, nil
+}
 
 func seedRecipes(svc *service.RecipeService) error {
 	ctx := context.Background()

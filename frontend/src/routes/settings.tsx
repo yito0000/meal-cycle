@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { DatabaseSection } from "../components/settings/database-section";
 import { SettingsForm } from "../components/settings/settings-form";
 import { useSettingsValues } from "../components/settings/settings-gate";
 import { useSettingsConstraints } from "../components/settings/use-settings";
@@ -26,6 +27,7 @@ export function SettingsPage() {
           </div>
         )
       )}
+      <DatabaseSection />
     </div>
   );
 }

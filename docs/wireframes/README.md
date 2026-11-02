@@ -53,7 +53,8 @@ meal-cycle の各画面のワイヤーフレーム。ここに置いた drawio �
 - `S07_shopping_list.drawio.svg`
 - `S07_shopping_list.v2.drawio.svg` — 期間の切替、在庫の状態、献立の欄、購入済チェックを加えた現在の構成（add-shopping-purchase）
 - `S07a_purchase_dialog.drawio.svg` — 冷蔵庫への一括登録ダイアログ（add-shopping-purchase）
-- `S09_settings.drawio.svg` — 設定画面。表示 / 献立 / 冷蔵庫 / 買い物リスト / レシピの節と、保存と既定に戻す（add-settings-screen）
+- `S09_settings.drawio.svg` — 設定画面。表示 / 献立 / 冷蔵庫 / 買い物リスト / レシピ / データの節と、保存と既定に戻す（add-settings-screen、データの節は add-settings-database-file）
+- `S09a_restore_dialog.drawio.svg` — 復元に使うファイルを選ぶダイアログ。控えの一覧と「ファイルを選ぶ」、確認（add-settings-database-file）
 
 サブ画面（ダイアログやポップオーバー等、S01 に紐づく副次的なビュー）は `S01a`, `S01b`, ... のように英小文字サフィックスで区別する。
 

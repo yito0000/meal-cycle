@@ -12,6 +12,7 @@ import (
 type StartupStage string
 
 const (
+	StageRestore StartupStage = "restore"
 	StageOpen    StartupStage = "open"
 	StageBackup  StartupStage = "backup"
 	StageMigrate StartupStage = "migrate"
@@ -34,6 +35,11 @@ func (e *StartupError) Unwrap() error {
 // OpenAndMigrate は DB を開き、更新があれば控えを取ってからスキーマを最新にする (design.md D6)。
 // 失敗は *StartupError で返す。
 func OpenAndMigrate(path string) (*sql.DB, error) {
+	// 予約した復元は、誰も DB を開いていないこの時点で当てる (add-settings-database-file design.md D3)。
+	if err := applyPendingRestore(path, time.Now()); err != nil {
+		return nil, &StartupError{Stage: StageRestore, Err: err}
+	}
+
 	// 初回かどうかは Open がファイルを作る前にしか判定できない (design.md D4)。
 	_, statErr := os.Stat(path)
 	existed := statErr == nil

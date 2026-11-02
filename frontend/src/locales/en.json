@@ -590,7 +590,8 @@
         "meal_plan": "Meal plan",
         "fridge": "Fridge",
         "shopping": "Shopping list",
-        "recipe": "Recipes"
+        "recipe": "Recipes",
+        "database": "Data"
       },
       "field": {
         "language": "Language",
@@ -630,6 +631,40 @@
         "days": "days",
         "servings": "servings",
         "minutes": "min"
+      },
+      "database": {
+        "export": "Export data",
+        "export_hint": "Writes all data, including meal plans, recipes, stock, staples and settings, to one file",
+        "save_dialog_title": "Export data to",
+        "exported": "Exported the data",
+        "export_failed": "Could not export the data",
+        "restore": "Restore",
+        "restore_hint": "Pick a backup or an exported file; it replaces the data on the next start",
+        "restore_title": "Choose a file to restore",
+        "restore_description": "Backups are listed newest first. Use \"Choose a file\" for an exported file",
+        "loading": "Loading...",
+        "no_backups": "No backups",
+        "backup_before_migrate": "Before the update from v{{version}}",
+        "backup_before_restore": "Before a restore",
+        "pick_file": "Choose a file",
+        "open_dialog_title": "File to restore",
+        "cancel": "Cancel",
+        "back": "Back",
+        "confirm_title": "Restore on the next start?",
+        "confirm_body": "Nothing changes now; the data is replaced the next time the app starts. Changes made after reserving are lost. The current data is kept as a backup before the restore.",
+        "confirm": "Reserve the restore",
+        "confirm_pick_file": "Choose a file and reserve",
+        "reserved": "Will restore from {{name}} on the next start",
+        "pending": "Will restore from {{name}} on the next start. Changes made after reserving will be lost.",
+        "cancel_pending": "Cancel the restore",
+        "cancelled": "Cancelled the restore",
+        "quit": "Quit now",
+        "errors": {
+          "not_database": "This file cannot be opened as meal-cycle data",
+          "too_new": "This data was made by a newer version of the app",
+          "backup_not_found": "That backup was not found",
+          "unknown": "Could not reserve the restore"
+        }
       },
       "day_chip": "{{count}} days",
       "remove": "Remove {{value}}",
@@ -699,7 +734,8 @@
     "stage": {
       "open": "Could not open the database",
       "backup": "Could not back up the database",
-      "migrate": "Failed to update the database"
+      "migrate": "Failed to update the database",
+      "restore": "Could not apply the reserved restore"
     },
     "detail": "Details",
     "db_path": "Database location",

@@ -47,6 +47,7 @@ func main() {
 			application.NewService(service.NewFridgeService(db, settingsSvc)),
 			application.NewService(service.NewShoppingService(db, settingsSvc)),
 			application.NewService(service.NewSuggestionService(db, settingsSvc)),
+			application.NewService(service.NewDatabaseService(db, startup.DBPath, service.NewWailsFilePicker(), nil)),
 		)
 	}
 

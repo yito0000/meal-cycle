@@ -246,10 +246,19 @@ meal_plan_template_items: templateId / dayOffset (0〜6) / meal / position / rec
 - 残す個数: 新しいものから 5 個 (`internal/storage/sqlite/backup.go` の定数。設定で変える値ではない)
 - 控えを作れなかったときは更新を当てず、起動時のエラー画面を出す
 
-復元はファイルのコピーで行う。
-アプリを終了し、`backups/` の控えを DB の場所へ `meal-cycle.db` という名前でコピーする。
+復元は S09 のデータの節から行う (add-settings-database-file)。
+
+- 書き出し: 「データを書き出す」で、起動中の接続から `VACUUM INTO` で選んだ場所へ 1 ファイルに書き出す (`.partial` → 改名)
+- 予約: 「復元する」で控えか任意の `.db` を選ぶと、壊れていないか (`quick_check`)、meal-cycle の DB か (goose の版の表)、
+  このアプリより新しい版でないかを確かめ、DB と同じフォルダの `restore-pending.db` に写す。今のデータはその場では変えない
+- 起動時の適用: `OpenAndMigrate` の最初に、今の DB を `meal-cycle-v<版>-<日時>-before-restore.db` として控えに書き出し、
+  `-wal` / `-shm` を消して `restore-pending.db` を DB の場所へ改名する。そのあとはいつもの起動と同じく、古い版なら更新前の控えを作って更新する
+- 予約を当てられなかったときは予約を残したまま起動時のエラー画面 (`restore` の段階) を出し、次の起動で再試行する
+- 復元前の控えも残す 5 個の数に入る
+- 起動中の差し替えはしない。サービスが `*sql.DB` を持ったまま動いているため。終了は「今すぐ終了する」で行い、起動は利用者に任せる
+
+画面を使えないとき (起動時のエラー画面から抜けられないなど) は、アプリを終了し、`backups/` の控えを DB の場所へ `meal-cycle.db` という名前でコピーする。
 同じフォルダに `meal-cycle.db-wal` / `meal-cycle.db-shm` が残っていれば、先に消す。
-画面からの復元と任意のタイミングでの書き出しは、S09 (設定) に節を足す別の proposal で扱う。
 
 ### ログファイル
 
@@ -351,7 +360,9 @@ DB はスキーマの版が一致するときだけ開き、スキーマの更�
 │   │   ├── shopping.go
 │   │   ├── suggestion.go
 │   │   ├── settings.go
+│   │   ├── database.go      # S09 のデータの節 (書き出しと復元の予約)。MCP には登録しない
 │   │   ├── folderpicker.go  # レシピの書き出し先を選ぶダイアログ (テストで差し替える)
+│   │   ├── filepicker.go    # データの書き出し先と復元に使うファイルを選ぶダイアログ
 │   │   └── health.go
 │   ├── sampledata/
 │   └── storage/          # 永続化実装
@@ -472,7 +483,7 @@ add-mcp-server                  🚧 AI エージェントから MCP で参照�
 add-fridge-stock-review         ✅ S05 の在庫を「ある / 減った / ない」で次々に見直す
 add-shopping-household-scaling  ✅ S09 の世帯人数で、1 回きりの献立の材料を S07 で換算する (作り置きは換算しない)
 add-mealplan-copy-text          ✅ S01 の表示中の期間の献立をテキストでコピーする
-add-settings-database-file      📝 S09 から DB 全体を書き出し、控えや書き出したファイルから次の起動で復元する
+add-settings-database-file      ✅ S09 から DB 全体を書き出し、控えや書き出したファイルから次の起動で復元する
 add-mealplan-suggest-by-time    ✅ レシピに所要時間を足し、レシピ選択ダイアログに「時短」の候補を出す
 add-recipe-tag-filter           ✅ S02 をタグ (AND) で絞り込む
 add-mealplan-template           ✅ S01 の 1 週間を名前を付けて保存し、別の週にまとめて割り当てる
@@ -508,7 +519,7 @@ add-mealplan-template           ✅ S01 の 1 週間を名前を付けて保存�
 - **料理実施と在庫消費の連動**: 「作った」マークで材料分の在庫を減らす。上記「使い切り」軸の精度向上に必要（add-mealplan-cook-consume で実装。自動では減らさず、確認のダイアログで量を直してから減らす）
 - **設定 UI（S09）の残り**: S09 自体と、実装済みの機能の可変値、表示言語の切替は `add-settings-screen` で入れた。
   未実装の機能に属する値（「久しぶりに」の消費期間閾値、週プリセット品数など。全一覧は [product.md #1](product.md#1-想定利用シナリオ)）は、その機能の proposal で S09 に欄を足す。
-  データ import/export と控えからの復元も、S09 に節を足す形で別の proposal にする
+  データの書き出しと控えからの復元は add-settings-database-file で S09 のデータの節として入れた
 - **家族で使うための拡張**（[product.md #1](product.md#1-想定利用シナリオ)「家族で使う場合」）。それぞれ別の proposal にする
   - 常備品：量を持たない在庫。「少ない」「ない」の品を買い物リストに載せる（add-fridge-staples で実装）
   - 在庫の見直しを速くする手段：S05 の各行を「ある / 減った / ない」で次々に片付ける（add-fridge-stock-review で実装）
