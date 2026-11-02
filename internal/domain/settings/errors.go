@@ -36,4 +36,6 @@ var (
 	ErrWeeklyFillDayDuplicate  = errors.New("settings: weekly fill day duplicate")
 	ErrWeeklyFillInvalidMeal   = errors.New("settings: weekly fill invalid meal")
 	ErrWeeklyRunDaysOutOfRange = errors.New("settings: weekly run days out of range")
+
+	ErrHouseholdServingsOutOfRange = errors.New("settings: household servings out of range")
 )

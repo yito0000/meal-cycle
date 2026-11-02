@@ -86,6 +86,10 @@ type Config struct {
 	// 調理で量るための単位。買う量として意味を持たないので、S07 では量 0 の材料と同じく食材名だけで合算する
 	// (add-measuring-units design.md D3)。表示では量の前に置く。
 	MeasuringUnits []string `json:"measuringUnits"`
+
+	// 1 回きりの献立の材料を換算する世帯人数。0 は換算しない。既定はひとりの作り置き型に合わせて換算しない
+	// (add-shopping-household-scaling design.md D3)。
+	HouseholdServings int `json:"householdServings"`
 }
 
 // CellSizePreset は S01 献立カレンダーの (date, meal) セル描画パラメータ。
@@ -123,6 +127,7 @@ func Defaults() Config {
 		MeasuringUnits:              []string{"大さじ", "小さじ", "カップ"},
 		UnquantifiedWords:           []string{"少々", "適量", "適宜", "少量", "ひとつまみ", "お好みで"},
 		RecipeImportDefaultServings: 2,
+		HouseholdServings:           0,
 	}
 }
 

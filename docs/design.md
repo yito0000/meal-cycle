@@ -456,12 +456,12 @@ add-mealplan-suggest-by-recency ✅ 久しぶり軸: 最近作っていないレ
 add-mealplan-suggest-week-preset ✅ 週の候補: 空いたコマを日数の上限で組に分け、3 種類の順位表で当てた案を最大 3 件提示
 add-fridge-staples              ✅ 常備品: 量を持たない在庫と S07 の常備品の欄
 add-mcp-server                  🚧 AI エージェントから MCP で参照と追加を行う別の実行ファイル (capability agent-access を新設)
-add-fridge-stock-review         📝 S05 の在庫を「ある / 減った / ない」で次々に見直す
-add-shopping-household-scaling  📝 S09 の世帯人数で、1 回きりの献立の材料を S07 で換算する (作り置きは換算しない)
-add-mealplan-copy-text          📝 S01 の表示中の期間の献立をテキストでコピーする
+add-fridge-stock-review         ✅ S05 の在庫を「ある / 減った / ない」で次々に見直す
+add-shopping-household-scaling  ✅ S09 の世帯人数で、1 回きりの献立の材料を S07 で換算する (作り置きは換算しない)
+add-mealplan-copy-text          ✅ S01 の表示中の期間の献立をテキストでコピーする
 add-settings-database-file      📝 S09 から DB 全体を書き出し、控えや書き出したファイルから次の起動で復元する
 add-mealplan-suggest-by-time    📝 レシピに所要時間を足し、レシピ選択ダイアログに「時短」の候補を出す
-add-recipe-tag-filter           📝 S02 をタグ (AND) で絞り込む
+add-recipe-tag-filter           ✅ S02 をタグ (AND) で絞り込む
 add-mealplan-template           📝 S01 の 1 週間を名前を付けて保存し、別の週にまとめて割り当てる
 ```
 
@@ -500,7 +500,7 @@ add-mealplan-template           📝 S01 の 1 週間を名前を付けて保存
 - **家族で使うための拡張**（[product.md #1](product.md#1-想定利用シナリオ)「家族で使う場合」）。それぞれ別の proposal にする
   - 常備品：量を持たない在庫。「少ない」「ない」の品を買い物リストに載せる（add-fridge-staples で実装）
   - 在庫の見直しを速くする手段：S05 の各行を「ある / 減った / ない」で次々に片付ける（add-fridge-stock-review で実装）
-  - 世帯人数による換算：買い物リストの必要量をレシピの人数から換算する。作り置きでは換算しないほうが合う場面もあり、換算の規則は proposal で決める
+  - 世帯人数による換算：買い物リストの必要量をレシピの人数から換算する（add-shopping-household-scaling で実装。1 回きりの献立だけを換算し、作り置きは換算しない）
   - 献立のテキストでのコピー：S07 の「テキストでコピー」と同じ形で、期間の献立を家族に渡す（add-mealplan-copy-text で実装）
 - レシピのタグフィルタ（add-recipe-tag-filter で実装。S02 の検索欄の下のチップで AND の絞り込み）
 - 献立テンプレート（お気に入りの 1 週間パターンを保存）

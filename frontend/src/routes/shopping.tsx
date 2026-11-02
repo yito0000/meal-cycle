@@ -131,6 +131,11 @@ export function ShoppingPage() {
           <CopyShoppingTextButton items={data.items} staples={staples} period={period} />
         )}
       </div>
+      {data && data.scaledServings > 0 && (
+        <p className="text-sm text-neutral-600" data-testid="shopping-scaled-note">
+          {t("pages.shopping.scaled_note", { count: data.scaledServings })}
+        </p>
+      )}
 
       {isLoading && <p className="text-sm text-neutral-500">{t("pages.shopping.loading")}</p>}
       {isError && <p className="text-sm text-red-700">{t("pages.shopping.load_error")}</p>}

@@ -255,4 +255,29 @@ func TestShoppingRepo_ListPlannedBatches(t *testing.T) {
 			t.Errorf("want 3, got %d", len(got))
 		}
 	})
+	t.Run("should count rows outside the period in pair row count", func(t *testing.T) {
+		f := newShoppingRepoForTest(t)
+		id := f.recipe(t, "カレー", onion(3))
+		f.place(t, "2026-09-23", "dinner", id, "b1")
+		f.place(t, "2026-09-24", "dinner", id, "b1")
+		got := f.list(t, start, 7)
+		if len(got) != 1 || got[0].PairRowCount != 2 {
+			t.Errorf("want pair row count 2, got %#v", got)
+		}
+	})
+
+	t.Run("should not count rows of another recipe in the same batch id in pair row count", func(t *testing.T) {
+		f := newShoppingRepoForTest(t)
+		a := f.recipe(t, "肉じゃが", onion(2))
+		b := f.recipe(t, "カレー", onion(3))
+		f.place(t, "2026-09-24", "dinner", a, "b1")
+		f.place(t, "2026-09-24", "dinner", b, "b1")
+		got := f.list(t, start, 7)
+		if len(got) != 2 || got[0].PairRowCount != 1 || got[1].PairRowCount != 1 {
+			t.Errorf("want pair row count 1 for each recipe, got %#v", got)
+		}
+		if got[0].Servings != 1 {
+			t.Errorf("want servings 1 from the recipe, got %d", got[0].Servings)
+		}
+	})
 }

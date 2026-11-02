@@ -165,6 +165,16 @@ var settingKeys = []settingKey{
 			return settings.ValidateWeeklyPresetMaxRunDays(v.WeeklyPresetMaxRunDays)
 		},
 	},
+	{
+		name:   "householdServings",
+		encode: func(v settings.Values) any { return v.HouseholdServings },
+		decode: func(raw json.RawMessage, v *settings.Values) error {
+			return json.Unmarshal(raw, &v.HouseholdServings)
+		},
+		validate: func(v settings.Values) error {
+			return settings.ValidateHouseholdServings(v.HouseholdServings)
+		},
+	},
 }
 
 // loadConfig は読めない key と条件を満たさない key を捨て、その項目だけ既定値で動かす (design.md D6)。

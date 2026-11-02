@@ -18,6 +18,7 @@ func TestDefaults(t *testing.T) {
 		{"MealPlanCellVisibleItems", c.MealPlanCellVisibleItems, 4},
 		{"RecipeListHighlightMs", c.RecipeListHighlightMs, 2000},
 		{"RecencyThresholdDays", c.RecencyThresholdDays, 10},
+		{"HouseholdServings", c.HouseholdServings, 0},
 		{"SuggestionLimit", c.SuggestionLimit, 5},
 		{"WeeklyPresetMaxRunDays", c.WeeklyPresetMaxRunDays, 3},
 		{"ExpiryAlertRedDays", c.ExpiryAlertRedDays, 3},

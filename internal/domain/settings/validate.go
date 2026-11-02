@@ -37,6 +37,10 @@ const (
 	// 1 週間を超えて同じ品を続けても、対象の週の中には収まらないので止める。
 	WeeklyRunDaysMin = 1
 	WeeklyRunDaysMax = 7
+
+	// 0 は換算しない。上限は家庭の人数として十分で、select の選択肢を短く保てる値 (add-shopping-household-scaling design.md D3)。
+	HouseholdServingsMin = 0
+	HouseholdServingsMax = 10
 )
 
 // 週の候補で埋める時間帯。internal/domain/mealplan.Meal と同じ文字列 (settings が mealplan を import しないため写す)。
@@ -60,6 +64,7 @@ func (v Values) Validate() error {
 		func() error { return ValidateRecencyThreshold(v.RecencyThresholdDays) },
 		func() error { return ValidateWeeklyFill(v.WeeklyFillDays, v.WeeklyFillMeal) },
 		func() error { return ValidateWeeklyPresetMaxRunDays(v.WeeklyPresetMaxRunDays) },
+		func() error { return ValidateHouseholdServings(v.HouseholdServings) },
 	}
 	for _, check := range checks {
 		if err := check(); err != nil {
@@ -172,6 +177,13 @@ func ValidateWeeklyFill(days []int, meal string) error {
 func ValidateWeeklyPresetMaxRunDays(days int) error {
 	if days < WeeklyRunDaysMin || days > WeeklyRunDaysMax {
 		return ErrWeeklyRunDaysOutOfRange
+	}
+	return nil
+}
+
+func ValidateHouseholdServings(n int) error {
+	if n < HouseholdServingsMin || n > HouseholdServingsMax {
+		return ErrHouseholdServingsOutOfRange
 	}
 	return nil
 }

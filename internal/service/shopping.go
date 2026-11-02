@@ -56,7 +56,11 @@ func (s *ShoppingService) List(ctx context.Context, periodStart string, periodDa
 		return shopping.List{}, err
 	}
 
-	items, hasStapleIngredients := shopping.Aggregate(batches, stocks, cfg.MeasuringUnits, staples)
+	items, hasStapleIngredients, scaled := shopping.Aggregate(batches, stocks, cfg.MeasuringUnits, staples, cfg.HouseholdServings)
+	scaledServings := 0
+	if scaled {
+		scaledServings = cfg.HouseholdServings
+	}
 	start, _ := time.Parse(fridge.DateLayout, periodStart)
 	return shopping.List{
 		PeriodStart:          periodStart,
@@ -66,6 +70,7 @@ func (s *ShoppingService) List(ctx context.Context, periodStart string, periodDa
 		Items:                items,
 		Staples:              shopping.StapleItems(batches, staples),
 		HasStapleIngredients: hasStapleIngredients,
+		ScaledServings:       scaledServings,
 	}, nil
 }
 

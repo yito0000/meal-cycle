@@ -59,6 +59,9 @@ func loadPlannedGroups(
 	rows, err := tx.QueryContext(ctx, `
 		SELECT m.batch_id, m.recipe_id, r.name, MIN(m.date) AS first_date,
 		       (SELECT COUNT(*) FROM meal_plans a WHERE a.batch_id = m.batch_id) AS member_count,
+		       (SELECT COUNT(*) FROM meal_plans a
+		        WHERE a.batch_id = m.batch_id AND a.recipe_id = m.recipe_id) AS pair_row_count,
+		       r.servings,
 		       EXISTS (
 		           SELECT 1 FROM meal_plans p
 		           WHERE p.batch_id = m.batch_id AND p.recipe_id = m.recipe_id AND p.date < ?
@@ -84,7 +87,7 @@ func loadPlannedGroups(
 		var k batchKey
 		var b shopping.PlannedBatch
 		if err := rows.Scan(&k.batchID, &k.recipeID, &b.RecipeName, &b.FirstDate,
-			&b.BatchMemberCount, &b.StartedBeforePeriod, &b.Cooked); err != nil {
+			&b.BatchMemberCount, &b.PairRowCount, &b.Servings, &b.StartedBeforePeriod, &b.Cooked); err != nil {
 			return nil, nil, fmt.Errorf("scan planned batch: %w", err)
 		}
 		b.BatchID = k.batchID

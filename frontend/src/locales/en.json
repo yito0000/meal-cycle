@@ -462,6 +462,7 @@
       "title": "Shopping list",
       "description": "A rough list of ingredients used by the meals in this period",
       "period": "Period: {{start}} – {{end}}",
+      "scaled_note": "One-off dishes are scaled to {{count}} people",
       "picker": {
         "start": "Start date",
         "days": "Days",
@@ -564,7 +565,8 @@
         "recency_days": "Days until \"in a while\"",
         "weekly_fill_days": "Days to fill with weekly suggestions",
         "weekly_fill_meal": "Meal to fill with weekly suggestions",
-        "weekly_run_days": "Max days to repeat one dish in weekly suggestions"
+        "weekly_run_days": "Max days to repeat one dish in weekly suggestions",
+        "household_servings": "Household size"
       },
       "hint": {
         "language": "Switches when you press Save",
@@ -577,8 +579,11 @@
         "import_servings": "Used when an imported file does not state servings",
         "recency_days": "Recipes last cooked at least this many days ago appear under \"in a while\" in the recipe picker (1-60 days)",
         "weekly_fill_days": "Empty slots on these days are filled by \"Suggest this week\" on the meal plan",
-        "weekly_run_days": "Set to 1 for a different recipe every day (1-7 days)"
+        "weekly_run_days": "Set to 1 for a different recipe every day (1-7 days)",
+        "household_servings": "Ingredients of one-off dishes are multiplied by household size / recipe servings in the shopping list. Batch cooking is not scaled"
       },
+      "household_none": "Do not scale",
+      "household_option": "{{count}} people",
       "suffix": {
         "days": "days",
         "servings": "servings"
@@ -632,7 +637,8 @@
         "weekly_days_empty": "Select at least one day",
         "weekly_day_out_of_range": "Invalid day",
         "weekly_meal_invalid": "Invalid meal",
-        "weekly_run_out_of_range": "Enter a number of days from 1 to 7"
+        "weekly_run_out_of_range": "Enter a number of days from 1 to 7",
+        "household_out_of_range": "Choose \"Do not scale\" or 1 to 10 people"
       }
     }
   },

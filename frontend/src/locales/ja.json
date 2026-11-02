@@ -462,6 +462,7 @@
       "title": "買い物リスト",
       "description": "この期間の献立で使う材料の目安です",
       "period": "対象期間: {{start}} 〜 {{end}}",
+      "scaled_note": "1 回きりの献立は {{count}} 人分に換算しています",
       "picker": {
         "start": "開始日",
         "days": "日数",
@@ -564,7 +565,8 @@
         "recency_days": "「久しぶりに」とみなす日数",
         "weekly_fill_days": "週の候補で埋める曜日",
         "weekly_fill_meal": "週の候補で埋める時間帯",
-        "weekly_run_days": "週の候補で 1 品を続ける日数の上限"
+        "weekly_run_days": "週の候補で 1 品を続ける日数の上限",
+        "household_servings": "世帯人数"
       },
       "hint": {
         "language": "「保存」を押すと切り替わります",
@@ -577,8 +579,11 @@
         "import_servings": "取り込むファイルが人数を書いていないときに使います",
         "recency_days": "最後に作ってからこの日数以上たったレシピを、レシピ選択の「久しぶりに」に出します (1〜60 日)",
         "weekly_fill_days": "献立画面の「この週の候補を出す」で、空いていれば埋める曜日です",
-        "weekly_run_days": "1 にすると毎日別のレシピの案になります (1〜7 日)"
+        "weekly_run_days": "1 にすると毎日別のレシピの案になります (1〜7 日)",
+        "household_servings": "1 回きりの献立の材料を「世帯人数 ÷ レシピの人数」倍して買い物リストに出します。作り置きは換算しません"
       },
+      "household_none": "換算しない",
+      "household_option": "{{count}} 人",
       "suffix": {
         "days": "日",
         "servings": "人"
@@ -632,7 +637,8 @@
         "weekly_days_empty": "曜日を 1 つ以上選んでください",
         "weekly_day_out_of_range": "曜日の値が正しくありません",
         "weekly_meal_invalid": "時間帯の値が正しくありません",
-        "weekly_run_out_of_range": "1 以上 7 以下の日数を入れてください"
+        "weekly_run_out_of_range": "1 以上 7 以下の日数を入れてください",
+        "household_out_of_range": "世帯人数は「換算しない」か 1〜10 人から選んでください"
       }
     }
   },

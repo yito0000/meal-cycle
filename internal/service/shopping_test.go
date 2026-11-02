@@ -140,6 +140,54 @@ func TestShoppingService_List(t *testing.T) {
 		}
 	})
 
+	withHousehold := func(d shoppingDeps, n int) {
+		cfg := config.Defaults()
+		cfg.HouseholdServings = n
+		d.svc.cfg = staticConfig(cfg)
+	}
+
+	t.Run("should scale a single-row dish by household servings when household servings is saved", func(t *testing.T) {
+		d := newShoppingServiceForTest(t)
+		withHousehold(d, 4)
+		id := d.createRecipe(t, "肉じゃが", onionIng(2))
+		d.assign(t, shoppingDay(0), id)
+		got := d.list(t, 7)
+		if it := onlyItem(t, got); it.Amount != 8 {
+			t.Errorf("want 2 x 4 / 1 = 8, got %v", it.Amount)
+		}
+		if got.ScaledServings != 4 {
+			t.Errorf("want scaledServings 4, got %d", got.ScaledServings)
+		}
+	})
+
+	t.Run("should not scale a batch with multiple rows when household servings is saved", func(t *testing.T) {
+		d := newShoppingServiceForTest(t)
+		withHousehold(d, 4)
+		id := d.createRecipe(t, "カレー", onionIng(3))
+		d.assign(t, shoppingDay(0), id)
+		d.leftover(t, shoppingDay(0), 3)
+		got := d.list(t, 7)
+		if it := onlyItem(t, got); it.Amount != 3 {
+			t.Errorf("want 3, got %v", it.Amount)
+		}
+		if got.ScaledServings != 0 {
+			t.Errorf("want scaledServings 0, got %d", got.ScaledServings)
+		}
+	})
+
+	t.Run("should set scaledServings to zero when nothing is scaled", func(t *testing.T) {
+		d := newShoppingServiceForTest(t)
+		id := d.createRecipe(t, "肉じゃが", onionIng(2))
+		d.assign(t, shoppingDay(0), id)
+		got := d.list(t, 7)
+		if it := onlyItem(t, got); it.Amount != 2 {
+			t.Errorf("want 2, got %v", it.Amount)
+		}
+		if got.ScaledServings != 0 {
+			t.Errorf("want scaledServings 0, got %d", got.ScaledServings)
+		}
+	})
+
 	t.Run("should count ingredients once when a batch spans three days", func(t *testing.T) {
 		d := newShoppingServiceForTest(t)
 		id := d.createRecipe(t, "肉じゃが", onionIng(2))

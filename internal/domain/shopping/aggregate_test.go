@@ -319,7 +319,7 @@ func TestAggregate(t *testing.T) {
 			if tc.noMeasuringUnits {
 				units = nil
 			}
-			got, _ := Aggregate(tc.batches, tc.stocks, units, nil)
+			got, _, _ := Aggregate(tc.batches, tc.stocks, units, nil, 0)
 			if got == nil {
 				t.Fatal("want non-nil slice")
 			}
@@ -456,12 +456,55 @@ func TestAggregate_Staples(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, skipped := Aggregate(tc.batches, nil, defaultMeasuringUnits, tc.staples)
+			got, skipped, _ := Aggregate(tc.batches, nil, defaultMeasuringUnits, tc.staples, 0)
 			if !reflect.DeepEqual(views(got), tc.want) {
 				t.Errorf("got %#v\nwant %#v", views(got), tc.want)
 			}
 			if skipped != tc.wantSkipped {
 				t.Errorf("skipped: want %v, got %v", tc.wantSkipped, skipped)
+			}
+		})
+	}
+}
+
+func TestAggregate_HouseholdServings(t *testing.T) {
+	serving := func(b PlannedBatch, servings, pairRows int) PlannedBatch {
+		b.Servings = servings
+		b.PairRowCount = pairRows
+		return b
+	}
+	cases := []struct {
+		name       string
+		batches    []PlannedBatch
+		want       []view
+		wantScaled bool
+	}{
+		{
+			name: "1 回きりの組と作り置きの組の同じ材料を合算すると、1 回きりの分だけ換算される",
+			batches: []PlannedBatch{
+				serving(batch("2026-09-24", "dinner", "肉じゃが", ing("玉ねぎ", 1, "個")), 2, 1),
+				serving(batch("2026-09-25", "dinner", "カレー", ing("玉ねぎ", 2, "個")), 2, 3),
+			},
+			want:       []view{{"玉ねぎ", "個", 4, StockNone, []string{"肉じゃが", "カレー"}}},
+			wantScaled: true,
+		},
+		{
+			name: "量る単位の材料は換算されない",
+			batches: []PlannedBatch{
+				serving(batch("2026-09-24", "dinner", "肉じゃが", ing("醤油", 2, "大さじ")), 2, 1),
+			},
+			want:       []view{{"醤油", "", 0, StockNone, []string{"肉じゃが"}}},
+			wantScaled: false,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, _, scaled := Aggregate(tc.batches, nil, defaultMeasuringUnits, nil, 4)
+			if !reflect.DeepEqual(views(got), tc.want) {
+				t.Errorf("got %#v\nwant %#v", views(got), tc.want)
+			}
+			if scaled != tc.wantScaled {
+				t.Errorf("scaled: want %v, got %v", tc.wantScaled, scaled)
 			}
 		})
 	}

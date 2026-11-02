@@ -30,12 +30,17 @@ type ingredientKey struct {
 // Aggregate は計上する作り置きの材料を「表記をそろえた食材名 + 単位」で合算し、在庫の状態を付けて並べる。
 // 量 0 と量る単位の材料は量を持たない材料として、食材名 + 空の単位に量 0 で合算する (add-measuring-units design.md D3)。
 // 常備品と同名の材料は量を問わず飛ばし、飛ばした材料があったかを 2 つ目の返り値で返す (add-fridge-staples design.md D6)。
-func Aggregate(batches []PlannedBatch, stocks []StockAmount, measuringUnits []string, staples []StapleRef) ([]Item, bool) {
+// household が 0 でなければ 1 回きりの献立の量を世帯人数で換算し、換算した材料があったかを 3 つ目の返り値で返す
+// (add-shopping-household-scaling design.md D1 / D2)。
+func Aggregate(
+	batches []PlannedBatch, stocks []StockAmount, measuringUnits []string, staples []StapleRef, household int,
+) ([]Item, bool, bool) {
 	stapleNames := make(map[string]bool, len(staples))
 	for _, st := range staples {
 		stapleNames[normalizeKey(st.Name)] = true
 	}
 	skippedStaple := false
+	scaled := false
 	stockByKey := map[ingredientKey]float64{}
 	stockByName := map[string]float64{}
 	for _, s := range stocks {
@@ -71,6 +76,10 @@ func Aggregate(batches []PlannedBatch, stocks []StockAmount, measuringUnits []st
 				k.unit = ""
 				unit = ""
 				amount = 0
+			}
+			if v, ok := ScaledAmount(amount, b.Servings, household, b.PairRowCount); ok {
+				amount = v
+				scaled = true
 			}
 			i, ok := index[k]
 			if !ok {
@@ -109,7 +118,7 @@ func Aggregate(batches []PlannedBatch, stocks []StockAmount, measuringUnits []st
 		}
 		return a.Unit < b.Unit
 	})
-	return items, skippedStaple
+	return items, skippedStaple, scaled
 }
 
 // 量 0 の材料 (required == 0) も同じ式で none / covered に振り分けられる (design.md D5)。

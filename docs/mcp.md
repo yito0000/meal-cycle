@@ -51,7 +51,7 @@ Claude Desktop なら、`claude_desktop_config.json` (Windows では `%APPDATA%\
 | `list_meal_plan` | 開始日から 1 / 2 / 4 週の献立 |
 | `list_stock` | 冷蔵庫の在庫と期限の状態 |
 | `list_staples` | 常備品と、ある / 少ない / ない の状態 |
-| `get_shopping_list` | 開始日から指定した日数の買い物リスト |
+| `get_shopping_list` | 開始日から指定した日数の買い物リスト。S09 で世帯人数を選んでいれば、1 回きりの献立の量は換算済み (`scaledServings`) |
 | `list_suggestions` | 献立の候補 (使い切り、久しぶりに) |
 | `suggest_week_plans` | 週の空いたコマを埋める案 (書き込みはしない) |
 | `assign_recipe` | 献立に 1 品足す (既存の品の後ろに並ぶ) |

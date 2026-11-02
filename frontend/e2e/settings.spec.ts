@@ -93,6 +93,14 @@ test.describe("S09 設定画面の表示", () => {
     await expect(redDays(page)).toHaveValue("3");
     await expect(yellowDays(page)).toHaveValue("7");
   });
+
+  test("世帯人数の既定は換算しない", async ({ page }) => {
+    await openSettings(page);
+
+    await expect(page.getByRole("combobox", { name: t.field.household_servings })).toHaveText(
+      t.household_none,
+    );
+  });
 });
 
 test.describe("設定の保存", () => {

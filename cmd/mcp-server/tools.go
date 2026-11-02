@@ -43,7 +43,8 @@ func newServer(dbPath string) *mcp.Server {
 		nil, listStaples)
 	addReadTool(s, env, "get_shopping_list",
 		"Get the shopping list for the meal plan from start (YYYY-MM-DD) over the given number of days, "+
-			"including staples whose state is low or out.",
+			"including staples whose state is low or out. "+
+			"When household servings is set, amounts of one-off dishes are already scaled and scaledServings shows the household size.",
 		nil, getShoppingList)
 	addReadTool(s, env, "list_suggestions",
 		"List recipe suggestions: byStock uses up stock close to expiry, byRecency are recipes not cooked for a while.",

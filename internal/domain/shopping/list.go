@@ -15,15 +15,19 @@ import (
 // 並び順を S01 のセル内の順 (主菜 → 副菜 → 汁物) に揃えるために使う。Dates / Meals も期間内の行だけから求める。
 // BatchMemberCount は期間外を含む batch_id 全体の行数で、S01 の batchMemberCount と同じ意味を持つ。
 type PlannedBatch struct {
-	FirstDate           string
-	FirstMeal           string
-	FirstPosition       int
-	BatchID             string
-	RecipeID            string
-	RecipeName          string
-	Dates               []string
-	Meals               []string
-	BatchMemberCount    int
+	FirstDate        string
+	FirstMeal        string
+	FirstPosition    int
+	BatchID          string
+	RecipeID         string
+	RecipeName       string
+	Dates            []string
+	Meals            []string
+	BatchMemberCount int
+	// Servings はレシピの人数、PairRowCount は同じ (batch_id, recipe_id) の行の献立全体の数。世帯人数での換算に使う
+	// (add-shopping-household-scaling design.md D1)。
+	Servings            int
+	PairRowCount        int
 	StartedBeforePeriod bool
 	Cooked              bool
 	Ingredients         []recipe.RecipeIngredient
@@ -94,4 +98,6 @@ type List struct {
 	Items                []Item       `json:"items"`
 	Staples              []StapleItem `json:"staples"`
 	HasStapleIngredients bool         `json:"hasStapleIngredients"`
+	// ScaledServings は換算した材料が 1 件でもあれば世帯人数、無ければ 0 (add-shopping-household-scaling design.md D4)。
+	ScaledServings int `json:"scaledServings"`
 }

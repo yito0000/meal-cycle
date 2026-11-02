@@ -53,6 +53,7 @@ type Draft = {
   weeklyFillDays: number[];
   weeklyFillMeal: string;
   weeklyRunDays: string;
+  householdServings: number;
 };
 
 function toDraft(v: SettingsValues): Draft {
@@ -70,6 +71,7 @@ function toDraft(v: SettingsValues): Draft {
     weeklyFillDays: [...v.weeklyFillDays],
     weeklyFillMeal: v.weeklyFillMeal,
     weeklyRunDays: String(v.weeklyPresetMaxRunDays),
+    householdServings: v.householdServings,
   };
 }
 
@@ -110,6 +112,7 @@ function fromDraft(d: Draft): ParseResult {
       weeklyFillDays: [...d.weeklyFillDays].sort((a, b) => a - b),
       weeklyFillMeal: d.weeklyFillMeal,
       weeklyPresetMaxRunDays: parseInteger(d.weeklyRunDays) ?? 0,
+      householdServings: d.householdServings,
     },
   };
 }
@@ -131,6 +134,7 @@ function sameValues(a: SettingsValues, b: SettingsValues): boolean {
       [...v.weeklyFillDays].sort((x, y) => x - y),
       v.weeklyFillMeal,
       v.weeklyPresetMaxRunDays,
+      v.householdServings,
     ]);
   return canon(a) === canon(b);
 }
@@ -288,6 +292,20 @@ export function SettingsForm({
             label: t("pages.settings.day_chip", { count: d }),
           }))}
           errorKey={errorFor("shoppingDefault")}
+        />
+        <SelectField
+          label={t("pages.settings.field.household_servings")}
+          hint={t("pages.settings.hint.household_servings")}
+          value={String(draft.householdServings)}
+          onChange={(v) => update({ householdServings: Number(v) })}
+          options={[
+            { value: "0", label: t("pages.settings.household_none") },
+            ...Array.from({ length: constraints.householdServingsMax }, (_, i) => ({
+              value: String(i + 1),
+              label: t("pages.settings.household_option", { count: i + 1 }),
+            })),
+          ]}
+          errorKey={errorFor("householdServings")}
         />
       </Section>
 

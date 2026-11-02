@@ -104,6 +104,10 @@ func TestValidate(t *testing.T) {
 		{"recency days 60", func(v *Values) { v.RecencyThresholdDays = 60 }, nil},
 		{"recency days 0", func(v *Values) { v.RecencyThresholdDays = 0 }, ErrRecencyDaysOutOfRange},
 		{"recency days 61", func(v *Values) { v.RecencyThresholdDays = 61 }, ErrRecencyDaysOutOfRange},
+		{"household servings 0", func(v *Values) { v.HouseholdServings = 0 }, nil},
+		{"household servings 10", func(v *Values) { v.HouseholdServings = 10 }, nil},
+		{"household servings -1", func(v *Values) { v.HouseholdServings = -1 }, ErrHouseholdServingsOutOfRange},
+		{"household servings 11", func(v *Values) { v.HouseholdServings = 11 }, ErrHouseholdServingsOutOfRange},
 		{"empty weekly fill days", func(v *Values) { v.WeeklyFillDays = []int{} }, ErrWeeklyFillDaysEmpty},
 		{"weekly fill day 0", func(v *Values) { v.WeeklyFillDays = []int{0, 1} }, ErrWeeklyFillDayOutOfRange},
 		{"weekly fill day 8", func(v *Values) { v.WeeklyFillDays = []int{1, 8} }, ErrWeeklyFillDayOutOfRange},
@@ -138,6 +142,11 @@ func TestCurrentConstraints(t *testing.T) {
 		{"fallback days is one of the required days", func(t *testing.T, c Constraints) {
 			if !slices.Contains(c.ShoppingRequiredDays, c.ShoppingFallbackDays) {
 				t.Errorf("fallback %d not in %v", c.ShoppingFallbackDays, c.ShoppingRequiredDays)
+			}
+		}},
+		{"household servings max is 10", func(t *testing.T, c Constraints) {
+			if c.HouseholdServingsMax != 10 {
+				t.Errorf("household servings max = %d, want 10", c.HouseholdServingsMax)
 			}
 		}},
 		{"mutating the returned slice keeps ShoppingRequiredDays", func(t *testing.T, c Constraints) {

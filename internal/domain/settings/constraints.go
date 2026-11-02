@@ -8,11 +8,14 @@ type Constraints struct {
 	ShoppingRequiredDays []int `json:"shoppingRequiredDays"`
 	// 既定の日数を候補から消したときに選び直す日数。消せない日数に含まれていれば必ず候補に残る。
 	ShoppingFallbackDays int `json:"shoppingFallbackDays"`
+	// 世帯人数の select に並べる上限。0 (換算しない) と 1 からこの値までを選べる。
+	HouseholdServingsMax int `json:"householdServingsMax"`
 }
 
 func CurrentConstraints() Constraints {
 	return Constraints{
 		ShoppingRequiredDays: slices.Clone(ShoppingRequiredDays),
 		ShoppingFallbackDays: ShoppingRequiredDays[0],
+		HouseholdServingsMax: HouseholdServingsMax,
 	}
 }
