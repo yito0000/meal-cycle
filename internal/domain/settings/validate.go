@@ -41,6 +41,10 @@ const (
 	// 0 は換算しない。上限は家庭の人数として十分で、select の選択肢を短く保てる値 (add-shopping-household-scaling design.md D3)。
 	HouseholdServingsMin = 0
 	HouseholdServingsMax = 10
+
+	// 5 分未満で作れるレシピはほぼ無く、2 時間を超えると「時短」の名前と合わない。
+	QuickCookMinutesMin = 5
+	QuickCookMinutesMax = 120
 )
 
 // 週の候補で埋める時間帯。internal/domain/mealplan.Meal と同じ文字列 (settings が mealplan を import しないため写す)。
@@ -65,6 +69,7 @@ func (v Values) Validate() error {
 		func() error { return ValidateWeeklyFill(v.WeeklyFillDays, v.WeeklyFillMeal) },
 		func() error { return ValidateWeeklyPresetMaxRunDays(v.WeeklyPresetMaxRunDays) },
 		func() error { return ValidateHouseholdServings(v.HouseholdServings) },
+		func() error { return ValidateQuickCookMaxMinutes(v.QuickCookMaxMinutes) },
 	}
 	for _, check := range checks {
 		if err := check(); err != nil {
@@ -184,6 +189,13 @@ func ValidateWeeklyPresetMaxRunDays(days int) error {
 func ValidateHouseholdServings(n int) error {
 	if n < HouseholdServingsMin || n > HouseholdServingsMax {
 		return ErrHouseholdServingsOutOfRange
+	}
+	return nil
+}
+
+func ValidateQuickCookMaxMinutes(n int) error {
+	if n < QuickCookMinutesMin || n > QuickCookMinutesMax {
+		return ErrQuickCookMinutesOutOfRange
 	}
 	return nil
 }

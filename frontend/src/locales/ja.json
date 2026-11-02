@@ -55,7 +55,9 @@
           "by_stock_reason_today": "{{names}} が今日まで",
           "name_separator": "、",
           "by_recency_title": "久しぶりに ({{days}} 日以上作っていない)",
-          "by_recency_reason": "{{days}} 日ぶり"
+          "by_recency_reason": "{{days}} 日ぶり",
+          "by_time_title": "時短 ({{minutes}} 分以内で作れる)",
+          "by_time_reason": "{{minutes}} 分"
         }
       },
       "cell_actions": {
@@ -251,6 +253,7 @@
         "label": {
           "name": "名前",
           "servings": "人数",
+          "cook_minutes": "所要時間 (分)",
           "tags": "タグ",
           "ingredients": "材料",
           "steps": "手順",
@@ -269,6 +272,7 @@
           "name_empty": "レシピ名を入力してください",
           "name_too_long": "レシピ名は 200 字以内で入力してください",
           "servings_out_of_range": "人数は 1〜99 で入力してください",
+          "cook_minutes_out_of_range": "所要時間は 1〜999 分で入力してください (空欄でもかまいません)",
           "ingredient_name_required": "材料名を入力してください",
           "steps_too_long": "手順は 4000 字以内で入力してください",
           "notes_too_long": "メモは 2000 字以内で入力してください",
@@ -283,6 +287,7 @@
         "loading": "読み込み中...",
         "load_error": "レシピを読み込めませんでした",
         "servings": "{{count}} 人分",
+        "cook_minutes": "約 {{count}} 分",
         "updated_at": "最終更新: {{date}}",
         "section": {
           "ingredients": "材料",
@@ -341,6 +346,7 @@
           "name_empty": "名前がありません",
           "name_too_long": "名前が 200 字を超えています",
           "servings_out_of_range": "人数は 1〜99 にしてください",
+          "cook_minutes_out_of_range": "cookMinutes は 1〜999 の整数にしてください",
           "steps_too_long": "手順が 4000 字を超えています",
           "notes_too_long": "メモが 2000 字を超えています",
           "tag_too_long": "30 字を超えるタグがあります",
@@ -566,7 +572,8 @@
         "weekly_fill_days": "週の候補で埋める曜日",
         "weekly_fill_meal": "週の候補で埋める時間帯",
         "weekly_run_days": "週の候補で 1 品を続ける日数の上限",
-        "household_servings": "世帯人数"
+        "household_servings": "世帯人数",
+        "quick_cook_minutes": "「時短」とみなす所要時間"
       },
       "hint": {
         "language": "「保存」を押すと切り替わります",
@@ -580,13 +587,15 @@
         "recency_days": "最後に作ってからこの日数以上たったレシピを、レシピ選択の「久しぶりに」に出します (1〜60 日)",
         "weekly_fill_days": "献立画面の「この週の候補を出す」で、空いていれば埋める曜日です",
         "weekly_run_days": "1 にすると毎日別のレシピの案になります (1〜7 日)",
+        "quick_cook_minutes": "所要時間がこの分数以下のレシピを、レシピ選択の「時短」に出します (5〜120 分)",
         "household_servings": "1 回きりの献立の材料を「世帯人数 ÷ レシピの人数」倍して買い物リストに出します。作り置きは換算しません"
       },
       "household_none": "換算しない",
       "household_option": "{{count}} 人",
       "suffix": {
         "days": "日",
-        "servings": "人"
+        "servings": "人",
+        "minutes": "分"
       },
       "day_chip": "{{count}} 日",
       "remove": "{{value}} を消す",
@@ -638,6 +647,7 @@
         "weekly_day_out_of_range": "曜日の値が正しくありません",
         "weekly_meal_invalid": "時間帯の値が正しくありません",
         "weekly_run_out_of_range": "1 以上 7 以下の日数を入れてください",
+        "quick_cook_out_of_range": "5 以上 120 以下の分数を入れてください",
         "household_out_of_range": "世帯人数は「換算しない」か 1〜10 人から選んでください"
       }
     }

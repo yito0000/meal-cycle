@@ -43,6 +43,7 @@
 | 週の候補で埋める曜日と時間帯       | 月〜金・夕 の 5 コマ       | S09 設定 (`WeeklyFillDays` / `WeeklyFillMeal`) | ✓ |
 | **1 時間帯あたりの想定品数**      | 1〜3 品（緩い目安）       | 今は使わない（週の候補は 1 コマ 1 品。副菜の案は品の役割を持つ proposal で検討） | — |
 | 「久しぶりに」の消費期間閾値       | 10 日                     | S09 設定 (`RecencyThresholdDays`) | ✓          |
+| 「時短」とみなす所要時間           | 20 分                     | S09 設定 (`QuickCookMaxMinutes`) | ✓           |
 | 「作り置きコピー」の N プリセット | 2 / 3 / 4 日              | S09 設定 (`LeftoverCopyPresets`) | ✓           |
 | 週の候補で 1 品を続ける日数の上限  | 3 日（品数はここから決まる） | S09 設定 (`WeeklyPresetMaxRunDays`) | ✓          |
 | 「期限が近い」🔴 / 🟡 の日数閾値   | 3 日 / 7 日               | S09 設定 (`ExpiryAlertRedDays` / `ExpiryAlertYellowDays`) | ✓ |
@@ -258,7 +259,7 @@ graph LR
   （実装済み）。`＜` / `＞` は現在の期間長ぶんシフト（2 週表示なら 14 日戻る／進む）、「今週」は
   `periodStart` を「今日を含む週の月曜」にリセットする
 - 下部の「この期間の買い物リストを見る」CTA → S07 へ（表示中の期間を引き継ぐ）
-- **MVP 後拡張**: レシピ選択ダイアログの上部に**候補セクション**（使い切り / 久しぶりに / 時短）を追加。「使い切り」は add-mealplan-suggest-by-stock で入れた（検索中は欄を隠す）（ワイヤー: [wireframes/S01a_recipe_picker_dialog.drawio.svg](wireframes/S01a_recipe_picker_dialog.drawio.svg)）、および画面下部の「✨ この週の候補を出す」（「この期間の買い物リストを見る」の横）から**週の候補**を提示。
+- **MVP 後拡張**: レシピ選択ダイアログの上部に**候補セクション**（使い切り / 久しぶりに / 時短）を追加。「使い切り」は add-mealplan-suggest-by-stock、「久しぶりに」は add-mealplan-suggest-by-recency、「時短」は add-mealplan-suggest-by-time で入れた（検索中は欄を隠す）（ワイヤー: [wireframes/S01a_recipe_picker_dialog.drawio.svg](wireframes/S01a_recipe_picker_dialog.drawio.svg)）、および画面下部の「✨ この週の候補を出す」（「この期間の買い物リストを見る」の横）から**週の候補**を提示。
   対象は表示中の期間の最初の 1 週間（add-mealplan-suggest-week-preset、ワイヤー: [wireframes/S01b_week_plan_dialog.drawio.svg](wireframes/S01b_week_plan_dialog.drawio.svg)）。方針は #5 参照
   - 週の候補ダイアログのワイヤーは [wireframes/S01b_week_plan_dialog.drawio.svg](wireframes/S01b_week_plan_dialog.drawio.svg)
 - **献立をテキストでコピー**（下部、「この期間の買い物リストを見る」の横。proposal: add-mealplan-copy-text）
@@ -305,7 +306,7 @@ graph LR
 ワイヤー: [wireframes/S03_recipe_detail.v2.drawio.svg](wireframes/S03_recipe_detail.v2.drawio.svg)（初期案のドロワー版: [wireframes/S03_recipe_detail.drawio.svg](wireframes/S03_recipe_detail.drawio.svg)）
 
 - サイドバーを除くメインエリア全体に表示する独立画面。S02 の行か、S01 の品行メニュー「この品のレシピ詳細を見る」から開く
-- 上部にパンくず、レシピ名、基本情報（タグ / 人数 / 更新日）、操作ボタン（編集 / 削除）を置く。ボタンを上部に置くのは、手順が長くても下端までスクロールせずに編集へ進めるようにするため
+- 上部にパンくず、レシピ名、基本情報（タグ / 人数 / 所要時間 / 更新日）、操作ボタン（編集 / 削除）を置く。所要時間は入れてあれば「約 N 分」と出す。ボタンを上部に置くのは、手順が長くても下端までスクロールせずに編集へ進めるようにするため
 - その下に、幅の広い画面では左に材料、右に手順とメモを並べる。幅の狭い画面では材料、手順、メモの順に縦に積む
 - パンくずは `<開いた元> › <レシピ名>` で、開いた元は S02 なら「レシピ」、S01 なら「献立」。先頭を押すか Esc キーを押すと開いた元に戻る
   - 削除の確認ダイアログを開いているときの Esc は、ダイアログだけを閉じる
@@ -328,7 +329,8 @@ graph LR
 
 - 上部固定バーに `保存` `キャンセル`。未保存で `キャンセル` を押した場合は確認ダイアログ
   - サイドバーで別の画面へ移るときも、未保存なら同じ確認ダイアログを出す。保存に成功したあとの移動では出さない（proposal: fix-recipe-form-and-list）
-- 左カラム = 基本情報（名前 / タグ / 人数）+ 材料表 ／ 右カラム = 手順 + メモ
+- 左カラム = 基本情報（名前 / タグ / 人数 / 所要時間）+ 材料表 ／ 右カラム = 手順 + メモ
+  - 所要時間（分）は人数の隣。任意で、入れるなら 1〜999 の整数。レシピ選択の「時短」の候補に使う（proposal: add-mealplan-suggest-by-time）
 - 材料行 = 「食材（S06 と同じ候補補完つきの自由入力）」「量」「単位（既知の単位を候補に出す）」「×」
   - 食材の候補は在庫の食材名とレシピの材料名を合わせたもの。候補を選んだとき単位が空なら、直近に使われた単位を入れる（proposal: add-ingredient-name-matching）
   - 量は 0 以上 99999 以下。空と 0 は量を持たない材料（「塩 少々」など）として扱う（proposal: fix-recipe-amount-validation）
@@ -486,6 +488,7 @@ graph LR
 - **「久しぶりに」とみなす日数**: 献立の節の、作り置きの日数の候補の下に置く。1〜60 日の整数（add-mealplan-suggest-by-recency）
 - **週の候補**: 献立の節に、埋める曜日（7 つのチェックボックス、1 つ以上）、埋める時間帯（1 つ）、1 品を続ける日数の上限（1〜7 日）を置く
   （add-mealplan-suggest-week-preset）
+- **「時短」とみなす所要時間**: 献立の節の「久しぶりに」の下に置く。5〜120 分の整数（add-mealplan-suggest-by-time）
 - **世帯人数**: 買い物リストの節に「換算しない」（既定）と 1〜10 人の select を置く。S07 の換算に使う（add-shopping-household-scaling）
 - **保存できない値**: 🔴 の日数が 🟡 の日数以上、作り置きの候補が空、などは保存せず、該当する欄の下に理由を出す。何も保存しない
 - **既定に戻す**: 確認ダイアログを出し、確認するとすべての値（表示言語を含む）を既定値に戻して保存する。取り消すと何も変えない。
@@ -508,7 +511,7 @@ graph LR
 | ------------ | ---------------------------------------------------------------- | -------------------- |
 | **使い切り** | 期限が近い在庫（🔴 / 🟡）を材料に含むレシピを、含む数の多い順（add-mealplan-suggest-by-stock で実装） | 「牛乳 が期限 2 日以内」 |
 | **久しぶりに** | 「最終使用日 + **消費期間** N 日」を経過したレシピを、経過日数の大きい順（add-mealplan-suggest-by-recency で実装） | 「14 日ぶり」       |
-| **時短**     | 所要時間 or 材料数が少ないレシピ（`estimatedMinutes` があれば併用） | 「20 分以内」        |
+| **時短**     | 所要時間が S09 の分数（既定 20 分）以下のレシピを、短い順（add-mealplan-suggest-by-time で実装。所要時間の無いレシピは出さない。材料数では推定しない） | 「15 分」        |
 
 - 「久しぶりに」の**最終使用日**は、S01 で「作った」印の付いた作り置きの行の日付のうち最も新しいものとする。
   印の無い行 (まだ作っていない予定) は数えない (proposal: add-mealplan-cooked-mark、計算は add-mealplan-suggest-by-recency で実装)

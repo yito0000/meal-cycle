@@ -166,6 +166,16 @@ var settingKeys = []settingKey{
 		},
 	},
 	{
+		name:   "quickCookMaxMinutes",
+		encode: func(v settings.Values) any { return v.QuickCookMaxMinutes },
+		decode: func(raw json.RawMessage, v *settings.Values) error {
+			return json.Unmarshal(raw, &v.QuickCookMaxMinutes)
+		},
+		validate: func(v settings.Values) error {
+			return settings.ValidateQuickCookMaxMinutes(v.QuickCookMaxMinutes)
+		},
+	},
+	{
 		name:   "householdServings",
 		encode: func(v settings.Values) any { return v.HouseholdServings },
 		decode: func(raw json.RawMessage, v *settings.Values) error {

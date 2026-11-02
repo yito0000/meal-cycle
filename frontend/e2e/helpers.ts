@@ -225,6 +225,7 @@ export async function createRecipeDetailed(
     name: string;
     tags?: string[];
     servings?: number;
+    cookMinutes?: number;
     ingredients?: { name: string; amount: number; unit: string }[];
     steps?: string;
     notes?: string;
@@ -237,6 +238,7 @@ export async function createRecipeDetailed(
         id: "",
         name: input.name,
         servings: input.servings ?? 2,
+        cookMinutes: input.cookMinutes ?? 0,
         tags: input.tags ?? [],
         ingredients,
         ingredientCount: ingredients.length,

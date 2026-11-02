@@ -57,6 +57,9 @@ type Config struct {
 	// 続けて食べる) 運用を考慮した値。
 	RecencyThresholdDays int `json:"recencyThresholdDays"`
 
+	// 「時短」の候補とみなす所要時間の上限 (分)。平日の夜に手早く作れる目安 (add-mealplan-suggest-by-time design.md D5)。
+	QuickCookMaxMinutes int `json:"quickCookMaxMinutes"`
+
 	// S01 のレシピ選択ダイアログで、軸ごとの候補を出す件数の上限。欄の高さで一度に見える件数に合わせた見た目の値で、S09 には出さない
 	// (add-mealplan-suggest-by-stock design.md D3)。
 	SuggestionLimit int `json:"suggestionLimit"`
@@ -116,6 +119,7 @@ func Defaults() Config {
 		MealPlanCellVisibleItems:    4,
 		RecipeListHighlightMs:       2000,
 		RecencyThresholdDays:        10,
+		QuickCookMaxMinutes:         20,
 		SuggestionLimit:             5,
 		LeftoverCopyPresets:         []int{2, 3, 4},
 		WeeklyPresetMaxRunDays:      3,

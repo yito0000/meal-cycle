@@ -9,6 +9,7 @@ import (
 
 	"github.com/yito0000/meal-cycle/internal/domain/fridge"
 	"github.com/yito0000/meal-cycle/internal/domain/mealplan"
+	"github.com/yito0000/meal-cycle/internal/domain/recipe"
 	"github.com/yito0000/meal-cycle/internal/domain/shopping"
 	"github.com/yito0000/meal-cycle/internal/service"
 	"github.com/yito0000/meal-cycle/internal/storage/sqlite"
@@ -38,6 +39,7 @@ var errorCodes = []struct {
 	{service.ErrRecipeStepsTooLong, "recipe.steps_too_long"},
 	{service.ErrRecipeNotesTooLong, "recipe.notes_too_long"},
 	{service.ErrRecipeTagTooLong, "recipe.tag_too_long"},
+	{recipe.ErrCookMinutesOutOfRange, "recipe.cook_minutes_out_of_range"},
 
 	{mealplan.ErrInvalidDate, "mealplan.invalid_date"},
 	{mealplan.ErrInvalidMeal, "mealplan.invalid_meal"},

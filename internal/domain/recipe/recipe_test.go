@@ -55,3 +55,23 @@ func TestRecipe_JSONTags(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateCookMinutes(t *testing.T) {
+	cases := []struct {
+		name string
+		in   int
+		want error
+	}{
+		{"0 (未入力) は通る", 0, nil},
+		{"999 は通る", 999, nil},
+		{"1000 は ErrCookMinutesOutOfRange", 1000, ErrCookMinutesOutOfRange},
+		{"-1 は ErrCookMinutesOutOfRange", -1, ErrCookMinutesOutOfRange},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := ValidateCookMinutes(tc.in); got != tc.want {
+				t.Errorf("ValidateCookMinutes(%d) = %v, want %v", tc.in, got, tc.want)
+			}
+		})
+	}
+}

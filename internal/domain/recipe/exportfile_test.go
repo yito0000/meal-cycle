@@ -45,6 +45,27 @@ func TestFormatExportFile(t *testing.T) {
 			},
 		},
 		{
+			name:  "cook minutes 30 is written as cookMinutes: 30 and read back",
+			input: Recipe{Name: "肉じゃが", Servings: 2, CookMinutes: 30},
+			check: func(t *testing.T, content string, got Recipe) {
+				if !strings.Contains(content, "cookMinutes: 30") {
+					t.Errorf("want cookMinutes: 30:\n%s", content)
+				}
+				if got.CookMinutes != 30 {
+					t.Errorf("read back cookMinutes: got %d", got.CookMinutes)
+				}
+			},
+		},
+		{
+			name:  "cook minutes 0 is not written",
+			input: Recipe{Name: "豚汁", Servings: 2},
+			check: func(t *testing.T, content string, _ Recipe) {
+				if strings.Contains(content, "cookMinutes") {
+					t.Errorf("want no cookMinutes:\n%s", content)
+				}
+			},
+		},
+		{
 			name:  "empty tags and ingredients are omitted from the frontmatter",
 			input: Recipe{Name: "x", Servings: 1, Tags: []string{}, Ingredients: []RecipeIngredient{}},
 			check: func(t *testing.T, content string, _ Recipe) {

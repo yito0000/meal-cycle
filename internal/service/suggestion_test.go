@@ -140,6 +140,51 @@ func TestSuggestionService_List(t *testing.T) {
 	})
 }
 
+func (d suggestionDeps) createTimedRecipe(t *testing.T, name string, minutes int) string {
+	t.Helper()
+	r, err := d.recipe.Create(context.Background(), recipe.Recipe{Name: name, Servings: 1, CookMinutes: minutes})
+	if err != nil {
+		t.Fatalf("create recipe: %v", err)
+	}
+	return r.ID
+}
+
+func TestSuggestionService_List_ByTime(t *testing.T) {
+	t.Run("should return recipes within the quick cook minutes when listing by time", func(t *testing.T) {
+		d := newSuggestionServiceForTest(t)
+		d.createTimedRecipe(t, "豚キムチ", 15)
+		d.createTimedRecipe(t, "肉じゃが", 40)
+		d.createTimedRecipe(t, "豚汁", 0)
+		got := d.list(t).ByTime
+		if len(got) != 1 || got[0].RecipeName != "豚キムチ" || got[0].CookMinutes != 15 {
+			t.Errorf("got %#v", got)
+		}
+	})
+
+	t.Run("should not return archived recipes when listing by time", func(t *testing.T) {
+		d := newSuggestionServiceForTest(t)
+		id := d.createTimedRecipe(t, "冷奴", 5)
+		if err := d.recipe.Delete(context.Background(), id); err != nil {
+			t.Fatalf("delete: %v", err)
+		}
+		if got := d.list(t).ByTime; got == nil || len(got) != 0 {
+			t.Errorf("want empty non-nil, got %#v", got)
+		}
+	})
+
+	t.Run("should use the saved quick cook minutes when settings are saved", func(t *testing.T) {
+		d := newSuggestionServiceForTest(t)
+		d.createTimedRecipe(t, "肉じゃが", 30)
+		if got := d.list(t).ByTime; len(got) != 0 {
+			t.Fatalf("want none before saving, got %#v", got)
+		}
+		d.save(t, func(v *settings.Values) { v.QuickCookMaxMinutes = 30 })
+		if n := names(d.list(t).ByTime); len(n) != 1 || n[0] != "肉じゃが" {
+			t.Errorf("got %v", n)
+		}
+	})
+}
+
 // cook は daysAgo 日前の夕食にレシピを置き、作った印を付ける。
 func (d suggestionDeps) cook(t *testing.T, recipeID string, daysAgo int) {
 	t.Helper()

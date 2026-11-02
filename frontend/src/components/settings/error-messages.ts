@@ -12,7 +12,8 @@ export type SettingsField =
   | "weeklyFillDays"
   | "weeklyFillMeal"
   | "weeklyRunDays"
-  | "householdServings";
+  | "householdServings"
+  | "quickCookMinutes";
 
 const P = "pages.settings.errors.";
 
@@ -52,6 +53,7 @@ const RULES: [string, string, SettingsField][] = [
   ["settings: weekly fill day duplicate", `${P}weekly_day_out_of_range`, "weeklyFillDays"],
   ["settings: weekly fill invalid meal", `${P}weekly_meal_invalid`, "weeklyFillMeal"],
   ["settings: weekly run days out of range", `${P}weekly_run_out_of_range`, "weeklyRunDays"],
+  ["settings: quick cook minutes out of range", `${P}quick_cook_out_of_range`, "quickCookMinutes"],
   ["settings: household servings out of range", `${P}household_out_of_range`, "householdServings"],
 ];
 

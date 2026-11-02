@@ -30,7 +30,7 @@ export function RecipePickerDialog({ open, onOpenChange, onSelect }: Props) {
   });
 
   const suggestions = useSuggestions(open);
-  const { recencyThresholdDays } = useSettingsValues();
+  const { recencyThresholdDays, quickCookMaxMinutes } = useSettingsValues();
   const searching = q.trim() !== "";
 
   const byStockItems: SuggestionItem[] = (suggestions.data?.byStock ?? []).map((c) => {
@@ -52,6 +52,12 @@ export function RecipePickerDialog({ open, onOpenChange, onSelect }: Props) {
     recipeId: c.recipeId,
     recipeName: c.recipeName,
     reason: t("pages.meal_plan.picker.suggestion.by_recency_reason", { days: c.daysSince }),
+  }));
+
+  const byTimeItems: SuggestionItem[] = (suggestions.data?.byTime ?? []).map((c) => ({
+    recipeId: c.recipeId,
+    recipeName: c.recipeName,
+    reason: t("pages.meal_plan.picker.suggestion.by_time_reason", { minutes: c.cookMinutes }),
   }));
 
   const pick = (picked: PickedRecipe) => {
@@ -106,6 +112,18 @@ export function RecipePickerDialog({ open, onOpenChange, onSelect }: Props) {
                 count: byRecencyItems.length,
               })}
               items={byRecencyItems}
+              onSelect={(item) => pick({ id: item.recipeId, name: item.recipeName })}
+            />
+          )}
+          {!searching && suggestions.data && (
+            <SuggestionSection
+              title={t("pages.meal_plan.picker.suggestion.by_time_title", {
+                minutes: quickCookMaxMinutes,
+              })}
+              countLabel={t("pages.meal_plan.picker.suggestion.count", {
+                count: byTimeItems.length,
+              })}
+              items={byTimeItems}
               onSelect={(item) => pick({ id: item.recipeId, name: item.recipeName })}
             />
           )}

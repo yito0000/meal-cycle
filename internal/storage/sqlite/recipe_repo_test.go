@@ -646,3 +646,52 @@ func TestRecipeRepo_ListDetailed(t *testing.T) {
 		}
 	})
 }
+
+func TestRecipeRepo_CookMinutes(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("should read back saved cook minutes", func(t *testing.T) {
+		repo := newRecipeRepoForTest(t)
+		created, err := repo.Create(ctx, recipe.Recipe{Name: "豚キムチ", Servings: 2, CookMinutes: 15})
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := repo.GetByID(ctx, created.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.CookMinutes != 15 {
+			t.Errorf("want 15, got %d", got.CookMinutes)
+		}
+		got.CookMinutes = 30
+		if _, err := repo.Update(ctx, got.ID, got); err != nil {
+			t.Fatal(err)
+		}
+		list, err := repo.ListDetailed(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(list) != 1 || list[0].CookMinutes != 30 {
+			t.Errorf("want 30 after update, got %#v", list)
+		}
+	})
+
+	t.Run("should read zero cook minutes for rows created before the migration", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "test.db")
+		db := openMigratedTo(t, path, 11)
+		if _, err := db.Exec(`INSERT INTO recipes (id, name, servings, tags_json, steps, notes, created_at, updated_at)
+			VALUES ('r1', '肉じゃが', 2, '[]', '', '', '2026-10-01T00:00:00Z', '2026-10-01T00:00:00Z')`); err != nil {
+			t.Fatal(err)
+		}
+		if err := Migrate(db); err != nil {
+			t.Fatal(err)
+		}
+		got, err := NewRecipeRepo(db).GetByID(ctx, "r1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.CookMinutes != 0 {
+			t.Errorf("want 0, got %d", got.CookMinutes)
+		}
+	})
+}

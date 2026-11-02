@@ -21,6 +21,7 @@ import { blankFormValues, recipeToFormValues, useRecipeForm } from "./use-recipe
 const NAME_MAX = 200;
 const SERVINGS_MIN = 1;
 const SERVINGS_MAX = 99;
+const COOK_MINUTES_MAX = 999;
 const STEPS_MAX = 4000;
 const NOTES_MAX = 2000;
 const AMOUNT_MAX = 99999;
@@ -28,6 +29,7 @@ const AMOUNT_MAX = 99999;
 type SaveInput = {
   name: string;
   servings: number;
+  cookMinutes: number;
   tags: string[];
   ingredients: RecipeIngredient[];
   steps: string;
@@ -45,6 +47,7 @@ type Props = {
 type FieldErrors = {
   name?: string;
   servings?: string;
+  cookMinutes?: string;
   steps?: string;
   notes?: string;
   ingredients?: (string | undefined)[];
@@ -59,6 +62,8 @@ function mapErrorToI18nKey(err: unknown): string {
   if (msg.includes("recipe name too long")) return "pages.recipes.edit.save_error.name_too_long";
   if (msg.includes("servings out of range"))
     return "pages.recipes.edit.save_error.servings_out_of_range";
+  if (msg.includes("cook minutes out of range"))
+    return "pages.recipes.edit.save_error.cook_minutes_out_of_range";
   if (msg.includes("ingredient name empty"))
     return "pages.recipes.edit.save_error.ingredient_name_required";
   if (msg.includes("ingredient amount out of range"))
@@ -84,6 +89,14 @@ function validate(values: SaveInput, amountTexts: string[]): FieldErrors {
     values.servings > SERVINGS_MAX
   ) {
     errors.servings = "pages.recipes.edit.save_error.servings_out_of_range";
+  }
+  // 0 は未入力。空欄は 0 として送るので、ここで弾くのは小数、負の数、上限超え。
+  if (
+    !Number.isInteger(values.cookMinutes) ||
+    values.cookMinutes < 0 ||
+    values.cookMinutes > COOK_MINUTES_MAX
+  ) {
+    errors.cookMinutes = "pages.recipes.edit.save_error.cook_minutes_out_of_range";
   }
   if ([...values.steps].length > STEPS_MAX) {
     errors.steps = "pages.recipes.edit.save_error.steps_too_long";
@@ -161,6 +174,7 @@ export function RecipeEditForm({ mode, initialRecipe, onSave, onCancel, breadcru
       name: form.values.name.trim(),
       // 空は Number("") が 0 になり範囲外、小数や数字でない値は isInteger で弾かれ、どれも人数のエラーになる。
       servings: Number(form.values.servings),
+      cookMinutes: form.values.cookMinutes.trim() === "" ? 0 : Number(form.values.cookMinutes),
       tags: form.values.tags,
       ingredients: form.values.ingredients.map((ing) => ({
         name: ing.name,
@@ -220,22 +234,43 @@ export function RecipeEditForm({ mode, initialRecipe, onSave, onCancel, breadcru
             {fieldErrors.name && <p className="text-xs text-red-700">{t(fieldErrors.name)}</p>}
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="recipe-servings">{t("pages.recipes.edit.label.servings")}</Label>
-            <Input
-              id="recipe-servings"
-              type="number"
-              min={SERVINGS_MIN}
-              max={SERVINGS_MAX}
-              step={1}
-              value={form.values.servings}
-              onChange={(e) => form.setServings(e.target.value)}
-              className="w-24"
-              aria-invalid={fieldErrors.servings != null}
-            />
-            {fieldErrors.servings && (
-              <p className="text-xs text-red-700">{t(fieldErrors.servings)}</p>
-            )}
+          <div className="flex flex-wrap gap-6">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="recipe-servings">{t("pages.recipes.edit.label.servings")}</Label>
+              <Input
+                id="recipe-servings"
+                type="number"
+                min={SERVINGS_MIN}
+                max={SERVINGS_MAX}
+                step={1}
+                value={form.values.servings}
+                onChange={(e) => form.setServings(e.target.value)}
+                className="w-24"
+                aria-invalid={fieldErrors.servings != null}
+              />
+              {fieldErrors.servings && (
+                <p className="text-xs text-red-700">{t(fieldErrors.servings)}</p>
+              )}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="recipe-cook-minutes">
+                {t("pages.recipes.edit.label.cook_minutes")}
+              </Label>
+              <Input
+                id="recipe-cook-minutes"
+                type="number"
+                min={1}
+                max={COOK_MINUTES_MAX}
+                step={1}
+                value={form.values.cookMinutes}
+                onChange={(e) => form.setCookMinutes(e.target.value)}
+                className="w-24"
+                aria-invalid={fieldErrors.cookMinutes != null}
+              />
+              {fieldErrors.cookMinutes && (
+                <p className="text-xs text-red-700">{t(fieldErrors.cookMinutes)}</p>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-col gap-1.5">

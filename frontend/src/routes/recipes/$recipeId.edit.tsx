@@ -66,6 +66,7 @@ export function RecipeEditPage() {
           id: recipeId,
           name: input.name,
           servings: input.servings,
+          cookMinutes: input.cookMinutes,
           tags: input.tags,
           ingredients: input.ingredients,
           ingredientCount: input.ingredients.length,

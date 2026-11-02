@@ -38,7 +38,7 @@ func NewRecipeRepo(db *sql.DB) *RecipeRepo {
 // 削除済みを除くのは献立を組む入口 (S02 と選択ダイアログ) だけで、既存献立の JOIN では除かない (add-recipe-deletion D4)。
 func (r *RecipeRepo) List(ctx context.Context) ([]recipe.Recipe, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT r.id, r.name, r.servings, r.tags_json, r.notes, r.created_at, r.updated_at,
+		SELECT r.id, r.name, r.servings, r.cook_minutes, r.tags_json, r.notes, r.created_at, r.updated_at,
 		       COALESCE(c.cnt, 0) AS ingredient_count
 		FROM recipes r
 		LEFT JOIN (
@@ -61,7 +61,7 @@ func (r *RecipeRepo) List(ctx context.Context) ([]recipe.Recipe, error) {
 			tagsJSON string
 		)
 		if err := rows.Scan(
-			&rec.ID, &rec.Name, &rec.Servings, &tagsJSON, &rec.Notes,
+			&rec.ID, &rec.Name, &rec.Servings, &rec.CookMinutes, &tagsJSON, &rec.Notes,
 			&rec.CreatedAt, &rec.UpdatedAt, &rec.IngredientCount,
 		); err != nil {
 			return nil, fmt.Errorf("scan recipe row: %w", err)
@@ -81,7 +81,7 @@ func (r *RecipeRepo) List(ctx context.Context) ([]recipe.Recipe, error) {
 // 同名レシピのファイル名の番号を安定させるため、作成順に並べる。created_at は秒精度なので rowid で同時刻の順を決める (add-recipe-export D2)。
 func (r *RecipeRepo) ListDetailed(ctx context.Context) ([]recipe.Recipe, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, name, servings, tags_json, steps, notes, created_at, updated_at
+		SELECT id, name, servings, cook_minutes, tags_json, steps, notes, created_at, updated_at
 		FROM recipes
 		WHERE archived_at IS NULL
 		ORDER BY created_at ASC, rowid ASC
@@ -97,7 +97,7 @@ func (r *RecipeRepo) ListDetailed(ctx context.Context) ([]recipe.Recipe, error) 
 			tagsJSON string
 		)
 		if err := rows.Scan(
-			&rec.ID, &rec.Name, &rec.Servings, &tagsJSON, &rec.Steps,
+			&rec.ID, &rec.Name, &rec.Servings, &rec.CookMinutes, &tagsJSON, &rec.Steps,
 			&rec.Notes, &rec.CreatedAt, &rec.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan recipe row: %w", err)
@@ -133,11 +133,11 @@ func (r *RecipeRepo) GetByID(ctx context.Context, id string) (recipe.Recipe, err
 		archivedAt sql.NullString
 	)
 	err := r.db.QueryRowContext(ctx, `
-		SELECT id, name, servings, tags_json, steps, notes, created_at, updated_at, archived_at
+		SELECT id, name, servings, cook_minutes, tags_json, steps, notes, created_at, updated_at, archived_at
 		FROM recipes
 		WHERE id = ?
 	`, id).Scan(
-		&rec.ID, &rec.Name, &rec.Servings, &tagsJSON, &rec.Steps,
+		&rec.ID, &rec.Name, &rec.Servings, &rec.CookMinutes, &tagsJSON, &rec.Steps,
 		&rec.Notes, &rec.CreatedAt, &rec.UpdatedAt, &archivedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -250,9 +250,9 @@ func (r *RecipeRepo) Update(ctx context.Context, id string, input recipe.Recipe)
 
 	res, err := tx.ExecContext(ctx, `
 		UPDATE recipes
-		SET name = ?, servings = ?, tags_json = ?, steps = ?, notes = ?, updated_at = ?
+		SET name = ?, servings = ?, cook_minutes = ?, tags_json = ?, steps = ?, notes = ?, updated_at = ?
 		WHERE id = ? AND archived_at IS NULL
-	`, rec.Name, rec.Servings, string(tagsJSON), rec.Steps, rec.Notes, rec.UpdatedAt, id)
+	`, rec.Name, rec.Servings, rec.CookMinutes, string(tagsJSON), rec.Steps, rec.Notes, rec.UpdatedAt, id)
 	if err != nil {
 		return recipe.Recipe{}, fmt.Errorf("update recipe: %w", err)
 	}
@@ -301,10 +301,10 @@ func insertRecipeRow(ctx context.Context, tx *sql.Tx, rec recipe.Recipe) error {
 		return fmt.Errorf("encode tags: %w", err)
 	}
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO recipes (id, name, servings, tags_json, steps, notes, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO recipes (id, name, servings, cook_minutes, tags_json, steps, notes, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
-		rec.ID, rec.Name, rec.Servings, string(tagsJSON), rec.Steps,
+		rec.ID, rec.Name, rec.Servings, rec.CookMinutes, string(tagsJSON), rec.Steps,
 		rec.Notes, rec.CreatedAt, rec.UpdatedAt,
 	)
 	if err != nil {

@@ -25,6 +25,9 @@ export function RecipeImportPreview({ candidate }: { candidate: ImportCandidate 
         <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-neutral-600">
           {tags.length > 0 && <span>{tags.join(" / ")}</span>}
           <span>{t("pages.recipes.detail.servings", { count: recipe.servings })}</span>
+          {recipe.cookMinutes > 0 && (
+            <span>{t("pages.recipes.detail.cook_minutes", { count: recipe.cookMinutes })}</span>
+          )}
           <span>{candidate.fileName}</span>
         </p>
       </div>

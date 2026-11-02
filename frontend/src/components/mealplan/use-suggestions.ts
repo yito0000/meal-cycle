@@ -10,6 +10,7 @@ export function useSuggestions(enabled: boolean) {
       return {
         byStock: (r.byStock ?? []).map((c) => ({ ...c, stocks: c.stocks ?? [] })),
         byRecency: r.byRecency ?? [],
+        byTime: r.byTime ?? [],
       };
     },
     enabled,

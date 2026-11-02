@@ -38,4 +38,6 @@ var (
 	ErrWeeklyRunDaysOutOfRange = errors.New("settings: weekly run days out of range")
 
 	ErrHouseholdServingsOutOfRange = errors.New("settings: household servings out of range")
+
+	ErrQuickCookMinutesOutOfRange = errors.New("settings: quick cook minutes out of range")
 )

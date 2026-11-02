@@ -17,6 +17,8 @@ type Candidate struct {
 	RecipeName string        `json:"recipeName"`
 	Stocks     []StockReason `json:"stocks"`
 	DaysSince  int           `json:"daysSince"`
+	// CookMinutes は「時短」の根拠で、レシピの所要時間 (分)。
+	CookMinutes int `json:"cookMinutes"`
 }
 
 // RecipeHistory はレシピ 1 件の調理履歴。LastCookedDate は作った印の付いた行の最も新しい日付 (YYYY-MM-DD) で、
@@ -31,4 +33,5 @@ type RecipeHistory struct {
 type Result struct {
 	ByStock   []Candidate `json:"byStock"`
 	ByRecency []Candidate `json:"byRecency"`
+	ByTime    []Candidate `json:"byTime"`
 }

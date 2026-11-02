@@ -17,7 +17,7 @@
 - 冷蔵庫にあるものから逆引きで「作れるレシピ」を確認できる（拡張）
 - 献立を組む際、賞味期限が近い在庫や最近作っていないレシピを**根拠つきで候補提示**し、選択を楽にする（MVP 後拡張、[product.md #5](product.md#5-献立候補の提示mvp-後拡張)）
   - 「使い切り」「久しぶりに」「時短」の 3 軸を想定。全自動生成は AI 前提になるため採らない
-  - 「使い切り」「久しぶりに」と週の候補は実装済み。「時短」はレシピに所要時間を持たないため未着手
+  - 3 軸と週の候補は実装済み。「時短」はレシピに所要時間 (`cookMinutes`) を足して入れた (add-mealplan-suggest-by-time)
 - 利用者が自分で使っている AI エージェント (Claude Desktop など) に、MCP サーバー経由で献立づくりを手伝わせる。
   アプリは AI を内蔵せず、エージェントに開くのは参照と追加と状態の変更だけ ([mcp.md](mcp.md))
 
@@ -89,6 +89,7 @@
 id           : string (UUID)
 name         : string
 servings     : int              // 何人分
+cookMinutes  : int              // 所要時間 (分)。0 = 未入力 (add-mealplan-suggest-by-time)
 ingredients  : RecipeIngredient[]
 steps        : string           // 手順。Markdown で書く 1 つのテキスト
 tags         : string[]         // "和食", "簡単" など任意
@@ -460,7 +461,7 @@ add-fridge-stock-review         ✅ S05 の在庫を「ある / 減った / な�
 add-shopping-household-scaling  ✅ S09 の世帯人数で、1 回きりの献立の材料を S07 で換算する (作り置きは換算しない)
 add-mealplan-copy-text          ✅ S01 の表示中の期間の献立をテキストでコピーする
 add-settings-database-file      📝 S09 から DB 全体を書き出し、控えや書き出したファイルから次の起動で復元する
-add-mealplan-suggest-by-time    📝 レシピに所要時間を足し、レシピ選択ダイアログに「時短」の候補を出す
+add-mealplan-suggest-by-time    ✅ レシピに所要時間を足し、レシピ選択ダイアログに「時短」の候補を出す
 add-recipe-tag-filter           ✅ S02 をタグ (AND) で絞り込む
 add-mealplan-template           📝 S01 の 1 週間を名前を付けて保存し、別の週にまとめて割り当てる
 ```
@@ -468,9 +469,8 @@ add-mealplan-template           📝 S01 の 1 週間を名前を付けて保存
 ✅ は実装済み、🚧 は実装中、📝 は proposal を作成済み (未着手)。
 `add-mealplan-cook-consume` は候補提示の前提として先に入れた（「使い切り」軸が意味を持つのは在庫が減る仕組みがあってこそ）。
 
-📝 の proposal のうち、`add-shopping-household-scaling` と `add-mealplan-suggest-by-time` はどちらも settings の同じ Requirement を MODIFIED にしている。
-後に archive する側は、先の archive を取り込んでから delta を直す。
-`add-mealplan-suggest-by-time` と `add-mealplan-template` は migration を 1 本ずつ足すので、番号は実装した順に振る。
+`add-shopping-household-scaling` と `add-mealplan-suggest-by-time` はどちらも settings の同じ Requirement を MODIFIED にしたので、後に入れた suggest-by-time の delta を先の archive に合わせて直した。
+`add-mealplan-suggest-by-time` は 00012、`add-mealplan-template` は 00013 の migration を使う。
 
 ### 運用中の見直し
 
@@ -492,7 +492,7 @@ add-mealplan-template           📝 S01 の 1 週間を名前を付けて保存
 ### MVP 後の候補
 
 - **献立候補の提示（3 軸）**: 使い切り / 久しぶりに / 時短。方針は [product.md #5](product.md#5-献立候補の提示mvp-後拡張)。全自動生成は AI 前提になるため採らず、根拠つきで候補を並べてユーザーが選ぶ形にする。
-  「使い切り」「久しぶりに」と週の候補は実装済み。「時短」はレシピに所要時間の項目を足すところから始まるので未着手
+  3 軸と週の候補は実装済み（「時短」は add-mealplan-suggest-by-time でレシピに所要時間を足して入れた）
 - **料理実施と在庫消費の連動**: 「作った」マークで材料分の在庫を減らす。上記「使い切り」軸の精度向上に必要（add-mealplan-cook-consume で実装。自動では減らさず、確認のダイアログで量を直してから減らす）
 - **設定 UI（S09）の残り**: S09 自体と、実装済みの機能の可変値、表示言語の切替は `add-settings-screen` で入れた。
   未実装の機能に属する値（「久しぶりに」の消費期間閾値、週プリセット品数など。全一覧は [product.md #1](product.md#1-想定利用シナリオ)）は、その機能の proposal で S09 に欄を足す。

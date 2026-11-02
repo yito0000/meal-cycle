@@ -19,13 +19,15 @@ meal-cycle は外部と通信しないので、ページの取得と変換はア
 
 - **name**：レシピ名。必須で、200 字まで
 - **servings**：人数。1〜99 の整数。省略すると 2 人分として読む
+- **cookMinutes**：所要時間（分）。1〜999 の整数。省略すると所要時間なしとして読む。0 や「20分」のような整数でない値はエラーになる
 - **tags**：タグの配列。1 つ 30 字まで。省略できる
 - **ingredients**：材料の配列。省略できる。各要素は次の 3 つを持つ
   - **name**：材料名。必須
   - **amount**：量。書き方は後述する。省略すると量 0
   - **unit**：単位。省略できる
 
-上記以外の項目（`source` や `cookTime` など）は読まずに無視する。
+上記以外の項目（`source` など）は読まずに無視する。
+`cookTime: "20分"` のように別の名前で書いた所要時間も読まないので、所要時間は `cookMinutes` に分の整数で書く。
 
 ### 本文の節
 
@@ -69,6 +71,7 @@ meal-cycle は外部と通信しないので、ページの取得と変換はア
 ---
 name: "肉じゃが"
 servings: 3
+cookMinutes: 40
 tags: ["和食", "煮物"]
 ingredients:
   - name: "じゃがいも"
@@ -152,7 +155,7 @@ Windows と macOS はファイル名の大文字と小文字を区別しない�
 
 ### 書き出したファイルの中身
 
-frontmatter には name、servings、tags、ingredients をこの順に書き、タグや材料が無いレシピではその項目を省く。
+frontmatter には name、servings、cookMinutes、tags、ingredients をこの順に書き、所要時間、タグ、材料が無いレシピではその項目を省く。
 量は数値で書く。
 「少々」のように量を持たない材料は、`amount: 0` と `unit: 少々` の組になる。
 文字列を引用符で囲むかどうかは YAML の書き出し側が決めるので、[1 ファイルの例](#1-ファイルの例) とは見た目が少し違う。
@@ -184,8 +187,9 @@ YAML は、コロンや `#` を含む値を引用符で囲まないと読めな�
 - 1 レシピにつき 1 ファイルで出力する。複数のレシピがあるときは、ファイルごとにコードブロックを分け、ファイル名 (英小文字とハイフン、拡張子 .md) を添える
 - ファイルの先頭に --- で囲んだ YAML の frontmatter を置く
 - frontmatter の文字列の値は、必ずダブルクォートで囲む
-- frontmatter に書く項目は name / servings / tags / ingredients だけにする
+- frontmatter に書く項目は name / servings / cookMinutes / tags / ingredients だけにする
 - servings は整数で書く。「作りやすい分量」など人数がわからないときは servings を書かない
+- cookMinutes は所要時間を分の整数で書く (「約1時間」→ 60)。所要時間がページに無いときは cookMinutes を書かない
 - ingredients の各要素は name / amount / unit を持つ
   - amount は数値で書き、単位は unit に分けて書く (例: amount: 2, unit: "大さじ")
   - 分数は小数に直す (1/2 → 0.5)
@@ -202,6 +206,7 @@ YAML は、コロンや `#` を含む値を引用符で囲まないと読めな�
 ---
 name: "肉じゃが"
 servings: 3
+cookMinutes: 40
 tags: ["和食"]
 ingredients:
   - name: "じゃがいも"

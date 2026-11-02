@@ -25,6 +25,7 @@ type Values struct {
 	WeeklyFillMeal              string   `json:"weeklyFillMeal"`
 	WeeklyPresetMaxRunDays      int      `json:"weeklyPresetMaxRunDays"`
 	HouseholdServings           int      `json:"householdServings"`
+	QuickCookMaxMinutes         int      `json:"quickCookMaxMinutes"`
 }
 
 func FromConfig(c config.Config) Values {
@@ -43,6 +44,7 @@ func FromConfig(c config.Config) Values {
 		WeeklyFillMeal:              c.WeeklyFillMeal,
 		WeeklyPresetMaxRunDays:      c.WeeklyPresetMaxRunDays,
 		HouseholdServings:           c.HouseholdServings,
+		QuickCookMaxMinutes:         c.QuickCookMaxMinutes,
 	}
 }
 
@@ -62,6 +64,7 @@ func (v Values) ApplyTo(base config.Config) config.Config {
 	base.WeeklyFillMeal = v.WeeklyFillMeal
 	base.WeeklyPresetMaxRunDays = v.WeeklyPresetMaxRunDays
 	base.HouseholdServings = v.HouseholdServings
+	base.QuickCookMaxMinutes = v.QuickCookMaxMinutes
 	return base
 }
 

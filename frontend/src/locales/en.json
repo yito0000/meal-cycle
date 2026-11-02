@@ -55,7 +55,9 @@
           "by_stock_reason_today": "{{names}} expires today",
           "name_separator": ", ",
           "by_recency_title": "Haven't had in a while ({{days}}+ days)",
-          "by_recency_reason": "{{days}} days ago"
+          "by_recency_reason": "{{days}} days ago",
+          "by_time_title": "Quick (ready within {{minutes}} min)",
+          "by_time_reason": "{{minutes}} min"
         }
       },
       "cell_actions": {
@@ -251,6 +253,7 @@
         "label": {
           "name": "Name",
           "servings": "Servings",
+          "cook_minutes": "Cooking time (min)",
           "tags": "Tags",
           "ingredients": "Ingredients",
           "steps": "Steps",
@@ -269,6 +272,7 @@
           "name_empty": "Please enter a recipe name",
           "name_too_long": "Recipe name must be 200 characters or fewer",
           "servings_out_of_range": "Servings must be between 1 and 99",
+          "cook_minutes_out_of_range": "Cooking time must be 1 to 999 minutes (or left empty)",
           "ingredient_name_required": "Please enter an ingredient name",
           "steps_too_long": "Steps must be 4000 characters or fewer",
           "notes_too_long": "Notes must be 2000 characters or fewer",
@@ -283,6 +287,7 @@
         "loading": "Loading...",
         "load_error": "Could not load the recipe",
         "servings": "Serves {{count}}",
+        "cook_minutes": "About {{count}} min",
         "updated_at": "Updated: {{date}}",
         "section": {
           "ingredients": "Ingredients",
@@ -341,6 +346,7 @@
           "name_empty": "The name is missing",
           "name_too_long": "The name is longer than 200 characters",
           "servings_out_of_range": "Servings must be between 1 and 99",
+          "cook_minutes_out_of_range": "cookMinutes must be an integer from 1 to 999",
           "steps_too_long": "Steps are longer than 4000 characters",
           "notes_too_long": "Notes are longer than 2000 characters",
           "tag_too_long": "A tag is longer than 30 characters",
@@ -566,7 +572,8 @@
         "weekly_fill_days": "Days to fill with weekly suggestions",
         "weekly_fill_meal": "Meal to fill with weekly suggestions",
         "weekly_run_days": "Max days to repeat one dish in weekly suggestions",
-        "household_servings": "Household size"
+        "household_servings": "Household size",
+        "quick_cook_minutes": "Cooking time counted as quick"
       },
       "hint": {
         "language": "Switches when you press Save",
@@ -580,13 +587,15 @@
         "recency_days": "Recipes last cooked at least this many days ago appear under \"in a while\" in the recipe picker (1-60 days)",
         "weekly_fill_days": "Empty slots on these days are filled by \"Suggest this week\" on the meal plan",
         "weekly_run_days": "Set to 1 for a different recipe every day (1-7 days)",
+        "quick_cook_minutes": "Recipes that take at most this many minutes appear under \"Quick\" in the recipe picker (5-120 min)",
         "household_servings": "Ingredients of one-off dishes are multiplied by household size / recipe servings in the shopping list. Batch cooking is not scaled"
       },
       "household_none": "Do not scale",
       "household_option": "{{count}} people",
       "suffix": {
         "days": "days",
-        "servings": "servings"
+        "servings": "servings",
+        "minutes": "min"
       },
       "day_chip": "{{count}} days",
       "remove": "Remove {{value}}",
@@ -638,6 +647,7 @@
         "weekly_day_out_of_range": "Invalid day",
         "weekly_meal_invalid": "Invalid meal",
         "weekly_run_out_of_range": "Enter a number of days from 1 to 7",
+        "quick_cook_out_of_range": "Enter a number of minutes from 5 to 120",
         "household_out_of_range": "Choose \"Do not scale\" or 1 to 10 people"
       }
     }

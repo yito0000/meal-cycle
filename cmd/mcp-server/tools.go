@@ -29,7 +29,7 @@ func newServer(dbPath string) *mcp.Server {
 		"List active (non-archived) recipes with id, name, servings and tags. Use get_recipe for ingredients and steps.",
 		nil, listRecipes)
 	addReadTool(s, env, "get_recipe",
-		"Get one recipe by id, including ingredients, steps (Markdown) and notes.",
+		"Get one recipe by id, including ingredients, steps (Markdown), notes and cookMinutes (0 means not set).",
 		nil, getRecipe)
 	addReadTool(s, env, "list_meal_plan",
 		"List meal plan entries from start (YYYY-MM-DD) for 1, 2 or 4 weeks. "+
@@ -47,7 +47,8 @@ func newServer(dbPath string) *mcp.Server {
 			"When household servings is set, amounts of one-off dishes are already scaled and scaledServings shows the household size.",
 		nil, getShoppingList)
 	addReadTool(s, env, "list_suggestions",
-		"List recipe suggestions: byStock uses up stock close to expiry, byRecency are recipes not cooked for a while.",
+		"List recipe suggestions: byStock uses up stock close to expiry, byRecency are recipes not cooked for a while, "+
+			"byTime are recipes quick to cook.",
 		nil, listSuggestions)
 	addReadTool(s, env, "suggest_week_plans",
 		"Suggest plans that fill the empty slots of the week starting at weekStart (YYYY-MM-DD). Nothing is written.",
@@ -314,6 +315,7 @@ type ingredientIn struct {
 type createRecipeIn struct {
 	Name        string         `json:"name" jsonschema:"recipe name"`
 	Servings    int            `json:"servings" jsonschema:"number of servings, 1 to 99"`
+	CookMinutes int            `json:"cookMinutes,omitempty" jsonschema:"cooking time in minutes, 1 to 999; 0 or omitted means not set"`
 	Tags        []string       `json:"tags,omitempty"`
 	Ingredients []ingredientIn `json:"ingredients,omitempty"`
 	Steps       string         `json:"steps,omitempty" jsonschema:"steps in Markdown"`
@@ -326,7 +328,8 @@ func createRecipe(ctx context.Context, svc services, in createRecipeIn) (recipe.
 		ings = append(ings, recipe.RecipeIngredient{Name: ing.Name, Amount: ing.Amount, Unit: ing.Unit})
 	}
 	return svc.recipes.Create(ctx, recipe.Recipe{
-		Name: in.Name, Servings: in.Servings, Tags: in.Tags, Ingredients: ings, Steps: in.Steps, Notes: in.Notes,
+		Name: in.Name, Servings: in.Servings, CookMinutes: in.CookMinutes, Tags: in.Tags, Ingredients: ings,
+		Steps: in.Steps, Notes: in.Notes,
 	})
 }
 

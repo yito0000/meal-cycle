@@ -50,6 +50,7 @@ type Draft = {
   unquantifiedWords: string[];
   importServings: string;
   recencyDays: string;
+  quickCookMinutes: string;
   weeklyFillDays: number[];
   weeklyFillMeal: string;
   weeklyRunDays: string;
@@ -68,6 +69,7 @@ function toDraft(v: SettingsValues): Draft {
     unquantifiedWords: [...v.unquantifiedWords],
     importServings: String(v.recipeImportDefaultServings),
     recencyDays: String(v.recencyThresholdDays),
+    quickCookMinutes: String(v.quickCookMaxMinutes),
     weeklyFillDays: [...v.weeklyFillDays],
     weeklyFillMeal: v.weeklyFillMeal,
     weeklyRunDays: String(v.weeklyPresetMaxRunDays),
@@ -89,6 +91,7 @@ function fromDraft(d: Draft): ParseResult {
     ["expiryYellow", d.expiryYellow],
     ["importServings", d.importServings],
     ["recencyDays", d.recencyDays],
+    ["quickCookMinutes", d.quickCookMinutes],
     ["weeklyRunDays", d.weeklyRunDays],
   ];
   for (const [field, text] of numbers) {
@@ -113,6 +116,7 @@ function fromDraft(d: Draft): ParseResult {
       weeklyFillMeal: d.weeklyFillMeal,
       weeklyPresetMaxRunDays: parseInteger(d.weeklyRunDays) ?? 0,
       householdServings: d.householdServings,
+      quickCookMaxMinutes: parseInteger(d.quickCookMinutes) ?? 0,
     },
   };
 }
@@ -135,6 +139,7 @@ function sameValues(a: SettingsValues, b: SettingsValues): boolean {
       v.weeklyFillMeal,
       v.weeklyPresetMaxRunDays,
       v.householdServings,
+      v.quickCookMaxMinutes,
     ]);
   return canon(a) === canon(b);
 }
@@ -230,6 +235,14 @@ export function SettingsForm({
           value={draft.recencyDays}
           onChange={(recencyDays) => update({ recencyDays })}
           errorKey={errorFor("recencyDays")}
+        />
+        <IntegerField
+          label={t("pages.settings.field.quick_cook_minutes")}
+          hint={t("pages.settings.hint.quick_cook_minutes")}
+          suffix={t("pages.settings.suffix.minutes")}
+          value={draft.quickCookMinutes}
+          onChange={(quickCookMinutes) => update({ quickCookMinutes })}
+          errorKey={errorFor("quickCookMinutes")}
         />
         <WeekdayField
           label={t("pages.settings.field.weekly_fill_days")}

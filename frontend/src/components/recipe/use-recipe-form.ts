@@ -10,6 +10,8 @@ export type IngredientFormRow = { name: string; amount: string; unit: string };
 export type RecipeFormValues = {
   name: string;
   servings: string;
+  // 空は未入力 (0 として送る)。
+  cookMinutes: string;
   tags: string[];
   ingredients: IngredientFormRow[];
   steps: string;
@@ -19,6 +21,7 @@ export type RecipeFormValues = {
 export const blankFormValues: RecipeFormValues = {
   name: "",
   servings: "1",
+  cookMinutes: "",
   tags: [],
   ingredients: [],
   steps: "",
@@ -30,6 +33,7 @@ export function recipeToFormValues(r: Recipe): RecipeFormValues {
   return {
     name: r.name ?? "",
     servings: String(r.servings ?? 1),
+    cookMinutes: r.cookMinutes ? String(r.cookMinutes) : "",
     tags: r.tags ?? [],
     // 量 0 は「量を持たない材料」なので、欄には 0 を出さず空にする。
     ingredients: (r.ingredients ?? []).map((ing) => ({
@@ -56,6 +60,10 @@ export function useRecipeForm(initial: RecipeFormValues) {
 
   const setName = useCallback((name: string) => setValues((v) => ({ ...v, name })), []);
   const setServings = useCallback((servings: string) => setValues((v) => ({ ...v, servings })), []);
+  const setCookMinutes = useCallback(
+    (cookMinutes: string) => setValues((v) => ({ ...v, cookMinutes })),
+    [],
+  );
   const setTags = useCallback((tags: string[]) => setValues((v) => ({ ...v, tags })), []);
   const setIngredients = useCallback(
     (ingredients: IngredientFormRow[]) => setValues((v) => ({ ...v, ingredients })),
@@ -70,6 +78,7 @@ export function useRecipeForm(initial: RecipeFormValues) {
     reset,
     setName,
     setServings,
+    setCookMinutes,
     setTags,
     setIngredients,
     setSteps,

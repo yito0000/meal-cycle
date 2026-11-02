@@ -125,7 +125,43 @@ ingredients:
 				if got.Name != "x" {
 					t.Errorf("name: got %q", got.Name)
 				}
+				if got.CookMinutes != 0 {
+					t.Errorf("cookTime must be ignored, got cookMinutes %d", got.CookMinutes)
+				}
 			},
+		},
+		{
+			name:    "cookMinutes 15 is read as 15",
+			content: "---\nname: x\ncookMinutes: 15\n---\n",
+			check: func(t *testing.T, got Recipe) {
+				if got.CookMinutes != 15 {
+					t.Errorf("cookMinutes: got %d", got.CookMinutes)
+				}
+			},
+		},
+		{
+			name:    "omitted cookMinutes is read as 0",
+			content: "---\nname: x\n---\n",
+			check: func(t *testing.T, got Recipe) {
+				if got.CookMinutes != 0 {
+					t.Errorf("cookMinutes: got %d", got.CookMinutes)
+				}
+			},
+		},
+		{
+			name:      "cookMinutes 0 is out of range",
+			content:   "---\nname: x\ncookMinutes: 0\n---\n",
+			wantIssue: ImportIssueCookMinutesOutOfRange,
+		},
+		{
+			name:      "non-integer cookMinutes is out of range",
+			content:   "---\nname: x\ncookMinutes: \"20分\"\n---\n",
+			wantIssue: ImportIssueCookMinutesOutOfRange,
+		},
+		{
+			name:      "cookMinutes 1000 is out of range",
+			content:   "---\nname: x\ncookMinutes: 1000\n---\n",
+			wantIssue: ImportIssueCookMinutesOutOfRange,
 		},
 	}
 

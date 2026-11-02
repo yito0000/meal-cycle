@@ -23,6 +23,7 @@ const exportFileNameMaxRunes = 100
 type exportFrontmatter struct {
 	Name        string             `yaml:"name"`
 	Servings    int                `yaml:"servings"`
+	CookMinutes int                `yaml:"cookMinutes,omitempty"`
 	Tags        []string           `yaml:"tags,omitempty"`
 	Ingredients []exportIngredient `yaml:"ingredients,omitempty"`
 }
@@ -39,6 +40,7 @@ func FormatExportFile(r Recipe) string {
 	fm := exportFrontmatter{
 		Name:        r.Name,
 		Servings:    r.Servings,
+		CookMinutes: r.CookMinutes,
 		Tags:        r.Tags,
 		Ingredients: make([]exportIngredient, 0, len(r.Ingredients)),
 	}

@@ -64,6 +64,7 @@ var recipeImportIssueByErr = []struct {
 	{ErrRecipeTagTooLong, recipe.ImportIssueTagTooLong},
 	{ErrRecipeIngredientNameEmpty, recipe.ImportIssueIngredientNameEmpty},
 	{ErrRecipeIngredientAmountOutOfRange, recipe.ImportIssueAmountInvalid},
+	{recipe.ErrCookMinutesOutOfRange, recipe.ImportIssueCookMinutesOutOfRange},
 }
 
 // RecipeService はレシピの List / GetByID / Create / Update / Delete をフロントに公開する。
@@ -290,6 +291,9 @@ func validateRecipeInput(input recipe.Recipe) (recipe.Recipe, error) {
 	}
 	if out.Servings < recipeServingsMin || out.Servings > recipeServingsMax {
 		return recipe.Recipe{}, fmt.Errorf("%w: got %d", ErrRecipeServingsOutOfRange, out.Servings)
+	}
+	if err := recipe.ValidateCookMinutes(out.CookMinutes); err != nil {
+		return recipe.Recipe{}, fmt.Errorf("%w: got %d", err, out.CookMinutes)
 	}
 	if runeLen(out.Steps) > recipeStepsMaxRunes {
 		return recipe.Recipe{}, ErrRecipeStepsTooLong

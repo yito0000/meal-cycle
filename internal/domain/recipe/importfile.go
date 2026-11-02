@@ -29,6 +29,8 @@ const (
 	ImportIssueTagTooLong          ImportIssue = "tag_too_long"
 	ImportIssueIngredientNameEmpty ImportIssue = "ingredient_name_empty"
 	ImportIssueAmountInvalid       ImportIssue = "amount_invalid"
+	// 0 は未入力の意味なので、ファイルに書かれた 0 や整数でない値は範囲外として扱う (add-mealplan-suggest-by-time design.md D4)。
+	ImportIssueCookMinutesOutOfRange ImportIssue = "cook_minutes_out_of_range"
 )
 
 // ImportCandidate は取り込む前の確認に出す 1 ファイル分の結果。
@@ -44,6 +46,7 @@ type ImportCandidate struct {
 type importFrontmatter struct {
 	Name        string   `yaml:"name"`
 	Servings    *int     `yaml:"servings"`
+	CookMinutes any      `yaml:"cookMinutes"`
 	Tags        []string `yaml:"tags"`
 	Ingredients []struct {
 		Name   string `yaml:"name"`
@@ -86,6 +89,13 @@ func ParseImportFile(content string, defaultServings int, measuringUnits, unquan
 	}
 	if fm.Servings != nil {
 		rec.Servings = *fm.Servings
+	}
+	if fm.CookMinutes != nil {
+		n, ok := fm.CookMinutes.(int)
+		if !ok || n < 1 || n > CookMinutesMax {
+			return Recipe{}, ImportIssueCookMinutesOutOfRange, ""
+		}
+		rec.CookMinutes = n
 	}
 	for _, ing := range fm.Ingredients {
 		// 名前の無い材料は量を読まずに残し、サービス層の検証で何番目かを添えて落とす。

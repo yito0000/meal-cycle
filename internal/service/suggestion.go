@@ -56,6 +56,7 @@ func (s *SuggestionService) List(ctx context.Context) (suggestion.Result, error)
 	return suggestion.Result{
 		ByStock:   suggestion.ByStock(recipes, stocks, today, cfg.ExpiryAlertRedDays, cfg.ExpiryAlertYellowDays, cfg.SuggestionLimit),
 		ByRecency: suggestion.ByRecency(recipes, history, today, cfg.RecencyThresholdDays, cfg.SuggestionLimit),
+		ByTime:    suggestion.ByTime(recipes, cfg.QuickCookMaxMinutes, cfg.SuggestionLimit),
 	}, nil
 }
 
