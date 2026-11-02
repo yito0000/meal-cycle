@@ -93,7 +93,7 @@ func (e toolEnv) run(fn func(services) error) error {
 	settings := service.NewSettingsService(db)
 	return fn(services{
 		recipes:    service.NewRecipeService(db, settings, noFolderPicker{}),
-		mealPlan:   service.NewMealPlanService(sqlite.NewMealPlanRepo(db), settings),
+		mealPlan:   service.NewMealPlanService(sqlite.NewMealPlanRepo(db), sqlite.NewTemplateRepo(db), settings),
 		fridge:     service.NewFridgeService(db, settings),
 		shopping:   service.NewShoppingService(db, settings),
 		suggestion: service.NewSuggestionService(db, settings),

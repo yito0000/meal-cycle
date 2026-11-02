@@ -160,7 +160,41 @@
         "invalid_spread_target": "広げる先に選べないセルが含まれています",
         "unknown": "処理に失敗しました",
         "invalid_restore": "元に戻す内容が正しくありません",
-        "archived_recipe": "削除済みのレシピは広げられません"
+        "archived_recipe": "削除済みのレシピは広げられません",
+        "template_name_empty": "名前を入力してください",
+        "template_name_too_long": "名前は 50 文字以内で入力してください",
+        "template_name_duplicate": "同じ名前のテンプレートがあります",
+        "template_empty_week": "この週には品がありません",
+        "template_not_found": "テンプレートが見つかりません",
+        "template_all_archived": "テンプレートの品のレシピがすべて削除されています"
+      },
+      "template": {
+        "menu": "テンプレート",
+        "save_week": "この週をテンプレートとして保存",
+        "open_list": "テンプレートから組む",
+        "save_title": "この週をテンプレートとして保存",
+        "save_description": "表示中の期間の最初の 1 週間の品を、作り置きのつながりごと保存します",
+        "name_label": "名前",
+        "save": "保存",
+        "cancel": "キャンセル",
+        "saved": "テンプレート「{{name}}」を保存しました",
+        "list_title": "テンプレートから組む",
+        "list_description": "表示中の期間の最初の 1 週間の各セルの末尾に、テンプレートの品を足します",
+        "empty": "保存したテンプレートはありません",
+        "load_error": "テンプレートの読み込みに失敗しました",
+        "item_count": "{{count}} 品",
+        "apply": "このテンプレートを適用",
+        "apply_failed": "テンプレートを適用できませんでした",
+        "applied": "{{count}} 品を割り当てました",
+        "applied_skipped": "{{count}} 品を割り当てました (削除済みのため {{skipped}} 品を除きました)",
+        "archived_item": "{{name}} (削除済み)",
+        "delete": "削除",
+        "delete_confirm": {
+          "title": "テンプレート「{{name}}」を削除しますか？",
+          "body": "このテンプレートで割り当てた献立は消えません。",
+          "cancel": "キャンセル",
+          "confirm": "削除"
+        }
       },
       "shopping_cta": "この期間の買い物リストを見る",
       "text_copy": {

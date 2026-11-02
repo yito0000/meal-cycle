@@ -267,7 +267,7 @@ func newPropagationDeps(t *testing.T) propagationDeps {
 	shFridge := NewFridgeService(db, st)
 	shFridge.now = func() time.Time { return shoppingToday }
 	rc := NewRecipeService(db, st, nil)
-	meal := NewMealPlanService(sqlite.NewMealPlanRepo(db), st)
+	meal := NewMealPlanService(sqlite.NewMealPlanRepo(db), sqlite.NewTemplateRepo(db), st)
 	return propagationDeps{
 		settings: st,
 		fridge:   fr,

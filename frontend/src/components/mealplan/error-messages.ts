@@ -20,6 +20,12 @@ const RULES: [string, string][] = [
   ["mealplan: invalid spread target", "pages.meal_plan.errors.invalid_spread_target"],
   ["mealplan: invalid restore", "pages.meal_plan.errors.invalid_restore"],
   ["mealplan: archived recipe", "pages.meal_plan.errors.archived_recipe"],
+  ["mealplan: template name empty", "pages.meal_plan.errors.template_name_empty"],
+  ["mealplan: template name too long", "pages.meal_plan.errors.template_name_too_long"],
+  ["mealplan: template name duplicate", "pages.meal_plan.errors.template_name_duplicate"],
+  ["mealplan: template empty week", "pages.meal_plan.errors.template_empty_week"],
+  ["mealplan: template not found", "pages.meal_plan.errors.template_not_found"],
+  ["mealplan: template all archived", "pages.meal_plan.errors.template_all_archived"],
 ];
 
 export function errorI18nKey(err: unknown): string {

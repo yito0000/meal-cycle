@@ -182,6 +182,18 @@ PRIMARY KEY (batchId, recipeId)
   代わりに、行を消したり組を変えたりする操作の最後に、対応する行の無くなった印を消す (入れ替え後に元のレシピへ戻したときの印の復活を防ぐ)
 - 作り置きから外す (`SplitBatch`) と他の作り置きにまとめる (`MergeBatch`) は `batch_id` を変えるので、印を新しい組へ写す
 
+**献立テンプレート `meal_plan_templates` / `meal_plan_template_items`**（proposal: add-mealplan-template）
+
+```
+meal_plan_templates:      id (UUID v7) / name / createdAt
+meal_plan_template_items: templateId / dayOffset (0〜6) / meal / position / recipeId / groupNo
+                          PRIMARY KEY (templateId, dayOffset, meal, position)
+```
+
+- 日付ではなく週の最初の日からのずれで持ち、適用は「対象の週の最初の日 + ずれ」で日付を決める
+- `groupNo` は週の中の `batch_id` を出現順に振り直した番号。適用時は同じ番号の行を 1 つの作り置きにする (`ApplyPlan` の `Group`)
+- `recipeId` は `recipes(id)` への外部キーで `ON DELETE` は付けない (レシピは論理削除で行が残る)。名前の重複はサービスで拒む
+
 ### 議論ポイント
 
 - **食材マスタを分けるか、レシピ内に文字列で持つか**: 当初は最初から分ける方針だったが、実装は自由テキストで始めた。
@@ -345,7 +357,7 @@ DB はスキーマの版が一致するときだけ開き、スキーマの更�
 │   └── storage/          # 永続化実装
 │       └── sqlite/
 │           ├── migrations/
-│           └── *_repo.go
+│           └── *_repo.go    # template_repo.go は献立テンプレート (add-mealplan-template)
 ├── frontend/
 └── openspec/             # OpenSpec の change proposal / archive
 ```
@@ -463,7 +475,7 @@ add-mealplan-copy-text          ✅ S01 の表示中の期間の献立をテキ�
 add-settings-database-file      📝 S09 から DB 全体を書き出し、控えや書き出したファイルから次の起動で復元する
 add-mealplan-suggest-by-time    ✅ レシピに所要時間を足し、レシピ選択ダイアログに「時短」の候補を出す
 add-recipe-tag-filter           ✅ S02 をタグ (AND) で絞り込む
-add-mealplan-template           📝 S01 の 1 週間を名前を付けて保存し、別の週にまとめて割り当てる
+add-mealplan-template           ✅ S01 の 1 週間を名前を付けて保存し、別の週にまとめて割り当てる
 ```
 
 ✅ は実装済み、🚧 は実装中、📝 は proposal を作成済み (未着手)。
@@ -503,7 +515,7 @@ add-mealplan-template           📝 S01 の 1 週間を名前を付けて保存
   - 世帯人数による換算：買い物リストの必要量をレシピの人数から換算する（add-shopping-household-scaling で実装。1 回きりの献立だけを換算し、作り置きは換算しない）
   - 献立のテキストでのコピー：S07 の「テキストでコピー」と同じ形で、期間の献立を家族に渡す（add-mealplan-copy-text で実装）
 - レシピのタグフィルタ（add-recipe-tag-filter で実装。S02 の検索欄の下のチップで AND の絞り込み）
-- 献立テンプレート（お気に入りの 1 週間パターンを保存）
+- 献立テンプレート（お気に入りの 1 週間パターンを保存。add-mealplan-template で実装）
 - 栄養計算
 
 ---

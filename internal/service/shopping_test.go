@@ -45,7 +45,7 @@ func newShoppingServiceForTest(t *testing.T) shoppingDeps {
 	return shoppingDeps{
 		svc:    svc,
 		recipe: NewRecipeService(db, staticConfig(config.Defaults()), nil),
-		meal:   NewMealPlanService(sqlite.NewMealPlanRepo(db), staticConfig(config.Defaults())),
+		meal:   NewMealPlanService(sqlite.NewMealPlanRepo(db), sqlite.NewTemplateRepo(db), staticConfig(config.Defaults())),
 		fridge: fr,
 	}
 }

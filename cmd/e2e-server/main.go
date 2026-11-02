@@ -80,7 +80,7 @@ func newRegistry(db *sql.DB, settingsSvc *service.SettingsService, recipeSvc *se
 	return serviceRegistry{
 		"HealthService":     service.NewHealthService(db, service.StartupState{}),
 		"SettingsService":   settingsSvc,
-		"MealPlanService":   service.NewMealPlanService(sqlite.NewMealPlanRepo(db), settingsSvc),
+		"MealPlanService":   service.NewMealPlanService(sqlite.NewMealPlanRepo(db), sqlite.NewTemplateRepo(db), settingsSvc),
 		"RecipeService":     recipeSvc,
 		"FridgeService":     service.NewFridgeService(db, settingsSvc),
 		"ShoppingService":   service.NewShoppingService(db, settingsSvc),

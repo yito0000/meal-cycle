@@ -32,14 +32,24 @@ type mealPlanRepo interface {
 	SetCooked(ctx context.Context, entryID string, cooked bool) error
 }
 
-// MealPlanService は S01 献立カレンダーのデータをフロントに公開する。
-type MealPlanService struct {
-	repo mealPlanRepo
-	cfg  configSource
+// templateRepo は献立テンプレートの保存先。テストでは実 SQLite を使う。
+type templateRepo interface {
+	Create(ctx context.Context, name string, items []mealplan.TemplateItem) (mealplan.Template, error)
+	List(ctx context.Context) ([]mealplan.Template, error)
+	Get(ctx context.Context, id string) (mealplan.Template, error)
+	Delete(ctx context.Context, id string) error
+	ExistsName(ctx context.Context, name string) (bool, error)
 }
 
-func NewMealPlanService(repo *sqlite.MealPlanRepo, cfg configSource) *MealPlanService {
-	return &MealPlanService{repo: repo, cfg: cfg}
+// MealPlanService は S01 献立カレンダーのデータをフロントに公開する。
+type MealPlanService struct {
+	repo      mealPlanRepo
+	templates templateRepo
+	cfg       configSource
+}
+
+func NewMealPlanService(repo *sqlite.MealPlanRepo, templates *sqlite.TemplateRepo, cfg configSource) *MealPlanService {
+	return &MealPlanService{repo: repo, templates: templates, cfg: cfg}
 }
 
 // newMealPlanServiceWithRepo はテスト用に in-memory repo を差し込む入口。
@@ -349,4 +359,75 @@ func (s *MealPlanService) mergeDayRange() int {
 // 格子の行数を「連続 N 日コピー」の最大日数にそろえる (起点日を含むので -1)。
 func (s *MealPlanService) maxSpreadOffsetDays() int {
 	return s.mergeDayRange() - 1
+}
+
+// templateWeekDays は献立テンプレートの対象の日数。週の候補と同じく表示中の期間の最初の 1 週間 (add-mealplan-template design.md D3)。
+const templateWeekDays = 7
+
+// SaveTemplate は weekStart から 7 日間の全時間帯の品を、作り置きのつながりごとテンプレートとして保存する。
+func (s *MealPlanService) SaveTemplate(ctx context.Context, weekStart, name string) (mealplan.Template, error) {
+	if err := mealplan.ValidateDate(weekStart); err != nil {
+		return mealplan.Template{}, err
+	}
+	trimmed, err := mealplan.ValidateTemplateName(name)
+	if err != nil {
+		return mealplan.Template{}, err
+	}
+	entries, err := s.repo.ListPeriod(ctx, weekStart, templateWeekDays)
+	if err != nil {
+		return mealplan.Template{}, err
+	}
+	items := mealplan.TemplateItemsFromWeek(weekStart, entries)
+	if len(items) == 0 {
+		return mealplan.Template{}, mealplan.ErrTemplateEmptyWeek
+	}
+	exists, err := s.templates.ExistsName(ctx, trimmed)
+	if err != nil {
+		return mealplan.Template{}, err
+	}
+	if exists {
+		return mealplan.Template{}, mealplan.ErrTemplateNameDuplicate
+	}
+	created, err := s.templates.Create(ctx, trimmed, items)
+	if err != nil {
+		return mealplan.Template{}, err
+	}
+	return s.templates.Get(ctx, created.ID)
+}
+
+// ListTemplates は作成日時の新しい順に、各品のレシピ名と削除済みかを添えて返す。
+func (s *MealPlanService) ListTemplates(ctx context.Context) ([]mealplan.Template, error) {
+	return s.templates.List(ctx)
+}
+
+// DeleteTemplate はテンプレートだけを消す。適用で入った献立の行は残る。
+func (s *MealPlanService) DeleteTemplate(ctx context.Context, id string) error {
+	return s.templates.Delete(ctx, id)
+}
+
+// ApplyTemplate はテンプレートの品を weekStart の週の各セルの末尾に足す。削除済みのレシピの品は除き、
+// 残りを ApplyPlan に流して、末尾に足す規則と取り消しを週の候補とそろえる (add-mealplan-template design.md D2)。
+func (s *MealPlanService) ApplyTemplate(ctx context.Context, id, weekStart string) (mealplan.TemplateApplyResult, error) {
+	if err := mealplan.ValidateDate(weekStart); err != nil {
+		return mealplan.TemplateApplyResult{}, err
+	}
+	t, err := s.templates.Get(ctx, id)
+	if err != nil {
+		return mealplan.TemplateApplyResult{}, err
+	}
+	archived := map[string]bool{}
+	for _, it := range t.Items {
+		if it.Archived {
+			archived[it.RecipeID] = true
+		}
+	}
+	items, skipped := mealplan.PlanItemsFromTemplate(weekStart, t.Items, archived)
+	if len(items) == 0 {
+		return mealplan.TemplateApplyResult{}, mealplan.ErrTemplateAllArchived
+	}
+	res, err := s.ApplyPlan(ctx, items)
+	if err != nil {
+		return mealplan.TemplateApplyResult{}, err
+	}
+	return mealplan.TemplateApplyResult{Result: res, SkippedArchived: skipped}, nil
 }

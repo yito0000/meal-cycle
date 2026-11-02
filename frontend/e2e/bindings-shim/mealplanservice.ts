@@ -86,3 +86,19 @@ export function SetCooked(entryID: string, cooked: boolean) {
 export function ApplyPlan(items: mealplan$0.PlanItem[] | null) {
   return call<mealplan$0.SpreadResult>("MealPlanService", "ApplyPlan", items);
 }
+
+export function SaveTemplate(weekStart: string, name: string) {
+  return call<mealplan$0.Template>("MealPlanService", "SaveTemplate", weekStart, name);
+}
+
+export function ListTemplates() {
+  return call<mealplan$0.Template[]>("MealPlanService", "ListTemplates");
+}
+
+export function DeleteTemplate(id: string) {
+  return call<void>("MealPlanService", "DeleteTemplate", id);
+}
+
+export function ApplyTemplate(id: string, weekStart: string) {
+  return call<mealplan$0.TemplateApplyResult>("MealPlanService", "ApplyTemplate", id, weekStart);
+}

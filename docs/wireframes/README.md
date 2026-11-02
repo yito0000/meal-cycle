@@ -40,6 +40,7 @@ meal-cycle の各画面のワイヤーフレーム。ここに置いた drawio �
 - `S01_meal_calendar.drawio.svg`
 - `S01a_recipe_picker_dialog.drawio.svg` — レシピ選択ダイアログ（**候補セクション付き / MVP 後拡張**、[../product.md](../product.md) #5）
 - `S01b_week_plan_dialog.drawio.svg` — 週の候補ダイアログ。案のカード 3 枚 (種類、組の行と根拠、「この案を適用」)（add-mealplan-suggest-week-preset）
+- `S01c_template_dialog.drawio.svg` — 「テンプレートから組む」ダイアログ。テンプレートごとの中身、適用、削除（add-mealplan-template）
 - `S02_recipe_list.drawio.svg`
 - `S02a_recipe_import_dialog.drawio.svg` — レシピのインポートダイアログ。1 件のプレビューと 2 件以上の一覧の 2 状態（add-recipe-bulk-import）
 - `S03_recipe_detail.drawio.svg`

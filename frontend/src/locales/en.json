@@ -160,7 +160,41 @@
         "invalid_spread_target": "Some selected cells cannot be used",
         "unknown": "Something went wrong",
         "invalid_restore": "The data to restore is invalid",
-        "archived_recipe": "Deleted recipes cannot be spread"
+        "archived_recipe": "Deleted recipes cannot be spread",
+        "template_name_empty": "Enter a name",
+        "template_name_too_long": "Use 50 characters or fewer",
+        "template_name_duplicate": "A template with the same name exists",
+        "template_empty_week": "This week has no dishes",
+        "template_not_found": "Template not found",
+        "template_all_archived": "All recipes in this template have been deleted"
+      },
+      "template": {
+        "menu": "Templates",
+        "save_week": "Save this week as a template",
+        "open_list": "Build from a template",
+        "save_title": "Save this week as a template",
+        "save_description": "Saves the dishes of the first week of the shown period, including batch cooking",
+        "name_label": "Name",
+        "save": "Save",
+        "cancel": "Cancel",
+        "saved": "Saved template \"{{name}}\"",
+        "list_title": "Build from a template",
+        "list_description": "Adds the template's dishes to the end of each cell in the first week of the shown period",
+        "empty": "No saved templates",
+        "load_error": "Failed to load templates",
+        "item_count": "{{count}} dishes",
+        "apply": "Apply this template",
+        "apply_failed": "Could not apply the template",
+        "applied": "Assigned {{count}} dishes",
+        "applied_skipped": "Assigned {{count}} dishes ({{skipped}} skipped because their recipes were deleted)",
+        "archived_item": "{{name}} (deleted)",
+        "delete": "Delete",
+        "delete_confirm": {
+          "title": "Delete template \"{{name}}\"?",
+          "body": "Meal plans assigned with this template are kept.",
+          "cancel": "Cancel",
+          "confirm": "Delete"
+        }
       },
       "shopping_cta": "View shopping list for this period",
       "text_copy": {

@@ -42,7 +42,7 @@ func main() {
 		settingsSvc := service.NewSettingsService(db)
 		services = append(services,
 			application.NewService(settingsSvc),
-			application.NewService(service.NewMealPlanService(sqlite.NewMealPlanRepo(db), settingsSvc)),
+			application.NewService(service.NewMealPlanService(sqlite.NewMealPlanRepo(db), sqlite.NewTemplateRepo(db), settingsSvc)),
 			application.NewService(service.NewRecipeService(db, settingsSvc, service.NewWailsFolderPicker())),
 			application.NewService(service.NewFridgeService(db, settingsSvc)),
 			application.NewService(service.NewShoppingService(db, settingsSvc)),

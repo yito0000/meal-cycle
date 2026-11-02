@@ -1537,7 +1537,7 @@ func openMealPlanDB(t *testing.T, path string) (*MealPlanService, *RecipeService
 	if err := sqlite.Migrate(db); err != nil {
 		t.Fatalf("Migrate: %v", err)
 	}
-	return NewMealPlanService(sqlite.NewMealPlanRepo(db), staticConfig(config.Defaults())), NewRecipeService(db, staticConfig(config.Defaults()), nil)
+	return NewMealPlanService(sqlite.NewMealPlanRepo(db), sqlite.NewTemplateRepo(db), staticConfig(config.Defaults())), NewRecipeService(db, staticConfig(config.Defaults()), nil)
 }
 
 // entryIDAt は (date, meal, position) にいまある行の ID を返す。テストの前提を並び順で書くためのもの。
@@ -1800,6 +1800,191 @@ func TestMealPlanService_ApplyPlan(t *testing.T) {
 		svc, _ := setup(t)
 		if _, err := svc.ApplyPlan(ctx, nil); !errors.Is(err, mealplan.ErrEmptyPlan) {
 			t.Errorf("want ErrEmptyPlan, got %v", err)
+		}
+	})
+}
+
+func TestMealPlanService_SaveTemplate(t *testing.T) {
+	ctx := context.Background()
+	const week = "2026-11-02"
+
+	t.Run("should save all meals of the week with batch groups when saving a template", func(t *testing.T) {
+		svc, rs := openMealPlanDB(t, filepath.Join(t.TempDir(), "test.db"))
+		a := createRecipeForTemplate(t, rs, "肉じゃが")
+		b := createRecipeForTemplate(t, rs, "トースト")
+		if _, err := svc.ApplyPlan(ctx, []mealplan.PlanItem{
+			{Date: "2026-11-02", Meal: mealplan.MealDinner, RecipeID: a, Group: 0},
+			{Date: "2026-11-03", Meal: mealplan.MealDinner, RecipeID: a, Group: 0},
+			{Date: "2026-11-03", Meal: mealplan.MealBreakfast, RecipeID: b, Group: 1},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		got, err := svc.SaveTemplate(ctx, week, "  煮物の週 ")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Name != "煮物の週" || len(got.Items) != 3 {
+			t.Fatalf("got %#v", got)
+		}
+		// (日, 時間帯, 順) で並ぶ: 月夕 / 火朝 / 火夕。作り置きの 2 行は同じ組。
+		if got.Items[0].GroupNo != got.Items[2].GroupNo || got.Items[1].GroupNo == got.Items[0].GroupNo ||
+			got.Items[1].Meal != mealplan.MealBreakfast {
+			t.Errorf("items: %#v", got.Items)
+		}
+	})
+
+	t.Run("should fail with ErrTemplateEmptyWeek when the week has no entries", func(t *testing.T) {
+		svc, _ := openMealPlanDB(t, filepath.Join(t.TempDir(), "test.db"))
+		if _, err := svc.SaveTemplate(ctx, week, "空"); !errors.Is(err, mealplan.ErrTemplateEmptyWeek) {
+			t.Errorf("want ErrTemplateEmptyWeek, got %v", err)
+		}
+	})
+
+	t.Run("should fail with ErrTemplateNameDuplicate when the name already exists", func(t *testing.T) {
+		svc, rs := openMealPlanDB(t, filepath.Join(t.TempDir(), "test.db"))
+		a := createRecipeForTemplate(t, rs, "肉じゃが")
+		if _, err := svc.AssignRecipe(ctx, "2026-11-02", "dinner", a); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := svc.SaveTemplate(ctx, week, "煮物の週"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := svc.SaveTemplate(ctx, week, "煮物の週"); !errors.Is(err, mealplan.ErrTemplateNameDuplicate) {
+			t.Errorf("want ErrTemplateNameDuplicate, got %v", err)
+		}
+	})
+}
+
+func createRecipeForTemplate(t *testing.T, rs *RecipeService, name string) string {
+	t.Helper()
+	r, err := rs.Create(context.Background(), recipe.Recipe{Name: name, Servings: 1})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	return r.ID
+}
+
+func TestMealPlanService_ApplyTemplate(t *testing.T) {
+	ctx := context.Background()
+	const week, next = "2026-11-02", "2026-11-09"
+
+	// 月〜水の夕食に肉じゃがの作り置き、木の夕食にカレーを置いた週をテンプレートにする。
+	setup := func(t *testing.T) (*MealPlanService, *RecipeService, string, string, string) {
+		t.Helper()
+		svc, rs := openMealPlanDB(t, filepath.Join(t.TempDir(), "test.db"))
+		a := createRecipeForTemplate(t, rs, "肉じゃが")
+		b := createRecipeForTemplate(t, rs, "カレー")
+		if _, err := svc.ApplyPlan(ctx, []mealplan.PlanItem{
+			{Date: "2026-11-02", Meal: mealplan.MealDinner, RecipeID: a, Group: 0},
+			{Date: "2026-11-03", Meal: mealplan.MealDinner, RecipeID: a, Group: 0},
+			{Date: "2026-11-04", Meal: mealplan.MealDinner, RecipeID: a, Group: 0},
+			{Date: "2026-11-05", Meal: mealplan.MealDinner, RecipeID: b, Group: 1},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		tpl, err := svc.SaveTemplate(ctx, week, "煮物の週")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return svc, rs, tpl.ID, a, b
+	}
+	list := func(t *testing.T, svc *MealPlanService) []mealplan.Entry {
+		t.Helper()
+		got, err := svc.ListPeriod(ctx, next, 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+
+	t.Run("should append entries to the end of each cell when applying a template", func(t *testing.T) {
+		svc, rs, id, _, _ := setup(t)
+		soup := createRecipeForTemplate(t, rs, "味噌汁")
+		if _, err := svc.AssignRecipe(ctx, next, "dinner", soup); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := svc.ApplyTemplate(ctx, id, next); err != nil {
+			t.Fatal(err)
+		}
+		got := list(t, svc)
+		if len(got) != 5 || got[0].RecipeName != "味噌汁" || got[0].Position != 0 ||
+			got[1].RecipeName != "肉じゃが" || got[1].Date != next || got[1].Position != 1 {
+			t.Errorf("entries: %#v", got)
+		}
+	})
+
+	t.Run("should keep batch groups when applying a template", func(t *testing.T) {
+		svc, _, id, _, _ := setup(t)
+		res, err := svc.ApplyTemplate(ctx, id, next)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := list(t, svc)
+		if len(res.Result.AddedEntryIDs) != 4 || len(got) != 4 {
+			t.Fatalf("got %#v / %#v", res, got)
+		}
+		if got[0].BatchID != got[1].BatchID || got[1].BatchID != got[2].BatchID || got[2].BatchID == got[3].BatchID ||
+			got[0].BatchMemberCount != 3 {
+			t.Errorf("batches: %#v", got)
+		}
+	})
+
+	t.Run("should skip archived recipes and report the count when applying a template", func(t *testing.T) {
+		svc, rs, id, _, b := setup(t)
+		if err := rs.Delete(ctx, b); err != nil {
+			t.Fatal(err)
+		}
+		res, err := svc.ApplyTemplate(ctx, id, next)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.SkippedArchived != 1 || len(res.Result.AddedEntryIDs) != 3 || len(list(t, svc)) != 3 {
+			t.Errorf("got %#v", res)
+		}
+	})
+
+	t.Run("should fail with ErrTemplateAllArchived when every recipe is archived", func(t *testing.T) {
+		svc, rs, id, a, b := setup(t)
+		for _, r := range []string{a, b} {
+			if err := rs.Delete(ctx, r); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := svc.ApplyTemplate(ctx, id, next); !errors.Is(err, mealplan.ErrTemplateAllArchived) {
+			t.Errorf("want ErrTemplateAllArchived, got %v", err)
+		}
+		if got := list(t, svc); len(got) != 0 {
+			t.Errorf("want no entries, got %#v", got)
+		}
+	})
+
+	t.Run("should restore the previous plan when the apply result is undone", func(t *testing.T) {
+		svc, _, id, _, _ := setup(t)
+		res, err := svc.ApplyTemplate(ctx, id, next)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := svc.UndoSpread(ctx, res.Result); err != nil {
+			t.Fatal(err)
+		}
+		if got := list(t, svc); len(got) != 0 {
+			t.Errorf("want no entries after undo, got %#v", got)
+		}
+	})
+
+	t.Run("should keep applied entries when the template is deleted", func(t *testing.T) {
+		svc, _, id, _, _ := setup(t)
+		if _, err := svc.ApplyTemplate(ctx, id, next); err != nil {
+			t.Fatal(err)
+		}
+		if err := svc.DeleteTemplate(ctx, id); err != nil {
+			t.Fatal(err)
+		}
+		if got := list(t, svc); len(got) != 4 {
+			t.Errorf("want 4 entries kept, got %d", len(got))
+		}
+		if ts, _ := svc.ListTemplates(ctx); len(ts) != 0 {
+			t.Errorf("want no templates, got %#v", ts)
 		}
 	})
 }

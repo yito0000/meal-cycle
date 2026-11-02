@@ -12,6 +12,9 @@ import { errorI18nKey } from "../components/mealplan/error-messages";
 import { MealVisibilityCheckboxes } from "../components/mealplan/meal-visibility-checkboxes";
 import { MEALPLAN_DEFAULTS } from "../components/mealplan/mealplan-config";
 import { PeriodNav, type PeriodWeeks } from "../components/mealplan/period-nav";
+import { SaveTemplateDialog } from "../components/mealplan/save-template-dialog";
+import { TemplateListDialog } from "../components/mealplan/template-list-dialog";
+import { TemplateMenu } from "../components/mealplan/template-menu";
 import { WeekCalendar } from "../components/mealplan/week-calendar";
 import { WeekPlanDialog } from "../components/mealplan/week-plan-dialog";
 import { formatDate, parseDate, weekStartOf } from "../components/mealplan/week-utils";
@@ -80,12 +83,13 @@ export function MealPlanPage() {
 
   const queryClient = useQueryClient();
   const [weekPlanOpen, setWeekPlanOpen] = useState(false);
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
+  const [templateListOpen, setTemplateListOpen] = useState(false);
   const invalidateMealPlan = () => queryClient.invalidateQueries({ queryKey: ["mealplan"] });
   // 取り消しは SpreadEntry と同じく UndoSpread に返り値を渡す (add-mealplan-suggest-week-preset design.md D5)。
-  const onWeekPlanApplied = (result: SpreadResult, count: number) => {
-    setWeekPlanOpen(false);
+  const showAppliedToast = (message: string, result: SpreadResult) => {
     void invalidateMealPlan();
-    toast(t("pages.meal_plan.week_plan.applied", { count }), {
+    toast(message, {
       duration: UNDO_TOAST_MS,
       action: {
         label: t("pages.meal_plan.toast.undo"),
@@ -100,11 +104,31 @@ export function MealPlanPage() {
       },
     });
   };
+  const onWeekPlanApplied = (result: SpreadResult, count: number) => {
+    setWeekPlanOpen(false);
+    showAppliedToast(t("pages.meal_plan.week_plan.applied", { count }), result);
+  };
+  const onTemplateApplied = (result: SpreadResult, count: number, skipped: number) => {
+    setTemplateListOpen(false);
+    showAppliedToast(
+      skipped > 0
+        ? t("pages.meal_plan.template.applied_skipped", { count, skipped })
+        : t("pages.meal_plan.template.applied", { count }),
+      result,
+    );
+  };
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["mealplan", "period", periodStartKey, periodWeeks],
     queryFn: () => MealPlanService.ListPeriod(periodStartKey, periodWeeks),
   });
+  // テンプレートの対象は週の候補と同じく表示中の期間の最初の 1 週間 (add-mealplan-template design.md D3)。
+  const firstWeekEnd = formatDate(
+    new Date(periodStart.getFullYear(), periodStart.getMonth(), periodStart.getDate() + 7),
+  );
+  const weekHasEntries = (data ?? []).some(
+    (e) => e.date >= periodStartKey && e.date < firstWeekEnd,
+  );
 
   return (
     <div className="flex h-full flex-col gap-4 p-6">
@@ -165,12 +189,28 @@ export function MealPlanPage() {
         >
           {t("pages.meal_plan.week_plan.cta")}
         </Button>
+        <TemplateMenu
+          canSave={weekHasEntries}
+          onSave={() => setSaveTemplateOpen(true)}
+          onOpenList={() => setTemplateListOpen(true)}
+        />
       </div>
       <WeekPlanDialog
         open={weekPlanOpen}
         weekStart={periodStartKey}
         onOpenChange={setWeekPlanOpen}
         onApplied={onWeekPlanApplied}
+      />
+      <SaveTemplateDialog
+        open={saveTemplateOpen}
+        weekStart={periodStartKey}
+        onOpenChange={setSaveTemplateOpen}
+      />
+      <TemplateListDialog
+        open={templateListOpen}
+        weekStart={periodStartKey}
+        onOpenChange={setTemplateListOpen}
+        onApplied={onTemplateApplied}
       />
     </div>
   );

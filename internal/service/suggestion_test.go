@@ -47,7 +47,7 @@ func newSuggestionServiceForTest(t *testing.T) suggestionDeps {
 		settings: st,
 		recipe:   NewRecipeService(db, st, nil),
 		fridge:   fr,
-		meal:     NewMealPlanService(sqlite.NewMealPlanRepo(db), st),
+		meal:     NewMealPlanService(sqlite.NewMealPlanRepo(db), sqlite.NewTemplateRepo(db), st),
 	}
 }
 
