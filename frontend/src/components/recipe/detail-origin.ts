@@ -3,7 +3,7 @@ import { RECIPE_SORT_KEYS, type RecipeSortKey } from "./recipe-sort";
 
 // S03 / S04 をどの画面から開いたかと、戻ったときに復元するその画面の状態 (design.md D2)。
 export type DetailOrigin =
-  | { to: "recipes"; q?: string; sort?: RecipeSortKey }
+  | { to: "recipes"; q?: string; sort?: RecipeSortKey; tags?: string[] }
   | { to: "mealplan"; start?: string };
 
 const recipesOriginSchema = z.object({
@@ -13,6 +13,7 @@ const recipesOriginSchema = z.object({
     .enum(RECIPE_SORT_KEYS as [RecipeSortKey, ...RecipeSortKey[]])
     .optional()
     .catch(undefined),
+  tags: z.array(z.string()).optional().catch(undefined),
 });
 
 const mealplanOriginSchema = z.object({
@@ -35,7 +36,7 @@ export function originNavigateOptions(origin: DetailOrigin) {
   if (origin.to === "mealplan") {
     return { to: "/", search: { start: origin.start } } as const;
   }
-  return { to: "/recipes", search: { q: origin.q, sort: origin.sort } } as const;
+  return { to: "/recipes", search: { q: origin.q, sort: origin.sort, tags: origin.tags } } as const;
 }
 
 export function originLabelKey(origin: DetailOrigin): string {

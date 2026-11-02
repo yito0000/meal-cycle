@@ -203,6 +203,10 @@
       "search": {
         "placeholder": "レシピ名で検索"
       },
+      "tag_filter": {
+        "aria_label": "タグで絞り込む",
+        "clear": "タグの選択を解除"
+      },
       "sort": {
         "label": "並び順",
         "updated_desc": "更新日 降順",

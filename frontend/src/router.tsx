@@ -41,6 +41,7 @@ const recipesSearchSchema = z.object({
     .enum(RECIPE_SORT_KEYS as [RecipeSortKey, ...RecipeSortKey[]])
     .optional()
     .catch(undefined),
+  tags: z.array(z.string()).optional().catch(undefined),
 });
 
 const recipesRoute = createRoute({

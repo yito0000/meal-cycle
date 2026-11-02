@@ -7,12 +7,14 @@ import { router } from "@/router";
 import type { ImportFile } from "../../bindings/github.com/yito0000/meal-cycle/internal/domain/recipe/models";
 import { RecipeService } from "../../bindings/github.com/yito0000/meal-cycle/internal/service";
 import { RecipeExportButton } from "../components/recipe/recipe-export-button";
+import { collectTags, filterRecipes } from "../components/recipe/recipe-filter";
 import { RecipeImportButton } from "../components/recipe/recipe-import-button";
 import { RecipeImportDialog } from "../components/recipe/recipe-import-dialog";
 import { RecipeSearchInput } from "../components/recipe/recipe-search-input";
 import { compareRecipes, DEFAULT_RECIPE_SORT } from "../components/recipe/recipe-sort";
 import { RecipeSortSelect } from "../components/recipe/recipe-sort-select";
 import { RecipeTable } from "../components/recipe/recipe-table";
+import { RecipeTagFilter } from "../components/recipe/recipe-tag-filter";
 
 // S02 保存直後のハイライト時間 (ms)。S09 で ConfigService が Wails 経由で
 // defaults.RecipeListHighlightMs を返すようになったら差し替える。
@@ -20,7 +22,7 @@ const HIGHLIGHT_MS = 2000;
 
 export function RecipesPage() {
   const { t } = useTranslation();
-  const { highlight, q, sort } = useSearch({ from: "/recipes" });
+  const { highlight, q, sort, tags } = useSearch({ from: "/recipes" });
   const sortKey = sort ?? DEFAULT_RECIPE_SORT;
   // 入力欄を URL の値で直接制御すると、ルータの更新待ちの間に IME の変換中の文字が崩れうる (revise-recipe-detail-page D3)。
   const [search, setSearch] = useState(q ?? "");
@@ -35,12 +37,18 @@ export function RecipesPage() {
     queryFn: () => RecipeService.List(),
   });
 
+  const allTags = useMemo(() => (data ? collectTags(data) : []), [data]);
+  // 選んでいたタグを持つレシピがすべて消えたら、そのタグは選択から外す (add-recipe-tag-filter design.md D3)。
+  const selectedTags = useMemo(
+    () => (tags ?? []).filter((tag) => !data || allTags.includes(tag)),
+    [tags, data, allTags],
+  );
+
   const filteredSorted = useMemo(() => {
     if (!data) return [];
-    const q = search.trim().toLowerCase();
-    const filtered = q ? data.filter((r) => r.name.toLowerCase().includes(q)) : data;
-    return [...filtered].sort((a, b) => compareRecipes(a, b, sortKey));
-  }, [data, search, sortKey]);
+    const filtered = filterRecipes(data, { query: search, tags: selectedTags });
+    return filtered.sort((a, b) => compareRecipes(a, b, sortKey));
+  }, [data, search, selectedTags, sortKey]);
 
   // ハイライト値は一定時間後に URL search から自動クリアする。q / sort は残す (design.md D3)。
   useEffect(() => {
@@ -93,6 +101,18 @@ export function RecipesPage() {
         />
       </div>
 
+      <RecipeTagFilter
+        tags={allTags}
+        selected={selectedTags}
+        onChange={(next) =>
+          router.navigate({
+            to: "/recipes",
+            search: (prev) => ({ ...prev, tags: next.length === 0 ? undefined : next }),
+            replace: true,
+          })
+        }
+      />
+
       {isLoading && <p className="text-sm text-neutral-500">{t("pages.recipes.loading")}</p>}
       {isError && <p className="text-sm text-red-700">{t("pages.recipes.load_error")}</p>}
       {data && data.length === 0 && (
@@ -109,7 +129,14 @@ export function RecipesPage() {
             router.navigate({
               to: "/recipes/$recipeId",
               params: { recipeId: id },
-              search: { back: { to: "recipes", q, sort } },
+              search: {
+                back: {
+                  to: "recipes",
+                  q,
+                  sort,
+                  tags: selectedTags.length === 0 ? undefined : selectedTags,
+                },
+              },
             })
           }
         />

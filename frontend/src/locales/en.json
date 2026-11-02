@@ -203,6 +203,10 @@
       "search": {
         "placeholder": "Search by recipe name"
       },
+      "tag_filter": {
+        "aria_label": "Filter by tag",
+        "clear": "Clear tag selection"
+      },
       "sort": {
         "label": "Sort",
         "updated_desc": "Updated (newest)",
